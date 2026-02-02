@@ -1,0 +1,41 @@
+[package]
+name = "mises-key"
+edition = "2024"
+version = "0.1.0"
+authors = ["nathanfaucett@gmail.com"]
+description = "Mises Keys"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/aicacia/rs-mises"
+rust-version = "1.93"
+
+[lib]
+name = "mises_key"
+
+[dependencies]
+# utils
+zeroize = { version = "1.8", default-features = false, features = [] }
+# encodings
+bip32 = { version = "0.5", default-features = false, features = [
+  "secp256k1",
+  "alloc",
+] }
+k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
+bip39 = { version = "2.2", default-features = false, features = [] }
+crc32fast = { version = "1.5", default-features = false, features = [] }
+
+# ed25519 + SLIP-0010
+slip10 = { version = "0.4", default-features = false, features = [] }
+ed25519-dalek = { version = "1.0", default-features = false, features = [] }
+
+# optional
+getrandom = { version = "0.3", default-features = false, optional = true, features = [
+] }
+
+
+[dev-dependencies]
+tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
+tempfile = "3"
+
+[features]
+default = []
+std = ["dep:getrandom"]

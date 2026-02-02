@@ -1,0 +1,30 @@
+[package]
+name = "mises-proto"
+edition = "2024"
+version = "0.1.0"
+authors = ["nathanfaucett@gmail.com"]
+description = "Mises Protobuf"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/aicacia/rs-mises"
+rust-version = "1.93"
+
+[lib]
+name = "mises_proto"
+
+[dependencies]
+tonic = { version = "0.14", default-features = false, features = ["codegen"] }
+prost = { version = "0.14", default-features = false, features = [] }
+tonic-prost = { version = "0.14", default-features = false, features = [] }
+
+[build-dependencies]
+tonic-prost-build = { version = "0.14", default-features = false }
+
+[dev-dependencies]
+
+[package.metadata.cargo-machete]
+# Ignore generated code crates
+ignored = ["prost", "tonic-prost"]
+
+[features]
+file-descriptor-set = []
+default = ["file-descriptor-set"]

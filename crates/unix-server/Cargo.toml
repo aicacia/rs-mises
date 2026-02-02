@@ -1,0 +1,79 @@
+[package]
+name = "mises-unix-server"
+edition = "2024"
+version = "0.1.0"
+authors = ["nathanfaucett@gmail.com"]
+description = "Mises Unix Server"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/aicacia/rs-mises"
+rust-version = "1.93"
+default-run = "mises-unix-server"
+
+[[bin]]
+name = "mises-unix-server"
+
+[lib]
+name = "mises_unix_server"
+
+[dependencies]
+mises-core = { path = "../core", default-features = false, features = ["std"] }
+mises-graph = { path = "../graph", default-features = false, features = [
+  "std",
+  "uuid",
+  "in-memory",
+] }
+mises-key-vault = { path = "../key-vault", default-features = false, features = [
+] }
+mises-grpc-server = { path = "../grpc-server", default-features = false, features = [
+  "file-descriptor-set",
+] }
+
+# cli utils
+clap = { version = "4.5", features = [
+  "std",
+  "derive",
+  "help",
+], default-features = false }
+clap_complete = { version = "4.5", default-features = false }
+
+# util
+config = { version = "0.15", features = ["json"], default-features = false }
+
+# logging
+log = { version = "0.4", default-features = false }
+tracing = { version = "0.1", features = ["std"], default-features = false }
+tracing-subscriber = { version = "0.3", features = [
+  "ansi",
+  "fmt",
+  "std",
+  "tracing-log",
+  "env-filter",
+], default-features = false }
+tracing-log = { version = "0.2", default-features = false }
+
+# serialization
+serde = { version = "1.0", features = ["derive"], default-features = false }
+tonic = { version = "0.14", default-features = false, features = [
+  "server",
+  "router",
+] }
+tonic-reflection = { version = "0.14", default-features = false, features = [
+  "server",
+] }
+
+# async
+tokio = { version = "1.49", features = [
+  "macros",
+  "rt",
+  "net",
+  "rt-multi-thread",
+  "fs",
+  "signal",
+], default-features = false }
+tokio-stream = { version = "0.1", features = [], default-features = false }
+tokio-util = { version = "0.7", features = [], default-features = false }
+
+[dev-dependencies]
+
+[features]
+default = []

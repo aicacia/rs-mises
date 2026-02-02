@@ -1,0 +1,58 @@
+[package]
+name = "mises-graph"
+edition = "2024"
+version = "0.1.0"
+authors = ["nathanfaucett@gmail.com"]
+description = "Mises Graph"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/aicacia/rs-mises"
+rust-version = "1.93"
+
+[lib]
+name = "mises_graph"
+
+[dependencies]
+# utils
+uuid = { version = "1", optional = true, default-features = false, features = [
+  "v4",
+  "v7",
+  "serde",
+] }
+hashbrown = { version = "0.16", default-features = false, features = [
+  "default-hasher",
+] }
+
+# core-compatible deps
+chrono = { version = "0.4", default-features = false, features = [
+  "alloc",
+  "serde",
+  "clock",
+] }
+serde = { version = "1", default-features = false, features = [
+  "derive",
+  "alloc",
+] }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }
+async-trait = { version = "0.1", default-features = false }
+spin = { version = "0.10", optional = true, default-features = false, features = [
+  "rwlock",
+] }
+
+[dev-dependencies]
+tokio = { version = "1.49", default-features = false, features = [
+  "macros",
+  "rt",
+] }
+chrono = { version = "0.4", default-features = false, features = [
+  "serde",
+  "std",
+] }
+
+
+[features]
+# default to no_std; enable std opt-in
+default = ["in-memory"]
+uuid = ["dep:uuid"]
+std = ["chrono/std", "serde/std", "serde_json/std", "uuid/std"]
+# in-memory repository feature
+in-memory = ["dep:spin"]

@@ -1,0 +1,61 @@
+[package]
+name = "mises"
+edition = "2024"
+version = "0.1.0"
+authors = ["nathanfaucett@gmail.com"]
+description = "Mises - Mesh Identity and Security Enforcement System"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/aicacia/rs-mises"
+rust-version = "1.93"
+default-run = "mises"
+
+[[bin]]
+name = "mises"
+
+[lib]
+name = "mises"
+
+[workspace]
+members = [
+  "crates/core",
+  "crates/key",
+  "crates/key-vault",
+  "crates/graph",
+  "crates/unix-server",
+  "crates/proto",
+  "crates/grpc-server",
+]
+
+[dependencies]
+
+[features]
+
+[profile.release]
+opt-level = "s"
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[workspace.lints.clippy]
+# Security and correctness
+unwrap_used = "warn"
+expect_used = "warn"
+todo = "warn"
+panic = "warn"
+
+# Performance
+clone_on_copy = "warn"
+inefficient_to_string = "warn"
+large_stack_arrays = "warn"
+
+# Style
+missing_docs = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"

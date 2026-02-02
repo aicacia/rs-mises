@@ -1,0 +1,16 @@
+/.cargo/config.toml
+/.github
+/.vscode
+/helm
+/target
+**/.svelte-kit/
+**/build/
+**/node_modules/
+**/.env*
+**/config*.json
+**/os-*.db*
+**/Dockerfile*
+**/values.yaml
+# Ignore only the root storage/ directory (holds runtime data), not source modules
+storage/
+**/.sea-orm-cli.json

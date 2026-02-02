@@ -1,0 +1,28 @@
+[package]
+name = "mises-key-vault"
+edition = "2024"
+version = "0.1.0"
+authors = ["nathanfaucett@gmail.com"]
+description = "Mises Key Vault"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/aicacia/rs-mises"
+rust-version = "1.93"
+
+[lib]
+name = "mises_key_vault"
+
+[dependencies]
+mises-key = { path = "../key", default-features = false, features = ["std"] }
+mises-core = { path = "../core", default-features = false, features = ["std"] }
+
+# async
+async-trait = { version = "0.1", default-features = false, features = [] }
+tokio = { version = "1", default-features = false, features = ["fs"] }
+
+[dev-dependencies]
+# test utilities
+uuid = { version = "1", default-features = false, features = ["v7", "std"] }
+tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
+
+[features]
+default = []
