@@ -1,12 +1,6 @@
 use core::{error::Error, fmt};
 
-#[cfg(not(feature = "std"))]
 use alloc::{
-  boxed::Box,
-  string::{String, ToString},
-};
-#[cfg(feature = "std")]
-use std::{
   boxed::Box,
   string::{String, ToString},
 };

@@ -1,0 +1,63 @@
+[package]
+name = "mises-tauri"
+version = "0.1.0"
+description = "MISES: Mesh Identity and Security Enforcement System Tauri Application"
+authors = ["nathanfaucett@gmail.com"]
+edition = "2024"
+
+[lib]
+name = "mises_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# tauri
+tauri = { version = "2", default-features = false, features = [
+  "common-controls-v6",
+  "compression",
+  "dynamic-acl",
+  "wry",
+  "x11",
+] }
+
+# async
+tokio = { version = "1" }
+tokio-util = { version = "0", default-features = false, features = [] }
+futures-core = { version = "0.3", default-features = false, features = ["std"] }
+tonic = { version = "0.14", default-features = false, features = [
+  "server",
+  "router",
+] }
+tonic-reflection = { version = "0.14", default-features = false, features = [
+  "server",
+] }
+
+# protobuf helpers
+prost = "0.14"
+
+
+# utils
+log = { version = "*" }
+uuid = { version = "1", default-features = false, features = ["v7", "std"] }
+
+# serialization
+serde = { version = "1", default-features = false, features = ["derive"] }
+serde_json = { version = "1", default-features = false, features = [] }
+tauri-plugin-log = "2"
+
+# workspace
+mises-core = { path = "../../../crates/core", default-features = false, features = [
+  "std",
+] }
+mises-graph = { path = "../../../crates/graph", default-features = false, features = [
+  "std",
+  "uuid",
+  "in-memory",
+] }
+mises-key-vault = { path = "../../../crates/key-vault", default-features = false, features = [
+] }
+mises-grpc-server = { path = "../../../crates/grpc-server", default-features = false, features = [
+  "file-descriptor-set",
+] }

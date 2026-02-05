@@ -7,10 +7,6 @@ description = "Mises - Mesh Identity and Security Enforcement System"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/aicacia/rs-mises"
 rust-version = "1.93"
-default-run = "mises"
-
-[[bin]]
-name = "mises"
 
 [lib]
 name = "mises"
@@ -23,8 +19,11 @@ members = [
   "crates/graph",
   "crates/unix-server",
   "crates/proto",
+  "crates/oidc",
   "crates/grpc-server",
+  "apps/mises/src-tauri",
 ]
+resolver = "2"
 
 [dependencies]
 

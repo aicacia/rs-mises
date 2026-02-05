@@ -7,4 +7,5 @@ Mesh Identity and Security Enforcement System
 
 ```bash
 grpcurl -plaintext -authority dummy unix://${PWD}/mises.sock list
+grpcurl -plaintext -authority dummy unix://${PWD}/mises.sock mises.BootstrapService/Bootstrap
 ```

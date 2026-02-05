@@ -6,11 +6,16 @@ use std::sync::RwLock;
 #[cfg(not(feature = "std"))]
 use spin::RwLock;
 
-use crate::{GraphError, KeyValueStore};
+use crate::{GraphError, KeyValueStore, KeyValueStoreExecutor, KeyValueStoreTransaction};
 
 #[derive(Clone, Debug)]
 pub struct InMemoryKeyValueStore {
   inner: Arc<RwLock<BTreeMap<Vec<u8>, Vec<u8>>>>,
+}
+
+pub struct InMemoryTransaction {
+  snapshot: RwLock<BTreeMap<Vec<u8>, Vec<u8>>>,
+  original: Arc<RwLock<BTreeMap<Vec<u8>, Vec<u8>>>>,
 }
 
 impl From<BTreeMap<Vec<u8>, Vec<u8>>> for InMemoryKeyValueStore {
@@ -34,7 +39,7 @@ impl InMemoryKeyValueStore {
 }
 
 #[async_trait::async_trait]
-impl KeyValueStore for InMemoryKeyValueStore {
+impl KeyValueStoreExecutor for InMemoryKeyValueStore {
   async fn get<K>(&self, key: K) -> Result<Option<Vec<u8>>, GraphError>
   where
     K: AsRef<[u8]> + Send,
@@ -98,5 +103,129 @@ impl KeyValueStore for InMemoryKeyValueStore {
     }
 
     Ok(results)
+  }
+}
+
+#[async_trait::async_trait]
+impl KeyValueStore for InMemoryKeyValueStore {
+  type Transaction = InMemoryTransaction;
+
+  async fn transaction(&self) -> Result<Self::Transaction, GraphError> {
+    #[cfg(feature = "std")]
+    let guard = self.inner.read()?;
+    #[cfg(not(feature = "std"))]
+    let guard = self.inner.read();
+
+    Ok(InMemoryTransaction {
+      snapshot: RwLock::new(guard.clone()),
+      original: self.inner.clone(),
+    })
+  }
+}
+
+#[async_trait::async_trait]
+impl KeyValueStoreExecutor for InMemoryTransaction {
+  async fn get<K>(&self, key: K) -> Result<Option<Vec<u8>>, GraphError>
+  where
+    K: AsRef<[u8]> + Send,
+  {
+    #[cfg(feature = "std")]
+    let guard = self.snapshot.read()?;
+    #[cfg(not(feature = "std"))]
+    let guard = self.snapshot.read();
+
+    Ok(guard.get(key.as_ref()).cloned())
+  }
+
+  async fn put<K>(&self, key: K, value: Vec<u8>) -> Result<(), GraphError>
+  where
+    K: AsRef<[u8]> + Send,
+  {
+    #[cfg(feature = "std")]
+    let mut guard = self.snapshot.write()?;
+    #[cfg(not(feature = "std"))]
+    let mut guard = self.snapshot.write();
+
+    guard.insert(key.as_ref().to_vec(), value);
+    Ok(())
+  }
+
+  async fn delete<K>(&self, key: K) -> Result<(), GraphError>
+  where
+    K: AsRef<[u8]> + Send,
+  {
+    #[cfg(feature = "std")]
+    let mut guard = self.snapshot.write()?;
+    #[cfg(not(feature = "std"))]
+    let mut guard = self.snapshot.write();
+
+    guard.remove(key.as_ref());
+    Ok(())
+  }
+
+  async fn scan<R, F>(
+    &self,
+    range: R,
+    mut predicate: F,
+  ) -> Result<Vec<(Vec<u8>, Vec<u8>)>, GraphError>
+  where
+    R: RangeBounds<Vec<u8>> + Send,
+    F: FnMut(&Vec<u8>, &Vec<u8>) -> Option<bool> + Send,
+  {
+    #[cfg(feature = "std")]
+    let guard = self.snapshot.read()?;
+    #[cfg(not(feature = "std"))]
+    let guard = self.snapshot.read();
+
+    let mut results = Vec::new();
+
+    for (key, value) in guard.range(range) {
+      match predicate(key, value) {
+        Some(true) => results.push((key.clone(), value.clone())),
+        Some(false) => {}
+        None => break,
+      }
+    }
+
+    Ok(results)
+  }
+}
+
+#[async_trait::async_trait]
+impl KeyValueStoreTransaction for InMemoryTransaction {
+  async fn commit(self) -> Result<(), GraphError> {
+    #[cfg(feature = "std")]
+    let mut original = self.original.write()?;
+    #[cfg(not(feature = "std"))]
+    let mut original = self.original.write();
+
+    #[cfg(feature = "std")]
+    let snapshot = self.snapshot.read()?;
+    #[cfg(not(feature = "std"))]
+    let snapshot = self.snapshot.read();
+
+    *original = snapshot.clone();
+    Ok(())
+  }
+
+  async fn rollback(self) -> Result<(), GraphError> {
+    Ok(())
+  }
+}
+
+#[async_trait::async_trait]
+impl KeyValueStore for InMemoryTransaction {
+  type Transaction = Self;
+
+  async fn transaction(&self) -> Result<Self::Transaction, GraphError> {
+    #[cfg(feature = "std")]
+    let guard = self.snapshot.read()?;
+    #[cfg(not(feature = "std"))]
+    let guard = self.snapshot.read();
+
+    Ok(InMemoryTransaction {
+      snapshot: RwLock::new(guard.clone()),
+      original: self.original.clone(),
+    })
   }
 }

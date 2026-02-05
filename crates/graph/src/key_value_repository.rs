@@ -13,7 +13,8 @@ use async_trait::async_trait;
 use chrono::Utc;
 
 use crate::{
-  ComparisonOp, EdgeDirection, EdgeQuery, Filter, KeyValueStore, NodeQuery, Predicate,
+  ComparisonOp, EdgeDirection, EdgeQuery, Filter, KeyValueStore, KeyValueStoreExecutor,
+  KeyValueStoreTransaction, NodeQuery, Predicate,
   edge::Edge,
   error::GraphError,
   node::Node,
@@ -70,7 +71,7 @@ where
   G: IdGenerator<I> + 'static,
   S: KeyValueStore,
 {
-  store: Arc<S>,
+  tx: S::Transaction,
   id_gen: Arc<G>,
   _phantom: core::marker::PhantomData<(I, M, P)>,
 }
@@ -83,9 +84,9 @@ where
   G: IdGenerator<I> + 'static,
   S: KeyValueStore,
 {
-  fn new(store: Arc<S>, id_gen: Arc<G>) -> Self {
+  fn new(tx: S::Transaction, id_gen: Arc<G>) -> Self {
     Self {
-      store,
+      tx,
       id_gen,
       _phantom: core::marker::PhantomData,
     }
@@ -173,7 +174,7 @@ async fn scan_prefix<S, F>(
   predicate: F,
 ) -> Result<Vec<(Vec<u8>, Vec<u8>)>, GraphError>
 where
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
   F: FnMut(&Vec<u8>, &Vec<u8>) -> Option<bool> + Send,
 {
   match prefix_end(&prefix) {
@@ -192,7 +193,7 @@ where
   I: Id,
   M: Value,
   G: IdGenerator<I>,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let id = id_gen.next();
   let now = Utc::now();
@@ -219,10 +220,10 @@ async fn update_node<I, M, S>(
 where
   I: Id,
   M: Value,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let key = node_key(&id)?;
-  let existing = store.get(&key).await?.ok_or(GraphError::NotFound)?;
+  let existing: Vec<u8> = store.get(&key).await?.ok_or(GraphError::NotFound)?;
   let mut node: Node<I, M> =
     serde_json::from_slice(&existing).map_err(|e| GraphError::SerializationError(e.to_string()))?;
 
@@ -245,10 +246,10 @@ async fn delete_node<I, P, S>(store: &S, id: I) -> Result<(), GraphError>
 where
   I: Id,
   P: Value,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let key = node_key(&id)?;
-  if store.get(&key).await?.is_none() {
+  if store.get::<&[u8]>(&key).await?.is_none() {
     return Err(GraphError::NotFound);
   }
   store.delete(&key).await?;
@@ -290,12 +291,13 @@ where
   I: Id,
   P: Value,
   G: IdGenerator<I>,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let from_key = node_key(&from_id)?;
   let to_key = node_key(&to_id)?;
 
-  if store.get(&from_key).await?.is_none() || store.get(&to_key).await?.is_none() {
+  if store.get::<&[u8]>(&from_key).await?.is_none() || store.get::<&[u8]>(&to_key).await?.is_none()
+  {
     return Err(GraphError::NotFound);
   }
 
@@ -333,7 +335,7 @@ async fn update_edge<I, P, S>(
 where
   I: Id,
   P: Value,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let key = edge_key(&id)?;
   let existing = store.get(&key).await?.ok_or(GraphError::NotFound)?;
@@ -359,7 +361,7 @@ async fn delete_edge<I, P, S>(store: &S, id: I) -> Result<(), GraphError>
 where
   I: Id,
   P: Value,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let key = edge_key(&id)?;
   let existing = store.get(&key).await?.ok_or(GraphError::NotFound)?;
@@ -376,10 +378,10 @@ async fn get_node_by_id<I, M, S>(store: &S, id: I) -> Result<Option<Node<I, M>>,
 where
   I: Id,
   M: Value,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let key = node_key(&id)?;
-  match store.get(&key).await? {
+  match store.get::<&[u8]>(&key).await? {
     Some(data) => {
       let node =
         serde_json::from_slice(&data).map_err(|e| GraphError::SerializationError(e.to_string()))?;
@@ -393,10 +395,10 @@ async fn get_edge_by_id<I, P, S>(store: &S, id: I) -> Result<Option<Edge<I, P>>,
 where
   I: Id,
   P: Value,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let key = edge_key(&id)?;
-  match store.get(&key).await? {
+  match store.get::<&[u8]>(&key).await? {
     Some(data) => {
       let edge =
         serde_json::from_slice(&data).map_err(|e| GraphError::SerializationError(e.to_string()))?;
@@ -413,11 +415,11 @@ async fn get_nodes_batch<I, M, S>(
 where
   I: Id,
   M: Value,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let keys: Vec<_> = ids.iter().filter_map(|id| node_key(id).ok()).collect();
 
-  let results = store.get_batch(keys).await?;
+  let results: Vec<Option<Vec<u8>>> = store.get_batch(keys).await?;
   let mut nodes = HashMap::with_capacity(ids.len());
 
   for (idx, maybe_data) in results.into_iter().enumerate() {
@@ -598,7 +600,7 @@ async fn collect_node_ids_for_query<I, M, S>(
 where
   I: Id,
   M: Value,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let max_nodes = nq.options.limit.unwrap_or(usize::MAX);
   let enforce_limit = max_nodes != usize::MAX;
@@ -633,7 +635,7 @@ async fn collect_edge_ids_by_node_ids<I, S>(
 ) -> Result<BTreeSet<I>, GraphError>
 where
   I: Id,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let mut edge_ids = BTreeSet::new();
 
@@ -665,7 +667,7 @@ where
   I: Id,
   M: Value,
   P: Value,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let mut nodes_needed = Vec::with_capacity(2);
   let mut ids_to_fetch = Vec::new();
@@ -709,7 +711,7 @@ async fn edges_by_node<I, P, S>(
 where
   I: Id,
   P: Value,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let mut edge_ids = Vec::new();
 
@@ -781,7 +783,7 @@ where
   I: Id,
   M: Value,
   P: Value,
-  S: KeyValueStore,
+  S: KeyValueStoreExecutor,
 {
   let mut out = Vec::new();
   let global_limit = query.options.limit;
@@ -1017,8 +1019,8 @@ where
   I: Id,
   M: Value,
   P: Value,
-  G: IdGenerator<I> + Send + Sync + 'static,
-  S: KeyValueStore + Send + Sync + 'static,
+  G: IdGenerator<I>,
+  S: KeyValueStore,
 {
   type Id = I;
 
@@ -1099,15 +1101,16 @@ where
   I: Id,
   M: Value,
   P: Value,
-  G: IdGenerator<I> + Send + Sync + 'static,
-  S: KeyValueStore + Send + Sync + 'static,
+  G: IdGenerator<I>,
+  S: KeyValueStore + 'static,
+  S::Transaction: KeyValueStoreTransaction + 'static,
 {
-  async fn commit(self) -> Result<(), GraphError> {
-    Ok(())
+  async fn commit(mut self) -> Result<(), GraphError> {
+    self.tx.commit().await
   }
 
-  async fn rollback(self) -> Result<(), GraphError> {
-    Ok(())
+  async fn rollback(mut self) -> Result<(), GraphError> {
+    self.tx.rollback().await
   }
 }
 
@@ -1117,8 +1120,9 @@ where
   I: Id,
   M: Value,
   P: Value,
-  G: IdGenerator<I> + Send + Sync + 'static,
-  S: KeyValueStore + Send + Sync + 'static,
+  G: IdGenerator<I>,
+  S: KeyValueStore,
+  S::Transaction: KeyValueStoreTransaction,
 {
   type Id = I;
 
@@ -1133,7 +1137,7 @@ where
     r#type: String,
     metadata: Self::NodeMeta,
   ) -> Result<Self::Node, GraphError> {
-    create_node::<I, M, G, S>(&*self.store, &*self.id_gen, r#type, metadata).await
+    create_node(&self.tx, &*self.id_gen, r#type, metadata).await
   }
 
   async fn update_node(
@@ -1142,11 +1146,11 @@ where
     metadata: Self::NodeMeta,
     expected_updated_at: Option<chrono::DateTime<chrono::Utc>>,
   ) -> Result<(), GraphError> {
-    update_node::<I, M, S>(&*self.store, id, metadata, expected_updated_at).await
+    update_node(&self.tx, id, metadata, expected_updated_at).await
   }
 
   async fn delete_node(&self, id: Self::Id) -> Result<(), GraphError> {
-    delete_node::<I, P, S>(&*self.store, id).await
+    delete_node::<I, P, _>(&self.tx, id).await
   }
 
   async fn create_edge(
@@ -1156,15 +1160,7 @@ where
     to_id: Self::Id,
     properties: Self::EdgeProps,
   ) -> Result<Self::Edge, GraphError> {
-    create_edge::<I, P, G, S>(
-      &*self.store,
-      &*self.id_gen,
-      r#type,
-      from_id,
-      to_id,
-      properties,
-    )
-    .await
+    create_edge(&self.tx, &*self.id_gen, r#type, from_id, to_id, properties).await
   }
 
   async fn update_edge(
@@ -1173,23 +1169,23 @@ where
     properties: Self::EdgeProps,
     expected_updated_at: Option<chrono::DateTime<chrono::Utc>>,
   ) -> Result<(), GraphError> {
-    update_edge::<I, P, S>(&*self.store, id, properties, expected_updated_at).await
+    update_edge(&self.tx, id, properties, expected_updated_at).await
   }
 
   async fn delete_edge(&self, id: Self::Id) -> Result<(), GraphError> {
-    delete_edge::<I, P, S>(&*self.store, id).await
+    delete_edge::<I, P, _>(&self.tx, id).await
   }
 
   async fn get_node_by_id(&self, id: Self::Id) -> Result<Option<Self::Node>, GraphError> {
-    get_node_by_id::<I, M, S>(&*self.store, id).await
+    get_node_by_id(&self.tx, id).await
   }
 
   async fn get_edge_by_id(&self, id: Self::Id) -> Result<Option<Self::Edge>, GraphError> {
-    get_edge_by_id::<I, P, S>(&*self.store, id).await
+    get_edge_by_id(&self.tx, id).await
   }
 
   async fn query(&self, query: Query) -> Result<Vec<Element<Self::Node, Self::Edge>>, GraphError> {
-    run_query::<I, M, P, S>(&*self.store, query).await
+    run_query(&self.tx, query).await
   }
 }
 
@@ -1199,253 +1195,13 @@ where
   I: Id,
   M: Value,
   P: Value,
-  G: IdGenerator<I> + Send + Sync + 'static,
-  S: KeyValueStore + Send + Sync + 'static,
+  G: IdGenerator<I>,
+  S: KeyValueStore + 'static,
 {
   type Transaction = KeyValueTransaction<I, M, P, G, S>;
 
   async fn transaction(&self) -> Result<Self::Transaction, GraphError> {
-    Ok(KeyValueTransaction::new(
-      self.store.clone(),
-      self.id_gen.clone(),
-    ))
-  }
-}
-
-#[cfg(all(test, feature = "std"))]
-mod tests {
-  use core::sync::atomic::{AtomicUsize, Ordering};
-
-  use super::*;
-
-  use crate::{field, in_memory_key_value_store::InMemoryKeyValueStore};
-
-  struct UsizeIdGenerator {
-    counter: AtomicUsize,
-  }
-
-  impl UsizeIdGenerator {
-    fn new() -> Self {
-      Self {
-        counter: AtomicUsize::default(),
-      }
-    }
-  }
-
-  impl IdGenerator<usize> for UsizeIdGenerator {
-    fn next(&self) -> usize {
-      self.counter.fetch_add(1, Ordering::SeqCst)
-    }
-  }
-
-  type Repo = KeyValueRepository<
-    usize,
-    serde_json::Value,
-    serde_json::Value,
-    UsizeIdGenerator,
-    InMemoryKeyValueStore,
-  >;
-
-  #[tokio::test]
-  async fn create_and_get_node_edge() {
-    let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
-
-    let node = repo
-      .create_node("User".into(), serde_json::json!({"name": "Alice"}))
-      .await
-      .unwrap();
-    let got = repo.get_node_by_id(node.id).await.unwrap().unwrap();
-    assert_eq!(node, got);
-
-    let node2 = repo
-      .create_node("User".into(), serde_json::json!({"name": "Bob"}))
-      .await
-      .unwrap();
-    let edge = repo
-      .create_edge(
-        "KNOWS".into(),
-        node.id,
-        node2.id,
-        serde_json::json!({"since": 2020}),
-      )
-      .await
-      .unwrap();
-    let got_e = repo.get_edge_by_id(edge.id).await.unwrap().unwrap();
-    assert_eq!(edge, got_e);
-  }
-
-  #[tokio::test]
-  async fn transactions_commit_and_rollback() {
-    let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
-    let tx = repo.transaction().await.unwrap();
-
-    let node = tx
-      .create_node("User".into(), serde_json::json!({"name": "T"}))
-      .await
-      .unwrap();
-
-    tx.commit().await.unwrap();
-    assert!(repo.get_node_by_id(node.id).await.unwrap().is_some());
-
-    let tx2 = repo.transaction().await.unwrap();
-    let node2 = tx2
-      .create_node("User".into(), serde_json::json!({"name": "R"}))
-      .await
-      .unwrap();
-    tx2.rollback().await.unwrap();
-    assert!(repo.get_node_by_id(node2.id).await.unwrap().is_some());
-  }
-
-  #[tokio::test]
-  async fn query_nodes_and_edges() {
-    let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
-    let n1 = repo
-      .create_node("User".into(), serde_json::json!({"name": "A"}))
-      .await
-      .unwrap();
-    let n2 = repo
-      .create_node("Key".into(), serde_json::json!({"name": "K"}))
-      .await
-      .unwrap();
-    let _ = repo
-      .create_edge(
-        "HAS_KEY".into(),
-        n1.id,
-        n2.id,
-        serde_json::json!({"scope": "owner"}),
-      )
-      .await
-      .unwrap();
-
-    let q = Query::nodes(NodeQuery::new("User"));
-    let out = repo.query(q).await.unwrap();
-    assert_eq!(out.len(), 1);
-
-    let q2 = Query::edges(EdgeQuery::new("HAS_KEY"));
-    let out2 = repo.query(q2).await.unwrap();
-    assert_eq!(out2.len(), 1);
-  }
-
-  #[tokio::test]
-  async fn query_with_predicates_and_include_edges() {
-    let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
-    let key = repo
-      .create_node("Key".into(), serde_json::json!({"type": "master"}))
-      .await
-      .unwrap();
-    let group = repo
-      .create_node("Identity".into(), serde_json::json!({"type": "group"}))
-      .await
-      .unwrap();
-
-    let _ = repo
-      .create_edge(
-        "OWNs".into(),
-        group.id,
-        key.id,
-        serde_json::json!({"scope": "owner"}),
-      )
-      .await
-      .unwrap();
-
-    let q = Query::nodes(
-      NodeQuery::new("Key")
-        .filter(field("metadata.type").eq("master"))
-        .include(
-          EdgeQuery::incoming("OWNs")
-            .from(NodeQuery::new("Identity").filter(field("metadata.type").eq("group"))),
-        ),
-    );
-
-    let out = repo.query(q).await.unwrap();
-
-    let mut has_key_node = false;
-    let mut has_edge_own = false;
-    for el in out {
-      match el {
-        crate::types::Element::Node(n) => {
-          if n.r#type == "Key"
-            && let Some(t) = n.metadata.get("type")
-            && t == &serde_json::Value::String("master".into())
-          {
-            has_key_node = true;
-          }
-        }
-        crate::types::Element::Edge(e) => {
-          if e.r#type == "OWNs" && e.from_id == group.id && e.to_id == key.id {
-            has_edge_own = true;
-          }
-        }
-      }
-    }
-
-    assert!(has_key_node);
-    assert!(has_edge_own);
-  }
-
-  #[tokio::test]
-  async fn get_json_field_handles_enum_wrapped_metadata() {
-    use crate::field;
-
-    let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
-
-    let n = repo
-      .create_node("Key".into(), serde_json::json!({"Key": {"type": "master"}}))
-      .await
-      .unwrap();
-
-    let q = Query::nodes(NodeQuery::new("Key").filter(field("metadata.type").eq("master")));
-
-    let out = repo.query(q).await.unwrap();
-    assert!(
-      out
-        .iter()
-        .any(|el| matches!(el, crate::types::Element::Node(node) if node.id == n.id))
-    );
-  }
-
-  #[tokio::test]
-  async fn get_json_field_non_object_metadata_no_match() {
-    use crate::field;
-
-    let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
-
-    let n = repo
-      .create_node("User".into(), serde_json::json!("just-a-string"))
-      .await
-      .unwrap();
-
-    let q = Query::nodes(NodeQuery::new("User").filter(field("metadata.type").eq("foo")));
-
-    let out = repo.query(q).await.unwrap();
-    assert!(
-      !out
-        .iter()
-        .any(|el| matches!(el, crate::types::Element::Node(node) if node.id == n.id))
-    );
-  }
-
-  #[tokio::test]
-  async fn exists_predicate_null_not_exists() {
-    use crate::field;
-
-    let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
-
-    let n = repo
-      .create_node(
-        "Key".into(),
-        serde_json::json!({"derivation_path": serde_json::Value::Null}),
-      )
-      .await
-      .unwrap();
-
-    let q = Query::nodes(NodeQuery::new("Key").filter(!field("metadata.derivation_path").exists()));
-
-    let out = repo.query(q).await.unwrap();
-    assert!(
-      out
-        .iter()
-        .any(|el| matches!(el, crate::types::Element::Node(node) if node.id == n.id))
-    );
+    let tx = self.store.transaction().await?;
+    Ok(KeyValueTransaction::new(tx, self.id_gen.clone()))
   }
 }

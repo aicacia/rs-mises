@@ -2,6 +2,16 @@
 
 These are concise, concrete scenarios that demonstrate common flows. For rules, constraints, and definitions see `docs/spec.md` and `docs/design.md`.
 
+### Request lifecycle (relationship)
+
+**Scenario:** `user:A` requests to add `device:B` to `group:root`.
+
+Steps:
+
+1. Request: `user:A` submits a relationship request `{ relationship_type: MEMBER_OF, subject: device:B, object: group:root }` with `scope=owner` and `ownership=identity`.
+2. Approval: eligible approvers are resolved from current owners of `group:root` and request approvals are collected until quorum is met.
+3. Apply: the approved request creates the `MEMBER_OF` edge and the request transitions to `Applied`.
+
 ### Application file-system resource
 
 **Scenario:** `app:A` requests a `file-system` with `scope=owner+requestor`.

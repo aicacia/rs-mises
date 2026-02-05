@@ -1,5 +1,5 @@
 #[cfg(not(feature = "std"))]
-use alloc::{sync::Arc, vec::Vec};
+use alloc::{sync::Arc, vec, vec::Vec};
 #[cfg(feature = "std")]
 use std::sync::Arc;
 
@@ -163,7 +163,7 @@ impl DerivedKey {
     children.push(child);
 
     Self {
-      master_key: Arc::clone(&self.master_key),
+      master_key: self.master_key.clone(),
       children,
     }
   }

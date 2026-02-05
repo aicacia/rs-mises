@@ -1,6 +1,7 @@
 /.cargo/config.toml
 /.vscode
 /target
+/node_modules
 /.cargo/config.toml
 /.env*
 !/.env.example

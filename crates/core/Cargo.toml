@@ -47,10 +47,7 @@ mises-graph = { path = "../graph", default-features = false, features = [
 
 mises-key = { path = "../key", default-features = false, features = ["std"] }
 
-tokio = { version = "1.49", default-features = false, features = [
-  "macros",
-  "rt",
-] }
+tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
 chrono = { version = "0.4", default-features = false, features = [
   "serde",
   "std",

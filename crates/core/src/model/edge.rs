@@ -19,6 +19,12 @@ pub enum EdgeType {
   RevokedBy,
   HasKey,
   Owns,
+  RequestedFor,
+  ApprovedBy,
+  DeniedBy,
+  AppliesTo,
+  HasApproval,
+  HasDenial,
 }
 
 impl EdgeType {
@@ -28,6 +34,12 @@ impl EdgeType {
       Self::RevokedBy => "REVOKED_BY",
       Self::HasKey => "HAS_KEY",
       Self::Owns => "OWNS",
+      Self::RequestedFor => "REQUESTED_FOR",
+      Self::ApprovedBy => "APPROVED_BY",
+      Self::DeniedBy => "DENIED_BY",
+      Self::AppliesTo => "APPLIES_TO",
+      Self::HasApproval => "HAS_APPROVAL",
+      Self::HasDenial => "HAS_DENIAL",
     }
   }
 }
@@ -53,6 +65,12 @@ impl FromStr for EdgeType {
       "REVOKED_BY" => Ok(EdgeType::RevokedBy),
       "HAS_KEY" => Ok(EdgeType::HasKey),
       "OWNS" => Ok(EdgeType::Owns),
+      "REQUESTED_FOR" => Ok(EdgeType::RequestedFor),
+      "APPROVED_BY" => Ok(EdgeType::ApprovedBy),
+      "DENIED_BY" => Ok(EdgeType::DeniedBy),
+      "APPLIES_TO" => Ok(EdgeType::AppliesTo),
+      "HAS_APPROVAL" => Ok(EdgeType::HasApproval),
+      "HAS_DENIAL" => Ok(EdgeType::HasDenial),
       _ => Err(()),
     }
   }
@@ -76,6 +94,25 @@ pub enum EdgeProps {
     since: Option<DateTime<Utc>>,
     until: Option<DateTime<Utc>>,
   },
+  RequestedFor {
+    at: DateTime<Utc>,
+  },
+  ApprovedBy {
+    at: DateTime<Utc>,
+  },
+  DeniedBy {
+    at: DateTime<Utc>,
+    reason: Option<String>,
+  },
+  AppliesTo {
+    at: DateTime<Utc>,
+  },
+  HasApproval {
+    at: DateTime<Utc>,
+  },
+  HasDenial {
+    at: DateTime<Utc>,
+  },
 }
 
 impl EdgeProps {
@@ -85,6 +122,12 @@ impl EdgeProps {
       EdgeProps::RevokedBy { .. } => EdgeType::RevokedBy,
       EdgeProps::HasKey { .. } => EdgeType::HasKey,
       EdgeProps::Owns { .. } => EdgeType::Owns,
+      EdgeProps::RequestedFor { .. } => EdgeType::RequestedFor,
+      EdgeProps::ApprovedBy { .. } => EdgeType::ApprovedBy,
+      EdgeProps::DeniedBy { .. } => EdgeType::DeniedBy,
+      EdgeProps::AppliesTo { .. } => EdgeType::AppliesTo,
+      EdgeProps::HasApproval { .. } => EdgeType::HasApproval,
+      EdgeProps::HasDenial { .. } => EdgeType::HasDenial,
     }
   }
 }

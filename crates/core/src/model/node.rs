@@ -8,7 +8,10 @@ use alloc::string::{String, ToString};
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-  identity::IdentityMeta, keys::KeyMeta, policy::PolicyMeta, requests::Request,
+  identity::IdentityMeta,
+  keys::KeyMeta,
+  policy::PolicyMeta,
+  requests::{Approval, Denial, Request},
   resource::ResourceMeta,
 };
 
@@ -19,6 +22,8 @@ pub enum NodeMeta {
   Resource(ResourceMeta),
   Policy(PolicyMeta),
   Request(Request),
+  Approval(Approval),
+  Denial(Denial),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -28,6 +33,8 @@ pub enum NodeType {
   Resource,
   Policy,
   Request,
+  Approval,
+  Denial,
 }
 
 impl NodeType {
@@ -38,6 +45,8 @@ impl NodeType {
       NodeType::Resource => "Resource",
       NodeType::Policy => "Policy",
       NodeType::Request => "Request",
+      NodeType::Approval => "Approval",
+      NodeType::Denial => "Denial",
     }
   }
 }
@@ -64,6 +73,8 @@ impl FromStr for NodeType {
       "Resource" => Ok(NodeType::Resource),
       "Policy" => Ok(NodeType::Policy),
       "Request" => Ok(NodeType::Request),
+      "Approval" => Ok(NodeType::Approval),
+      "Denial" => Ok(NodeType::Denial),
       _ => Err(()),
     }
   }

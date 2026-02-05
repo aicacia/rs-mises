@@ -8,7 +8,7 @@ Short, exact rules for the GitHub agent and contributors.
 
 ## Comment policy
 
-- Allow comments only in `tests`, `examples`, or for tiny, unavoidable clarifications.
+- Allow comments only for tiny, unavoidable clarifications.
 - Prefer refactoring over comments. Do not add comments for style or noise.
 
 ---
@@ -23,7 +23,7 @@ Short, exact rules for the GitHub agent and contributors.
 
 ## no_std policy
 
-- Default to `no_std`; enable `std` as optional features. Rely on `core`.
+- Default to `no_std`; enable `std` only if crate requires it (IO, threading, etc.). Rely on `core`.
 
 Example crate header:
 
@@ -33,7 +33,7 @@ Example crate header:
 extern crate alloc;
 ```
 
-- Prefer `&[u8]`, iterators, and `core` types. Gate heap-dependent APIs behind `alloc`/`std`.
+- Prefer `&[u8]`, iterators, and `core` types.
 - Move OS, file I/O, and threading code into adapter crates that enable `std`.
 
 ---

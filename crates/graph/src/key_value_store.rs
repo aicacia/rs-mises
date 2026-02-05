@@ -4,7 +4,7 @@ use core::ops::RangeBounds;
 use crate::error::GraphError;
 
 #[async_trait::async_trait]
-pub trait KeyValueStore: Send + Sync {
+pub trait KeyValueStoreExecutor: Send + Sync {
   async fn get<K>(&self, key: K) -> Result<Option<Vec<u8>>, GraphError>
   where
     K: AsRef<[u8]> + Send;
@@ -29,4 +29,17 @@ pub trait KeyValueStore: Send + Sync {
     }
     Ok(results)
   }
+}
+
+#[async_trait::async_trait]
+pub trait KeyValueStoreTransaction: KeyValueStoreExecutor + Sized {
+  async fn commit(self) -> Result<(), GraphError>;
+  async fn rollback(self) -> Result<(), GraphError>;
+}
+
+#[async_trait::async_trait]
+pub trait KeyValueStore: KeyValueStoreExecutor {
+  type Transaction: KeyValueStoreTransaction;
+
+  async fn transaction(&self) -> Result<Self::Transaction, GraphError>;
 }

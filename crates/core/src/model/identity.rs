@@ -5,7 +5,7 @@ use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 
 // Convinience enum for node types matching those in IdentityMeta
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum IdentityType {
   Group,
@@ -27,6 +27,14 @@ impl IdentityType {
       Self::Service => "service",
       Self::Application => "application",
     }
+  }
+
+  pub fn can_authenticate(&self) -> bool {
+    !matches!(self, Self::Group | Self::Persona)
+  }
+
+  pub fn can_delegate(&self) -> bool {
+    matches!(self, Self::User | Self::Device | Self::Application)
   }
 }
 
