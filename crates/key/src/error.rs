@@ -11,6 +11,12 @@ pub enum KeyError {
   Bip39(bip39::Error),
   EmptyChild,
   InvalidPrivateKeyLength,
+  /// Seed present but failed to decode (only used for master keys)
+  InvalidSeed,
+  /// Seed missing when required for conversion
+  MissingSeed,
+  /// Invalid combination of seed + derivation path or invalid derived key
+  InvalidKey,
 }
 
 impl fmt::Display for KeyError {
@@ -25,6 +31,12 @@ impl fmt::Display for KeyError {
       KeyError::Bip39(err) => write!(f, "BIP39 error: {}", err),
       KeyError::EmptyChild => write!(f, "Empty child index provided"),
       KeyError::InvalidPrivateKeyLength => write!(f, "Invalid private key length"),
+      KeyError::InvalidSeed => write!(f, "Invalid seed or failed to decode (master key)"),
+      KeyError::MissingSeed => write!(f, "Seed missing"),
+      KeyError::InvalidKey => write!(
+        f,
+        "Invalid key: seed + derivation path failed to construct a key"
+      ),
     }
   }
 }

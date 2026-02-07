@@ -7,4 +7,4 @@ pub mod error;
 pub mod key;
 
 pub use error::KeyError;
-pub use key::{DerivedKey, MasterKey};
+pub use key::Key;

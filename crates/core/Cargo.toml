@@ -57,3 +57,5 @@ chrono = { version = "0.4", default-features = false, features = [
 # default to no_std; enable std opt-in
 default = []
 std = ["mises-graph/std"]
+# enable in-memory graph repository for tests and dev
+in-memory = ["mises-graph/in-memory"]

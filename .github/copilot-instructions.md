@@ -68,6 +68,37 @@ use crate::{
 - **Do not use hard-coded absolute filesystem paths** in source files (for example `/home/...`). Pass paths via configuration, environment variables, or adapters so code is portable and testable.
 - **Place all `use` imports at the top of the file.** Avoid inline fully-qualified paths; import symbols at the top and reference them by short names in code.
 
+## mod.rs convention
+
+- **Use `mod.rs` only for module declarations and re-exports.** Keep `mod.rs` files minimal: they should only declare submodules (for example `pub mod foo;`) and re-export types or functions (for example `pub use foo::Foo;`). Do not place implementation logic, type definitions, or tests directly in `mod.rs`.
+
+Examples:
+
+Good (minimal `mod.rs`):
+
+```rust
+// crates/my_crate/src/foo/mod.rs
+pub mod bar;
+pub use bar::Bar;
+```
+
+Implementation kept in submodule:
+
+```rust
+// crates/my_crate/src/foo/bar.rs
+pub struct Bar { /* ... */ }
+```
+
+Bad (avoid placing implementations in `mod.rs`):
+
+```rust
+// crates/my_crate/src/foo/mod.rs
+pub struct Bar { /* ... */ } // implementation in mod.rs — NO
+pub fn do_work() { /* ... */ } // implementation — NO
+```
+
+- Benefits: keeps the module tree clear, improves readability and reviewability, and helps maintain consistent file organization.
+
 ---
 
 ## CI checks

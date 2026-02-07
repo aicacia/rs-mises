@@ -1,3 +1,5 @@
+#![cfg(feature = "in-memory")]
+
 use mises_core::{
   model::{
     edge::{EdgeProps, EdgeType},

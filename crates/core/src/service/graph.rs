@@ -1,12 +1,13 @@
 use alloc::{
   boxed::Box,
   string::{String, ToString},
+  vec::Vec,
 };
 use async_trait::async_trait;
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use chrono::{DateTime, Utc};
 use mises_graph::{EdgeQuery, Element, Executor, Filter, NodeQuery, Query, Transaction, field};
-use mises_key::MasterKey;
+use mises_key::Key;
 use uuid::Uuid;
 
 use crate::{
@@ -25,7 +26,8 @@ use crate::{
 
 #[async_trait]
 pub trait KeyVault {
-  async fn get_or_create(&self) -> Result<(MasterKey, bool)>;
+  /// Returns (Key, seed_bytes, created)
+  async fn get_or_create(&self) -> Result<(Key, Vec<u8>, bool)>;
 }
 
 #[derive(Clone)]
@@ -122,6 +124,11 @@ where
     Self { repo, key_vault }
   }
 
+  /// Accessor for underlying repository (helpful in tests).
+  pub fn repo(&self) -> &R {
+    &self.repo
+  }
+
   pub async fn bootstrap(&self, options: BootstrapOptions) -> Result<BootstrapResult> {
     // 1. Find group that OWNS master key
     let group_node = {
@@ -139,14 +146,21 @@ where
       let mut group_id = None;
       let mut key_id = None;
       let mut key_public_key = None;
+      let mut key_private_b64: Option<String> = None;
 
       for el in elements {
         match el {
           Element::Node(node) => {
-            if let NodeMeta::Key(KeyMeta { public_key, .. }) = &node.metadata {
+            if let NodeMeta::Key(KeyMeta {
+              public_key,
+              private_key,
+              ..
+            }) = &node.metadata
+            {
               log::debug!("Found existing master key with id {}", node.id);
               key_id = Some(node.id);
               key_public_key = Some(public_key.clone());
+              key_private_b64 = private_key.clone();
             }
           }
           Element::Edge(edge) => {
@@ -158,8 +172,8 @@ where
         }
       }
 
-      match (group_id, key_id, key_public_key) {
-        (Some(gid), Some(kid), Some(pk)) => Some((gid, kid, pk)),
+      match (group_id, key_id, key_public_key, key_private_b64) {
+        (Some(gid), Some(kid), Some(pk), priv_b64) => Some((gid, kid, pk, priv_b64)),
         _ => {
           log::debug!("No existing master group/key found");
           None
@@ -168,12 +182,18 @@ where
     };
 
     let (root_group_id, _master_key, master_key_public_key, master_key_created) = match group_node {
-      Some((group_id, key_id, public_key)) => (group_id, key_id, public_key, false),
+      // (group_id, key_id, public_key, optional_private_key_b64)
+      Some((group_id, key_id, public_key, _priv_b64)) => (group_id, key_id, public_key, false),
       None => {
-        let (master_key, master_key_created) = self.key_vault.get_or_create().await?;
+        // get key plus original seed bytes used to create it
+        let (master_key, seed_bytes, master_key_created): (Key, Vec<u8>, bool) =
+          self.key_vault.get_or_create().await?;
         let (_signing_key, verify_key) = master_key.secp256k1_keypair()?;
         let encoded_point = verify_key.to_encoded_point(false);
         let public_key = BASE64_URL_SAFE.encode(encoded_point.as_bytes());
+
+        // Persist the seed bytes (base64) in the graph so the key can be reconstructed
+        let secret_b64 = BASE64_URL_SAFE.encode(seed_bytes.as_slice());
 
         if master_key_created {
           log::debug!("A new master key was created");
@@ -181,12 +201,13 @@ where
 
         let tx = self.repo.transaction().await?;
 
-        // Create master key
+        // Create master key (persist public key and base64 private key)
         let key_node = tx
           .create_node(
             NodeType::Key.as_str().to_string(),
             NodeMeta::Key(KeyMeta {
               public_key: public_key.clone(),
+              private_key: Some(secret_b64),
               derivation_path: None,
             }),
           )

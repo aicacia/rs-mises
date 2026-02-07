@@ -2,11 +2,11 @@ import { env } from '$env/dynamic/public';
 import { createChannel, FetchTransport } from 'nice-grpc-web';
 import { isTauri } from './isTauri';
 import { once } from './once';
-import { createTransportTransport } from './createTransportTransport';
+import { createTauriTransport } from './createTauriTransport';
 
 function createTransport() {
 	if (isTauri()) {
-		return createTransportTransport();
+		return createTauriTransport();
 	}
 	return FetchTransport();
 }

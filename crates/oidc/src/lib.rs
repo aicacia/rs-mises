@@ -3,6 +3,11 @@
 
 extern crate alloc;
 
-pub mod models;
+pub mod error;
+pub mod model;
+pub mod service;
 
-pub use models::*;
+pub use model::*;
+
+pub use error::OidcError;
+pub use service::{OidcProvider, TokenRequest};

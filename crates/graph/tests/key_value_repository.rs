@@ -1,3 +1,5 @@
+#![cfg(feature = "in-memory")]
+
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 use mises_graph::{
