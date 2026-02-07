@@ -229,3 +229,21 @@ async fn exists_predicate_null_not_exists() {
       .any(|el| matches!(el, Element::Node(node) if node.id == n.id))
   );
 }
+
+#[tokio::test]
+async fn in_memory_get_batch_returns_correct_order() {
+  use mises_graph::KeyValueStoreExecutor;
+
+  let store = InMemoryKeyValueStore::new();
+  // insert a couple of keys
+  store.put(b"one".as_ref(), b"1".to_vec()).await.unwrap();
+  store.put(b"two".as_ref(), b"2".to_vec()).await.unwrap();
+
+  let keys: Vec<&[u8]> = vec![b"one".as_ref(), b"missing".as_ref(), b"two".as_ref()];
+  let results = store.get_batch(keys).await.unwrap();
+
+  assert_eq!(results.len(), 3);
+  assert_eq!(results[0].as_deref(), Some(b"1".as_ref()));
+  assert!(results[1].is_none());
+  assert_eq!(results[2].as_deref(), Some(b"2".as_ref()));
+}

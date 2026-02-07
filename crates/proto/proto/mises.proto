@@ -18,3 +18,252 @@ message BootstrapResponse {
     string owner_user = 4;
     string device = 5;
 }
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+
+// ---- OIDC service and messages ----
+service OidcService {
+    // Authorization (browser-style) - returns a redirect URI if applicable
+    rpc Authorize (AuthorizeRequest) returns (AuthorizeResponse);
+
+    // Token endpoint supporting multiple grant types
+    rpc Token (TokenRequest) returns (TokenResponse);
+
+    // Device Authorization endpoint
+    rpc DeviceAuthorize (DeviceAuthorizeRequest) returns (DeviceAuthorizeResponse);
+
+    // Introspection
+    rpc Introspect (IntrospectRequest) returns (IntrospectResponse);
+
+    // Revocation (returns empty on success)
+    rpc Revoke (RevokeRequest) returns (google.protobuf.Empty);
+
+    // Pushed Authorization Request
+    rpc PushedAuthorize (PushedAuthorizeRequest) returns (PushedAuthorizeResponse);
+
+    // Backchannel (CIBA)
+    rpc BackchannelAuth (BackchannelAuthRequest) returns (BackchannelAuthResponse);
+
+    // Dynamic client registration
+    rpc ClientRegister (ClientRegisterRequest) returns (Client);
+
+    // RP-initiated logout
+    rpc EndSession (EndSessionRequest) returns (EndSessionResponse);
+
+    // UserInfo
+    rpc GetUserInfo (UserInfoRequest) returns (UserInfo);
+
+    // Provider metadata and keys
+    rpc GetOpenIdConfiguration (google.protobuf.Empty) returns (OpenIdConfiguration);
+    rpc GetJwks (google.protobuf.Empty) returns (Jwks);
+}
+
+message AuthorizeRequest {
+    string client_id = 1;
+    string response_type = 2;
+    optional string response_mode = 3;
+    optional string scope = 4;
+    optional string redirect_uri = 5;
+    optional string state = 6;
+    optional string nonce = 7;
+    optional google.protobuf.Struct registration = 8; // JSON object
+    optional string code_challenge = 9;
+    optional string code_challenge_method = 10;
+}
+
+message AuthorizeResponse {
+    optional string redirect_uri = 1;
+}
+
+message TokenRequest {
+    oneof grant {
+        AuthorizationCode authorization_code = 1;
+        RefreshToken refresh_token = 2;
+        ClientCredentials client_credentials = 3;
+        DeviceCode device_code = 4;
+    }
+}
+
+message AuthorizationCode {
+    string code = 1;
+    optional string redirect_uri = 2;
+    optional string client_id = 3;
+    optional string code_verifier = 4;
+}
+
+message RefreshToken {
+    string refresh_token = 1;
+    optional string scope = 2;
+    optional string client_id = 3;
+}
+
+message ClientCredentials {
+    optional string scope = 1;
+    optional string client_id = 2;
+}
+
+message DeviceCode {
+    string device_code = 1;
+    optional string client_id = 2;
+}
+
+message TokenResponse {
+    string access_token = 1;
+    string token_type = 2;
+    optional uint64 expires_in = 3;
+    optional string refresh_token = 4;
+    optional string id_token = 5;
+    optional string scope = 6;
+}
+
+message DeviceAuthorizeRequest {
+    optional string client_id = 1;
+    optional string scope = 2;
+}
+
+message DeviceAuthorizeResponse {
+    string device_code = 1;
+    string user_code = 2;
+    string verification_uri = 3;
+    optional string verification_uri_complete = 4;
+    uint64 expires_in = 5;
+    optional uint64 interval = 6;
+}
+
+message IntrospectRequest {
+    string token = 1;
+    optional string token_type_hint = 2;
+    optional string client_id = 3;
+    optional string client_secret = 4;
+}
+
+message IntrospectResponse {
+    bool active = 1;
+    optional string scope = 2;
+    optional string client_id = 3;
+    optional string username = 4;
+    optional string token_type = 5;
+    optional uint64 exp = 6;
+    optional uint64 iat = 7;
+    optional uint64 nbf = 8;
+    optional string sub = 9;
+    optional string aud = 10;
+    optional string iss = 11;
+    optional string jti = 12;
+}
+
+message RevokeRequest {
+    string token = 1;
+    optional string token_type_hint = 2;
+    optional string client_id = 3;
+    optional string client_secret = 4;
+}
+
+message PushedAuthorizeRequest {
+    string client_id = 1;
+    optional string response_type = 2;
+    optional string response_mode = 3;
+    optional string scope = 4;
+    optional string redirect_uri = 5;
+    optional string state = 6;
+    optional string nonce = 7;
+    optional google.protobuf.Struct registration = 8;
+    optional string code_challenge = 9;
+    optional string code_challenge_method = 10;
+}
+
+message PushedAuthorizeResponse {
+    string request_uri = 1;
+    optional uint64 expires_in = 2;
+}
+
+message BackchannelAuthRequest {
+    optional string client_id = 1;
+    optional string scope = 2;
+    optional string login_hint = 3;
+}
+
+message BackchannelAuthResponse {
+    string auth_req_id = 1;
+    optional uint64 expires_in = 2;
+    optional uint64 interval = 3;
+}
+
+message ClientRegisterRequest {
+    optional string client_id = 1;
+    optional string client_secret = 2;
+    optional string name = 3;
+    repeated string redirect_uris = 4;
+    repeated string grant_types = 5;
+    repeated string response_types = 6;
+    optional string scope = 7;
+    optional string token_endpoint_auth_method = 8;
+}
+
+message Client {
+    string id = 1; // UUID string
+    string client_id = 2;
+    optional string client_secret = 3;
+    optional string name = 4;
+    repeated string redirect_uris = 5;
+    repeated string grant_types = 6;
+    repeated string response_types = 7;
+    optional string scope = 8;
+    optional string token_endpoint_auth_method = 9;
+}
+
+message EndSessionRequest {
+    optional string id_token_hint = 1;
+    optional string post_logout_redirect_uri = 2;
+    optional string state = 3;
+}
+
+message EndSessionResponse {
+    optional string redirect_uri = 1;
+}
+
+message UserInfoRequest {
+    // access token is typically provided in Authorization header; allow explicit token here
+    optional string access_token = 1;
+}
+
+message UserInfo {
+    string sub = 1;
+    optional string name = 2;
+    optional string given_name = 3;
+    optional string family_name = 4;
+    optional string preferred_username = 5;
+    optional string email = 6;
+    optional bool email_verified = 7;
+    optional string picture = 8;
+}
+
+message OpenIdConfiguration {
+    string issuer = 1;
+    optional string jwks_uri = 2;
+    optional string authorization_endpoint = 3;
+    optional string token_endpoint = 4;
+    optional string userinfo_endpoint = 5;
+    optional string end_session_endpoint = 6;
+    repeated string response_types_supported = 7;
+    repeated string subject_types_supported = 8;
+    repeated string id_token_signing_alg_values_supported = 9;
+}
+
+message Jwk {
+    string kid = 1;
+    string kty = 2;
+    string use = 3;
+    string alg = 4;
+    string crv = 5;
+    string x = 6;
+    string y = 7;
+
+    // Allowed key operations (e.g., "sign", "verify")
+    repeated string key_ops = 8;
+} 
+
+message Jwks {
+    repeated Jwk keys = 1;
+}

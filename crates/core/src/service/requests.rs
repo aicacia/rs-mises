@@ -251,7 +251,6 @@ where
       )));
     }
 
-    // check for an existing approval node from this request by this approver
     let check_query = Query::edges(
       EdgeQuery::outgoing(EdgeType::HasApproval.as_str())
         .from(NodeQuery::any().filter(field("id").eq(node.id.to_string()))),
@@ -264,7 +263,6 @@ where
         && let NodeMeta::Approval(approval) = approval_node.metadata
         && approval.approver == approver_id
       {
-        // already approved by this approver
         return Ok(());
       }
     }
@@ -273,7 +271,6 @@ where
 
     let tx = self.repo.transaction().await?;
 
-    // create approval node
     let approval_node = tx
       .create_node(
         NodeType::Approval.as_str().to_string(),
@@ -284,7 +281,6 @@ where
       )
       .await?;
 
-    // relate request -> approval
     tx.create_edge(
       EdgeType::HasApproval.as_str().to_string(),
       node.id,
@@ -293,7 +289,6 @@ where
     )
     .await?;
 
-    // relate approval -> approver
     tx.create_edge(
       EdgeType::ApprovedBy.as_str().to_string(),
       approval_node.id,
@@ -366,7 +361,6 @@ where
 
     let tx = self.repo.transaction().await?;
 
-    // create denial node
     let denial_node = tx
       .create_node(
         NodeType::Denial.as_str().to_string(),
@@ -378,7 +372,6 @@ where
       )
       .await?;
 
-    // relate request -> denial
     tx.create_edge(
       EdgeType::HasDenial.as_str().to_string(),
       node.id,
@@ -387,7 +380,6 @@ where
     )
     .await?;
 
-    // relate denial -> approver
     tx.create_edge(
       EdgeType::DeniedBy.as_str().to_string(),
       denial_node.id,

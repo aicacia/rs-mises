@@ -5,7 +5,7 @@ use std::{
 };
 
 use futures_core::Stream;
-use hyper::client::connect::Connection as HyperConnection;
+use hyper::client::connect::{Connected as HyperClientConnected, Connection as HyperConnection};
 
 use tokio::io::{AsyncRead, AsyncWrite, DuplexStream, ReadBuf, duplex};
 use tokio::sync::mpsc;
@@ -41,9 +41,9 @@ impl Stream for InMemoryIO {
 
   fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
     match Pin::new(&mut self.rx).poll_recv(cx) {
-      std::task::Poll::Ready(Some(conn)) => Poll::Ready(Some(Ok(conn))),
-      std::task::Poll::Ready(None) => Poll::Ready(None),
-      std::task::Poll::Pending => Poll::Pending,
+      Poll::Ready(Some(conn)) => Poll::Ready(Some(Ok(conn))),
+      Poll::Ready(None) => Poll::Ready(None),
+      Poll::Pending => Poll::Pending,
     }
   }
 }
@@ -131,8 +131,8 @@ impl AsyncWrite for ClientConn {
 }
 
 impl HyperConnection for ClientConn {
-  fn connected(&self) -> hyper::client::connect::Connected {
-    hyper::client::connect::Connected::new()
+  fn connected(&self) -> HyperClientConnected {
+    HyperClientConnected::new()
   }
 }
 
@@ -166,7 +166,6 @@ impl InMemoryDialer {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use std::io;
 
   #[test]
   fn dial_queue_full() {

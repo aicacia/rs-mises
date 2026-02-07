@@ -18,7 +18,6 @@ members = [
   "crates/graph",
   "crates/unix-server",
   "crates/proto",
-  "crates/oidc",
   "crates/grpc-server",
   "apps/mises/src-tauri",
 ]

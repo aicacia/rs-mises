@@ -7,7 +7,6 @@ fn keymeta_roundtrip_master() {
   let seed = vec![0u8; 32];
   let key = Key::from(seed.clone());
 
-  // to metadata and back
   let km = KeyMeta::from(key.clone());
   let k2 = Key::try_from(km).expect("convert back to key");
 
@@ -38,7 +37,6 @@ fn keymeta_roundtrip_derived() {
 
 #[test]
 fn invalid_b64_without_path_is_invalid_key() {
-  // invalid base64 with a required path => InvalidKey
   let km = KeyMeta {
     public_key: "pub".to_string(),
     private_key: Some("!!!notbase64!!!".to_string()),
@@ -51,7 +49,6 @@ fn invalid_b64_without_path_is_invalid_key() {
 
 #[test]
 fn invalid_b64_with_path_is_invalid_key() {
-  // key with path but invalid base64 => InvalidKey
   let km = KeyMeta {
     public_key: "pub".to_string(),
     private_key: Some("!!!notbase64!!!".to_string()),
@@ -64,7 +61,6 @@ fn invalid_b64_with_path_is_invalid_key() {
 
 #[test]
 fn valid_seed_but_bad_path_is_invalid_key() {
-  // valid seed but invalid derivation path => InvalidKey
   let seed = vec![0u8; 32];
   let km = KeyMeta {
     public_key: "pub".to_string(),

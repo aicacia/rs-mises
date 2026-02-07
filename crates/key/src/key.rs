@@ -38,7 +38,6 @@ fn default_master_purpose_child() -> ChildNumber {
 impl From<Mnemonic> for Key {
   fn from(mnemonic: Mnemonic) -> Self {
     let seed = mnemonic.to_seed_normalized("").to_vec();
-    // master/root xprv
     let mut xprv = XPrv::new(seed.as_slice()).expect("create xprv");
     // master key always includes the BIP44 purpose child (m/44') and the XPrv
     // exposed by this Key is the node at that path
@@ -55,7 +54,6 @@ impl From<Mnemonic> for Key {
 
 impl From<Vec<u8>> for Key {
   fn from(bytes: Vec<u8>) -> Self {
-    // master/root xprv
     let mut xprv = XPrv::new(bytes.as_slice()).expect("create xprv");
     let purpose = default_master_purpose_child();
     xprv = xprv.derive_child(purpose).expect("derive purpose");

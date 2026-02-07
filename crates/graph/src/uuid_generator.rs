@@ -1,5 +1,6 @@
 use crate::IdGenerator;
 
+#[derive(Clone)]
 pub struct UuidGenerator;
 
 impl UuidGenerator {

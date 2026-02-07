@@ -1,6 +1,7 @@
 use alloc::{
   boxed::Box,
   collections::BTreeSet,
+  format,
   string::{String, ToString},
   sync::Arc,
   vec,
@@ -33,6 +34,7 @@ pub trait IdGenerator<I>: Send + Sync {
   fn next(&self) -> I;
 }
 
+#[derive(Clone)]
 pub struct KeyValueRepository<I, M, P, G, S>
 where
   I: Id,
@@ -463,6 +465,36 @@ fn get_json_field<'a>(v: &'a serde_json::Value, path: &str) -> Option<&'a serde_
   Some(cur)
 }
 
+// Strip a leading `<prefix>.` from predicate fields so filters targeting
+// `metadata.xxx` or `properties.yyy` can be applied directly to the value.
+fn strip_field_prefix_in_predicate(p: &Predicate, prefix: &str) -> Predicate {
+  let mut p2 = p.clone();
+  let pat = format!("{}.", prefix);
+  if p2.field.starts_with(&pat) {
+    p2.field = p2.field[pat.len()..].to_string();
+  }
+  p2
+}
+
+fn strip_field_prefix_in_filter(f: &Filter, prefix: &str) -> Filter {
+  match f {
+    Filter::Predicate(p) => Filter::Predicate(strip_field_prefix_in_predicate(p, prefix)),
+    Filter::And(vec) => Filter::And(
+      vec
+        .iter()
+        .map(|ff| strip_field_prefix_in_filter(ff, prefix))
+        .collect(),
+    ),
+    Filter::Or(vec) => Filter::Or(
+      vec
+        .iter()
+        .map(|ff| strip_field_prefix_in_filter(ff, prefix))
+        .collect(),
+    ),
+    Filter::Not(inner) => Filter::Not(Box::new(strip_field_prefix_in_filter(inner, prefix))),
+  }
+}
+
 #[inline]
 fn compare_json(a: &serde_json::Value, op: &ComparisonOp, b: &serde_json::Value) -> bool {
   match op {
@@ -545,8 +577,11 @@ where
     return false;
   }
   if let Some(filter) = &nq.filter {
-    let json = serde_json::to_value(n).unwrap_or(serde_json::Value::Null);
-    if !eval_filter_on_json(&json, filter) {
+    // Strip `metadata.` prefixes and evaluate on the metadata value to avoid
+    // serializing the full `Node`.
+    let filter = strip_field_prefix_in_filter(filter, "metadata");
+    let json = serde_json::to_value(&n.metadata).unwrap_or(serde_json::Value::Null);
+    if !eval_filter_on_json(&json, &filter) {
       return false;
     }
   }
@@ -566,8 +601,11 @@ where
   }
 
   if let Some(filter) = &eq.filter {
-    let json = serde_json::to_value(e).unwrap_or(serde_json::Value::Null);
-    if !eval_filter_on_json(&json, filter) {
+    // Strip `properties.` prefixes and evaluate on the properties value to avoid
+    // serializing the full `Edge`.
+    let filter = strip_field_prefix_in_filter(filter, "properties");
+    let json = serde_json::to_value(&e.properties).unwrap_or(serde_json::Value::Null);
+    if !eval_filter_on_json(&json, &filter) {
       return false;
     }
   }
@@ -676,7 +714,6 @@ where
     return Ok(nodes_needed);
   }
 
-  // Check which nodes we need and aren't cached
   if !cache.contains_key(&edge.from_id) {
     ids_to_fetch.push(edge.from_id.clone());
   }
@@ -684,13 +721,11 @@ where
     ids_to_fetch.push(edge.to_id.clone());
   }
 
-  // Batch fetch missing nodes
   if !ids_to_fetch.is_empty() {
     let fetched = get_nodes_batch::<I, M, S>(store, &ids_to_fetch).await?;
     cache.extend(fetched);
   }
 
-  // Collect nodes for matching
   if let Some(node) = cache.get(&edge.from_id) {
     nodes_needed.push(node.clone());
   }
@@ -934,8 +969,11 @@ where
           }
 
           if let Some(filter) = &qe.filter {
-            let json = serde_json::to_value(&edge).unwrap_or(serde_json::Value::Null);
-            if !eval_filter_on_json(&json, filter) {
+            // Strip `properties.` prefixes and evaluate on the properties value to
+            // avoid serializing the whole `Edge`.
+            let filter = strip_field_prefix_in_filter(filter, "properties");
+            let json = serde_json::to_value(&edge.properties).unwrap_or(serde_json::Value::Null);
+            if !eval_filter_on_json(&json, &filter) {
               continue;
             }
           }
@@ -967,7 +1005,8 @@ where
         }
 
         if let Some(filter) = &qe.filter {
-          let json = serde_json::to_value(&edge).unwrap_or(serde_json::Value::Null);
+          // Avoid serializing the entire `Edge`; evaluate on `properties` instead.
+          let json = serde_json::to_value(&edge.properties).unwrap_or(serde_json::Value::Null);
           if !eval_filter_on_json(&json, filter) {
             return Some(false);
           }

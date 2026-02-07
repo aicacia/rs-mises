@@ -90,11 +90,9 @@ async fn start_client(
           let body = req.body;
           let sender = req.sender;
 
-          // Handle each request in its own task so slow requests don't block the loop
           async_runtime::spawn(async move {
             log::debug!("request {}: using request body ({} bytes)", request_id, body.len());
 
-            // Dial into the in-memory server and perform an HTTP/2 handshake
             let conn = match dialer.dial() {
               Ok(c) => c,
               Err(e) => {
@@ -106,7 +104,6 @@ async fn start_client(
               }
             };
 
-            // Perform an HTTP/2 handshake to get a request sender
             let (mut sender_client, connection) = match hyper::client::conn::handshake(conn).await {
               Ok(pair) => pair,
               Err(e) => {
@@ -119,14 +116,12 @@ async fn start_client(
             };
             log::debug!("request {}: handshake complete", request_id);
 
-            // Drive the connection in the background so it can process I/O
             async_runtime::spawn(async move {
               if let Err(e) = connection.await {
                 log::error!("in-memory connection error: {}", e);
               }
             });
 
-            // build request
             let uri = format!("{BASE_URI}{}", path);
             let mut builder = Request::builder()
               .method(Method::POST)

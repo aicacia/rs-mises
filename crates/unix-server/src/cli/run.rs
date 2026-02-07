@@ -8,7 +8,10 @@ use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use mises_core::service::graph::GraphService;
 use mises_graph::{InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
-use mises_grpc_server::{BootstrapService, BootstrapServiceServer, proto::FILE_DESCRIPTOR_SET};
+use mises_grpc_server::{
+  BootstrapService, OidcService, bootstrap_service_server::BootstrapServiceServer,
+  oidc_service_server::OidcServiceServer, proto::FILE_DESCRIPTOR_SET,
+};
 
 use tokio::{fs, net::UnixListener};
 use tokio_stream::wrappers::UnixListenerStream;
@@ -120,7 +123,12 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
 
   let server_result = Server::builder()
     .add_service(BootstrapServiceServer::new(BootstrapService::new(
+      graph_service.clone(),
+    )))
+    .add_service(OidcServiceServer::new(OidcService::new(
       graph_service,
+      bind_path.to_string_lossy().to_string(),
+      None,
     )))
     .add_service(reflection_service)
     .serve_with_incoming_shutdown(uds_stream, cancellation_token.cancelled())

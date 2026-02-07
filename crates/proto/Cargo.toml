@@ -15,6 +15,7 @@ name = "mises_proto"
 tonic = { version = "0.14", default-features = false, features = ["codegen"] }
 prost = { version = "0.14", default-features = false, features = [] }
 tonic-prost = { version = "0.14", default-features = false, features = [] }
+prost-types = { version = "0.14", default-features = false, features = [] }
 
 [build-dependencies]
 tonic-prost-build = { version = "0.14", default-features = false }

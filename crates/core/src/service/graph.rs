@@ -120,7 +120,7 @@ pub struct BootstrapResult {
   pub device: Uuid,
 }
 
-#[allow(dead_code)]
+#[derive(Clone)]
 pub struct GraphService<R>
 where
   R: Repository,
@@ -145,7 +145,6 @@ where
     &self,
     options: &BootstrapOptions,
   ) -> Result<(Key, Vec<u8>, bool)> {
-    // Look for a key node with the master derivation path (m/44')
     let query = Query::nodes(
       NodeQuery::new(NodeType::Key.as_str()).filter(field("metadata.derivation_path").eq("m/44'")),
     );
@@ -165,7 +164,6 @@ where
       }
     }
 
-    // No existing key found in graph, generate a new node-only key
     let mut entropy = [0u8; 32];
     if let Some(seed) = options.test_seed.as_ref() {
       if seed.len() != 32 {
@@ -184,7 +182,6 @@ where
   }
 
   pub async fn bootstrap(&self, options: BootstrapOptions) -> Result<BootstrapResult> {
-    // 1. Find group that OWNS master key
     let group_node = {
       let query = Query::nodes(
         NodeQuery::new(NodeType::Key.as_str())
@@ -239,14 +236,12 @@ where
       // (group_id, key_id, public_key, optional_private_key_b64)
       Some((group_id, key_id, public_key, _priv_b64)) => (group_id, key_id, public_key, false),
       None => {
-        // get key plus original seed bytes used to create it
         let (master_key, seed_bytes, master_key_created): (Key, Vec<u8>, bool) =
           self.get_or_create_master_key(&options).await?;
         let (_signing_key, verify_key) = master_key.secp256k1_keypair()?;
         let encoded_point = verify_key.to_encoded_point(false);
         let public_key = BASE64_URL_SAFE.encode(encoded_point.as_bytes());
 
-        // Persist the seed bytes (base64) in the graph so the key can be reconstructed
         let secret_b64 = BASE64_URL_SAFE.encode(seed_bytes.as_slice());
 
         if master_key_created {
@@ -255,7 +250,6 @@ where
 
         let tx = self.repo.transaction().await?;
 
-        // Create master key (persist public key and base64 private key)
         let key_node = tx
           .create_node(
             NodeType::Key.as_str().to_string(),
@@ -302,7 +296,6 @@ where
       }
     };
 
-    // 2. Find user that OWNS the master group
     let owner_user_id = {
       let query = Query::nodes(
         NodeQuery::new(NodeType::Identity.as_str())
@@ -329,7 +322,6 @@ where
       } else {
         let tx = self.repo.transaction().await?;
 
-        // Create admin user
         let user_node = tx
           .create_node(
             NodeType::Identity.as_str().to_string(),
@@ -363,7 +355,6 @@ where
       }
     };
 
-    // 3. Find device that tracks the root group and belongs to the master group
     let device_id = {
       let query = Query::nodes(
         NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
@@ -391,7 +382,6 @@ where
       } else {
         let tx = self.repo.transaction().await?;
 
-        // Create device
         let device_node = tx
           .create_node(
             NodeType::Identity.as_str().to_string(),
@@ -403,7 +393,6 @@ where
           )
           .await?;
 
-        // Set device MEMBER_OF master group
         tx.create_edge(
           EdgeType::MemberOf.as_str().to_string(),
           device_node.id,
@@ -434,5 +423,22 @@ where
       owner_user: owner_user_id,
       device: device_id,
     })
+  }
+
+  /// Return all Key nodes as (id, KeyMeta) pairs.
+  pub async fn list_keys(&self) -> Result<Vec<(uuid::Uuid, KeyMeta)>> {
+    let query = Query::nodes(NodeQuery::new(NodeType::Key.as_str()));
+    let elements = self.repo.query(query).await?;
+
+    let mut out: Vec<(uuid::Uuid, KeyMeta)> = Vec::new();
+
+    for el in elements {
+      if let Element::Node(node) = el
+        && let NodeMeta::Key(km) = node.metadata {
+          out.push((node.id, km));
+        }
+    }
+
+    Ok(out)
   }
 }

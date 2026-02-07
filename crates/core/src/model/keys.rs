@@ -17,17 +17,14 @@ pub struct KeyMeta {
 
 impl From<Key> for KeyMeta {
   fn from(key: Key) -> Self {
-    // create public key
     let (_sk, vk) = key.secp256k1_keypair().expect("create keypair");
     let encoded_point = vk.to_encoded_point(false);
     let public_key = BASE64_URL_SAFE.encode(encoded_point.as_bytes());
 
-    // private seed if present
     let private_key = key
       .seed_bytes()
       .map(|s| BASE64_URL_SAFE.encode(s.as_slice()));
 
-    // optional derivation path from key
     let derivation_path = key.derivation_path();
 
     KeyMeta {

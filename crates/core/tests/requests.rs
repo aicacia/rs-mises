@@ -297,7 +297,6 @@ async fn approval_nodes_and_edges_created() {
 
   service.approve_request(request_id, owner).await.unwrap();
 
-  // find HasApproval edges outgoing from the request
   let query = Query::edges(
     EdgeQuery::outgoing(EdgeType::HasApproval.as_str())
       .from(NodeQuery::any().filter(field("id").eq(request_id.to_string()))),
@@ -323,7 +322,6 @@ async fn approval_nodes_and_edges_created() {
     panic!("expected approval node");
   }
 
-  // ensure approval node links to approver via ApprovedBy edge
   let query = Query::edges(
     EdgeQuery::outgoing(EdgeType::ApprovedBy.as_str())
       .from(NodeQuery::any().filter(field("id").eq(approval_nodes[0].to_string()))),
@@ -394,7 +392,6 @@ async fn denial_nodes_and_edges_created() {
     .await
     .unwrap();
 
-  // find HasDenial edges outgoing from the request
   let query = Query::edges(
     EdgeQuery::outgoing(EdgeType::HasDenial.as_str())
       .from(NodeQuery::any().filter(field("id").eq(request_id.to_string()))),
@@ -421,7 +418,6 @@ async fn denial_nodes_and_edges_created() {
     panic!("expected denial node");
   }
 
-  // ensure denial node links to approver via DeniedBy edge
   let query = Query::edges(
     EdgeQuery::outgoing(EdgeType::DeniedBy.as_str())
       .from(NodeQuery::any().filter(field("id").eq(denial_nodes[0].to_string()))),

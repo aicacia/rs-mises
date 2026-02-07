@@ -6,6 +6,7 @@ use crate::{
   traits::Repository,
 };
 
+#[derive(Clone)]
 pub struct IdentityService<R>
 where
   R: Repository,

@@ -4,7 +4,7 @@ use base64::{Engine, prelude::BASE64_URL_SAFE};
 use mises_core::{
   CoreError, Result,
   model::{keys::KeyMeta, node::NodeMeta, node::NodeType},
-  service::graph::{BootstrapOptions, GraphService, KeyVault},
+  service::graph::{BootstrapOptions, GraphService},
 };
 use mises_graph::{
   Element, Executor, IdGenerator, InMemoryKeyValueStore, KeyValueRepository, NodeQuery, Query,
@@ -43,7 +43,6 @@ async fn bootstrap_persists_base64_private_key() {
     .unwrap();
   let _res = service.bootstrap(opts).await.unwrap();
 
-  // query for Key nodes with the master derivation path (m/44')
   let query = Query::nodes(
     NodeQuery::new(NodeType::Key.as_str()).filter(field("metadata.derivation_path").eq("m/44'")),
   );
@@ -58,7 +57,6 @@ async fn bootstrap_persists_base64_private_key() {
         let b64 = private_key.as_ref().unwrap();
         let bytes = BASE64_URL_SAFE.decode(b64.as_bytes()).unwrap();
 
-        // compare against expected seed bytes (we store seed bytes directly)
         let expected_seed = [0u8; 32].to_vec();
         assert_eq!(bytes, expected_seed);
         found = true;
@@ -73,7 +71,6 @@ async fn bootstrap_persists_base64_private_key() {
 async fn bootstrap_reads_existing_key_node() {
   let repo = make_repo();
 
-  // create a deterministic key and persist its seed bytes (base64) in a Key node
   let seed = [0u8; 32];
   let b64 = BASE64_URL_SAFE.encode(seed.as_slice());
   let expected = Key::from(seed.to_vec()).secp256k1_secret_bytes().unwrap();
@@ -98,7 +95,6 @@ async fn bootstrap_reads_existing_key_node() {
   let res = service.bootstrap(opts).await.unwrap();
   assert!(!res.master_key_created);
 
-  // verify at least one key node has our base64 private key
   let query = Query::nodes(
     NodeQuery::new(NodeType::Key.as_str()).filter(!field("metadata.derivation_path").exists()),
   );

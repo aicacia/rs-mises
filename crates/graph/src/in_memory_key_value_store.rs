@@ -104,6 +104,24 @@ impl KeyValueStoreExecutor for InMemoryKeyValueStore {
 
     Ok(results)
   }
+
+  async fn get_batch<K>(&self, keys: Vec<K>) -> Result<Vec<Option<Vec<u8>>>, GraphError>
+  where
+    K: AsRef<[u8]> + Send,
+  {
+    let mut results = Vec::with_capacity(keys.len());
+
+    #[cfg(feature = "std")]
+    let guard = self.inner.read()?;
+    #[cfg(not(feature = "std"))]
+    let guard = self.inner.read();
+
+    for key in keys {
+      results.push(guard.get(key.as_ref()).cloned());
+    }
+
+    Ok(results)
+  }
 }
 
 #[async_trait::async_trait]
