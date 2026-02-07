@@ -73,8 +73,7 @@ mises-graph = { path = "../../../crates/graph", default-features = false, featur
   "uuid",
   "in-memory",
 ] }
-mises-key-vault = { path = "../../../crates/key-vault", default-features = false, features = [
-] }
+
 mises-grpc-server = { path = "../../../crates/grpc-server", default-features = false, features = [
   "file-descriptor-set",
 ] }

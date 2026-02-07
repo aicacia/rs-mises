@@ -9,7 +9,7 @@ use clap_complete::generate;
 use mises_core::service::graph::GraphService;
 use mises_graph::{InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
 use mises_grpc_server::{BootstrapService, BootstrapServiceServer, proto::FILE_DESCRIPTOR_SET};
-use mises_key_vault::FileKeyVault;
+
 use tokio::{fs, net::UnixListener};
 use tokio_stream::wrappers::UnixListenerStream;
 use tokio_util::sync::CancellationToken;
@@ -110,9 +110,8 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
   let uds_stream = UnixListenerStream::new(uds);
 
   let repo = KeyValueRepository::new(InMemoryKeyValueStore::default(), UuidGenerator::new());
-  let key_vault = FileKeyVault::new(config.master_key_path.clone());
 
-  let graph_service = GraphService::new(repo, key_vault);
+  let graph_service = GraphService::new(repo);
 
   let reflection_service = tonic_reflection::server::Builder::configure()
     .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)

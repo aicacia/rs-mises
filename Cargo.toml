@@ -15,7 +15,6 @@ name = "mises"
 members = [
   "crates/core",
   "crates/key",
-  "crates/key-vault",
   "crates/graph",
   "crates/unix-server",
   "crates/proto",

@@ -23,7 +23,7 @@ fn keymeta_roundtrip_derived() {
   let derived = key.child_from_derivation_path("m/44'/0'").expect("derive");
 
   let km = KeyMeta::from(derived.clone());
-  assert!(km.derivation_path.is_some());
+  assert_eq!(km.derivation_path, "m/44'/0'");
 
   let k2 = Key::try_from(km).expect("convert back to derived key");
 
@@ -37,16 +37,16 @@ fn keymeta_roundtrip_derived() {
 }
 
 #[test]
-fn invalid_b64_without_path_is_invalid_seed() {
-  // master key with invalid base64 => InvalidSeed
+fn invalid_b64_without_path_is_invalid_key() {
+  // invalid base64 with a required path => InvalidKey
   let km = KeyMeta {
     public_key: "pub".to_string(),
     private_key: Some("!!!notbase64!!!".to_string()),
-    derivation_path: None,
+    derivation_path: String::from("m/44'"),
   };
 
   let res = Key::try_from(km);
-  assert!(matches!(res, Err(KeyError::InvalidSeed)));
+  assert!(matches!(res, Err(KeyError::InvalidKey)));
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn invalid_b64_with_path_is_invalid_key() {
   let km = KeyMeta {
     public_key: "pub".to_string(),
     private_key: Some("!!!notbase64!!!".to_string()),
-    derivation_path: Some("m/44'".to_string()),
+    derivation_path: String::from("m/44'"),
   };
 
   let res = Key::try_from(km);
@@ -69,7 +69,7 @@ fn valid_seed_but_bad_path_is_invalid_key() {
   let km = KeyMeta {
     public_key: "pub".to_string(),
     private_key: Some(URL_SAFE_NO_PAD.encode(&seed)),
-    derivation_path: Some("bad_path".to_string()),
+    derivation_path: "bad_path".to_string(),
   };
 
   let res = Key::try_from(km);

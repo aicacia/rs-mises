@@ -11,8 +11,8 @@ pub struct KeyMeta {
   pub public_key: String,
   /// Base64 URL-safe encoded secret/seed bytes (optional).
   pub private_key: Option<String>,
-  // BIP32 derivation path None for master keys. i.e. "m/44'/0'/0'/0/0"
-  pub derivation_path: Option<String>,
+  /// BIP32 derivation path (required). e.g. "m/44'"
+  pub derivation_path: String,
 }
 
 impl From<Key> for KeyMeta {
@@ -48,27 +48,18 @@ impl TryFrom<KeyMeta> for Key {
       let bytes = match BASE64_URL_SAFE.decode(b64.as_bytes()) {
         Ok(b) => b,
         Err(_) => {
-          // If no derivation path, this is a master key — invalid seed
-          if km.derivation_path.is_none() {
-            return Err(mises_key::KeyError::InvalidSeed);
-          } else {
-            // If a derivation path exists, the combination is invalid
-            return Err(mises_key::KeyError::InvalidKey);
-          }
+          // invalid base64 + path => InvalidKey (path is required)
+          return Err(mises_key::KeyError::InvalidKey);
         }
       };
 
       // construct base Key from seed bytes
       let base_key = Key::from(bytes);
 
-      // if derivation path is present, derive the child key using the path
-      if let Some(dp) = km.derivation_path {
-        match base_key.child_from_derivation_path(dp) {
-          Ok(derived) => Ok(derived),
-          Err(_) => Err(mises_key::KeyError::InvalidKey),
-        }
-      } else {
-        Ok(base_key)
+      // derive the key using the required derivation path
+      match base_key.child_from_derivation_path(km.derivation_path) {
+        Ok(derived) => Ok(derived),
+        Err(_) => Err(mises_key::KeyError::InvalidKey),
       }
     } else {
       Err(mises_key::KeyError::MissingSeed)
@@ -136,7 +127,7 @@ mod tests {
     let km = KeyMeta {
       public_key: pub_b64.clone(),
       private_key: None,
-      derivation_path: None,
+      derivation_path: String::from("m/44'"),
     };
 
     let decoded = km.to_bytes().expect("should decode");
@@ -145,11 +136,11 @@ mod tests {
     let coords = km.ec_coords_b64().expect("coords should exist");
     assert_eq!(
       coords.0,
-      base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&[1u8; 32])
+      base64::engine::general_purpose::URL_SAFE_NO_PAD.encode([1u8; 32])
     );
     assert_eq!(
       coords.1,
-      base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&[2u8; 32])
+      base64::engine::general_purpose::URL_SAFE_NO_PAD.encode([2u8; 32])
     );
   }
 }

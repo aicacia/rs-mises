@@ -1,9 +1,9 @@
+use crate::CoreError;
+use alloc::format;
 use alloc::{
-  boxed::Box,
   string::{String, ToString},
   vec::Vec,
 };
-use async_trait::async_trait;
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use chrono::{DateTime, Utc};
 use mises_graph::{EdgeQuery, Element, Executor, Filter, NodeQuery, Query, Transaction, field};
@@ -24,11 +24,16 @@ use crate::{
   },
 };
 
-#[async_trait]
-pub trait KeyVault {
-  /// Returns (Key, seed_bytes, created)
-  async fn get_or_create(&self) -> Result<(Key, Vec<u8>, bool)>;
+#[derive(Debug)]
+struct SimpleError(String);
+
+impl core::fmt::Display for SimpleError {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(f, "{}", self.0)
+  }
 }
+
+impl core::error::Error for SimpleError {}
 
 #[derive(Clone)]
 pub struct BootstrapOptions {
@@ -36,6 +41,7 @@ pub struct BootstrapOptions {
   pub owner_name: Option<String>,
   pub device_name: Option<String>,
   pub now: Option<DateTime<Utc>>,
+  pub test_seed: Option<Vec<u8>>,
 }
 
 impl BootstrapOptions {
@@ -45,6 +51,7 @@ impl BootstrapOptions {
       owner_name: None,
       device_name: None,
       now: None,
+      test_seed: None,
     }
   }
 }
@@ -55,6 +62,7 @@ pub struct BootstrapOptionsBuilder {
   owner_name: Option<String>,
   device_name: Option<String>,
   now: Option<DateTime<Utc>>,
+  test_seed: Option<Vec<u8>>,
 }
 
 impl BootstrapOptionsBuilder {
@@ -64,6 +72,7 @@ impl BootstrapOptionsBuilder {
       owner_name: None,
       device_name: None,
       now: None,
+      test_seed: None,
     }
   }
 
@@ -87,12 +96,18 @@ impl BootstrapOptionsBuilder {
     self
   }
 
+  pub fn test_seed(mut self, seed: Vec<u8>) -> Self {
+    self.test_seed = Some(seed);
+    self
+  }
+
   pub fn build(self) -> Result<BootstrapOptions> {
     Ok(BootstrapOptions {
       root_group_name: self.root_group_name,
       owner_name: self.owner_name,
       device_name: self.device_name,
       now: self.now,
+      test_seed: self.test_seed,
     })
   }
 }
@@ -106,22 +121,19 @@ pub struct BootstrapResult {
 }
 
 #[allow(dead_code)]
-pub struct GraphService<R, V>
+pub struct GraphService<R>
 where
   R: Repository,
-  V: KeyVault,
 {
   repo: R,
-  key_vault: V,
 }
 
-impl<R, V> GraphService<R, V>
+impl<R> GraphService<R>
 where
   R: Repository,
-  V: KeyVault,
 {
-  pub fn new(repo: R, key_vault: V) -> Self {
-    Self { repo, key_vault }
+  pub fn new(repo: R) -> Self {
+    Self { repo }
   }
 
   /// Accessor for underlying repository (helpful in tests).
@@ -129,12 +141,54 @@ where
     &self.repo
   }
 
+  async fn get_or_create_master_key(
+    &self,
+    options: &BootstrapOptions,
+  ) -> Result<(Key, Vec<u8>, bool)> {
+    // Look for a key node with the master derivation path (m/44')
+    let query = Query::nodes(
+      NodeQuery::new(NodeType::Key.as_str()).filter(field("metadata.derivation_path").eq("m/44'")),
+    );
+    let elements = self.repo.query(query).await?;
+
+    for el in elements {
+      if let Element::Node(node) = el
+        && let NodeMeta::Key(KeyMeta {
+          private_key: Some(b64),
+          ..
+        }) = &node.metadata
+      {
+        let bytes = BASE64_URL_SAFE
+          .decode(b64.as_bytes())
+          .map_err(|e| CoreError::other(SimpleError(format!("base64 decode error: {}", e))))?;
+        return Ok((Key::from(bytes.clone()), bytes, false));
+      }
+    }
+
+    // No existing key found in graph, generate a new node-only key
+    let mut entropy = [0u8; 32];
+    if let Some(seed) = options.test_seed.as_ref() {
+      if seed.len() != 32 {
+        return Err(CoreError::other(SimpleError(
+          "test_seed must be 32 bytes".to_string(),
+        )));
+      }
+      entropy.copy_from_slice(&seed[..32]);
+    } else {
+      getrandom::getrandom(&mut entropy)
+        .map_err(|e| CoreError::other(SimpleError(format!("getrandom error: {}", e))))?;
+    }
+    let key = Key::from_entropy(&entropy).map_err(CoreError::from)?;
+
+    Ok((key, entropy.to_vec(), true))
+  }
+
   pub async fn bootstrap(&self, options: BootstrapOptions) -> Result<BootstrapResult> {
     // 1. Find group that OWNS master key
     let group_node = {
       let query = Query::nodes(
         NodeQuery::new(NodeType::Key.as_str())
-          .filter(!field("metadata.derivation_path").exists())
+          .filter(field("metadata.derivation_path").eq("m/44'"))
           .include(
             EdgeQuery::incoming(EdgeType::Owns.as_str()).from(
               NodeQuery::new(NodeType::Identity.as_str())
@@ -187,7 +241,7 @@ where
       None => {
         // get key plus original seed bytes used to create it
         let (master_key, seed_bytes, master_key_created): (Key, Vec<u8>, bool) =
-          self.key_vault.get_or_create().await?;
+          self.get_or_create_master_key(&options).await?;
         let (_signing_key, verify_key) = master_key.secp256k1_keypair()?;
         let encoded_point = verify_key.to_encoded_point(false);
         let public_key = BASE64_URL_SAFE.encode(encoded_point.as_bytes());
@@ -208,7 +262,7 @@ where
             NodeMeta::Key(KeyMeta {
               public_key: public_key.clone(),
               private_key: Some(secret_b64),
-              derivation_path: None,
+              derivation_path: master_key.derivation_path(),
             }),
           )
           .await?;

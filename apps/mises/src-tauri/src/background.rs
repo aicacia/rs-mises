@@ -4,7 +4,6 @@ use mises_core::service::graph::GraphService;
 use mises_graph::{InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
 
 use mises_grpc_server::{BootstrapService, BootstrapServiceServer, proto::FILE_DESCRIPTOR_SET};
-use mises_key_vault::FileKeyVault;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use hyper::{
@@ -384,9 +383,8 @@ async fn start_client(
 
 async fn start_server(io: InMemoryIO, cancellation_token: CancellationToken) -> io::Result<()> {
   let repo = KeyValueRepository::new(InMemoryKeyValueStore::default(), UuidGenerator::new());
-  let key_vault = FileKeyVault::new("./master.key".into());
 
-  let graph_service = GraphService::new(repo, key_vault);
+  let graph_service = GraphService::new(repo);
 
   let reflection_service = tonic_reflection::server::Builder::configure()
     .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)

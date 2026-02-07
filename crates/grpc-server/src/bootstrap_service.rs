@@ -1,32 +1,29 @@
 use mises_core::{
-  service::graph::{BootstrapOptions, GraphService, KeyVault},
+  service::graph::{BootstrapOptions, GraphService},
   traits::Repository,
 };
 use tonic::{Request, Response, Status};
 
-pub struct BootstrapService<R, V>
+pub struct BootstrapService<R>
 where
   R: Repository,
-  V: KeyVault,
 {
-  graph_service: GraphService<R, V>,
+  graph_service: GraphService<R>,
 }
 
-impl<R, V> BootstrapService<R, V>
+impl<R> BootstrapService<R>
 where
   R: Repository,
-  V: KeyVault,
 {
-  pub fn new(graph_service: GraphService<R, V>) -> Self {
+  pub fn new(graph_service: GraphService<R>) -> Self {
     Self { graph_service }
   }
 }
 
 #[tonic::async_trait]
-impl<R, V> mises_proto::bootstrap_service_server::BootstrapService for BootstrapService<R, V>
+impl<R> mises_proto::bootstrap_service_server::BootstrapService for BootstrapService<R>
 where
   R: Repository + Send + Sync + 'static,
-  V: KeyVault + Send + Sync + 'static,
 {
   async fn bootstrap(
     &self,
@@ -39,6 +36,7 @@ where
         owner_name: Some(request.get_ref().owner_name.clone()),
         device_name: Some(request.get_ref().device_name.clone()),
         now: Some(chrono::Utc::now()),
+        test_seed: None,
       })
       .await
       .map_err(|e| Status::internal(e.to_string()))?;

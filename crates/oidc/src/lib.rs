@@ -10,4 +10,4 @@ pub mod service;
 pub use model::*;
 
 pub use error::OidcError;
-pub use service::{OidcProvider, TokenRequest};
+pub use service::OidcProvider;

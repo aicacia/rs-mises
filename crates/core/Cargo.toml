@@ -34,6 +34,7 @@ serde = { version = "1", default-features = false, features = [
 ] }
 serde_json = { version = "1", default-features = false, features = ["alloc"] }
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
+getrandom = { version = "0.2", default-features = false }
 
 # async
 async-trait = { version = "0.1", default-features = false, features = [] }

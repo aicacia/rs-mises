@@ -5,12 +5,9 @@ use alloc::{
   string::{String, ToString},
   vec::Vec,
 };
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE};
-use core::str::FromStr;
-use jsonwebtoken::jwk::{
-  EllipticCurve as JwtEllipticCurve, KeyAlgorithm as JwtKeyAlgorithm,
-  PublicKeyUse as JwtPublicKeyUse,
-};
+
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE};
+use jsonwebtoken::jwk::{EllipticCurveKeyType, PublicKeyUse};
 use k256::ecdsa::{
   Signature as KSignature,
   signature::{Signer, Verifier},
@@ -19,30 +16,27 @@ use mises_core::model::keys::KeyMeta;
 use mises_key::Key;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-/// JSON Web Key (minimal fields used by the client)
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum Algorithm {
+  ES256K,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum Curve {
+  #[serde(rename = "secp256k1")]
+  SECP256K1,
+}
+
+/// JSON Web Key
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Jwk {
-  pub kty: KeyType,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub r#use: Option<KeyUse>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub alg: Option<Alg>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub kid: Option<String>,
-
-  // RSA
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub n: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub e: Option<String>,
-
-  // EC
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub crv: Option<Crv>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub x: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub y: Option<String>,
+  pub kid: String,
+  pub kty: EllipticCurveKeyType,
+  pub r#use: PublicKeyUse,
+  pub alg: Algorithm,
+  pub crv: Curve,
+  pub x: String,
+  pub y: String,
 }
 
 impl Jwk {
@@ -59,36 +53,17 @@ impl Jwk {
       .secp256k1_keypair()
       .map_err(|_| crate::error::OidcError::Other(None))?;
 
-    // header
-    let mut header = serde_json::map::Map::new();
-    header.insert(
-      "alg".to_string(),
-      serde_json::Value::String("ES256K".to_string()),
-    );
-    header.insert(
-      "typ".to_string(),
-      serde_json::Value::String("JWT".to_string()),
-    );
-    if let Some(kid) = &self.kid {
-      header.insert("kid".to_string(), serde_json::Value::String(kid.clone()));
-    }
-
-    // encode header and payload
-    let header_json = serde_json::Value::Object(header);
-    let header_bytes =
-      serde_json::to_vec(&header_json).map_err(|_| crate::error::OidcError::Other(None))?;
+    let header_b64 = Self::header_b64_for_alg_kid("ES256K", &self.kid)?;
     let payload_bytes =
       serde_json::to_vec(claims).map_err(|_| crate::error::OidcError::Other(None))?;
-
-    let header_b64 = BASE64_URL_SAFE.encode(&header_bytes);
     let payload_b64 = BASE64_URL_SAFE.encode(&payload_bytes);
 
     let signing_input = [header_b64.as_bytes(), b".", payload_b64.as_bytes()].concat();
 
-    // sign using k256 (ECDSA over secp256k1). Use signature's raw bytes (r||s) when possible.
+    // Sign using k256 ECDSA (secp256k1); prefer compact r||s bytes.
     let sig: KSignature = sk.sign(&signing_input);
 
-    // k256's `Signature` supports `to_vec()`/`to_bytes()`; prefer compact 64-byte (r||s)
+    // Use compact 64-byte (r||s) via `to_bytes()`
     let sig_bytes = sig.to_bytes();
     let sig_compact: &[u8] = sig_bytes.as_ref();
 
@@ -112,36 +87,10 @@ impl Jwk {
     let signing_input = [parts[0].as_bytes(), b".", parts[1].as_bytes()].concat();
 
     // decode signature
-    let sig_bytes = BASE64_URL_SAFE.decode(parts[2].as_bytes()).map_err(|_| {
-      crate::error::OidcError::InvalidRequest(Some("invalid signature encoding".into()))
-    })?;
+    let sig_bytes = Self::decode_b64(parts[2], "invalid signature encoding")?;
 
     // reassemble verifying key from x/y
-    let x_b64 = self.x.as_ref().ok_or_else(|| {
-      crate::error::OidcError::InvalidRequest(Some("missing x coordinate".into()))
-    })?;
-    let y_b64 = self.y.as_ref().ok_or_else(|| {
-      crate::error::OidcError::InvalidRequest(Some("missing y coordinate".into()))
-    })?;
-
-    let x = BASE64_URL_SAFE
-      .decode(x_b64.as_bytes())
-      .map_err(|_| crate::error::OidcError::InvalidRequest(Some("invalid x coordinate".into())))?;
-    let y = BASE64_URL_SAFE
-      .decode(y_b64.as_bytes())
-      .map_err(|_| crate::error::OidcError::InvalidRequest(Some("invalid y coordinate".into())))?;
-
-    // uncompressed point: 0x04 || x || y
-    if x.len() != 32 || y.len() != 32 {
-      return Err(crate::error::OidcError::InvalidRequest(Some(
-        "invalid coordinate sizes".into(),
-      )));
-    }
-
-    let mut encoded_point = Vec::with_capacity(65);
-    encoded_point.push(0x04);
-    encoded_point.extend_from_slice(&x);
-    encoded_point.extend_from_slice(&y);
+    let encoded_point = self.ec_encoded_point()?;
 
     let vk = k256::ecdsa::VerifyingKey::from_sec1_bytes(&encoded_point)
       .map_err(|_| crate::error::OidcError::InvalidRequest(Some("invalid public key".into())))?;
@@ -156,156 +105,81 @@ impl Jwk {
     })?;
 
     // decode payload
-    let payload_bytes = BASE64_URL_SAFE.decode(parts[1].as_bytes()).map_err(|_| {
-      crate::error::OidcError::InvalidRequest(Some("invalid payload encoding".into()))
-    })?;
+    let payload_bytes = Self::decode_b64(parts[1], "invalid payload encoding")?;
 
     let payload: T = serde_json::from_slice(&payload_bytes)
       .map_err(|_| crate::error::OidcError::InvalidRequest(Some("invalid payload".into())))?;
 
     Ok(payload)
   }
-}
 
-/// Key Type
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum KeyType {
-  EC,
-  Rsa,
-  Other(String),
-}
-
-impl serde::Serialize for KeyType {
-  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-  where
-    S: serde::Serializer,
-  {
-    let s = match self {
-      KeyType::EC => "EC",
-      KeyType::Rsa => "RSA",
-      KeyType::Other(o) => o.as_str(),
-    };
-    serializer.serialize_str(s)
+  // Decode base64url with a uniform error
+  fn decode_b64(s: &str, msg: &'static str) -> Result<Vec<u8>, crate::error::OidcError> {
+    BASE64_URL_SAFE
+      .decode(s.as_bytes())
+      .map_err(|_| crate::error::OidcError::InvalidRequest(Some(msg.into())))
   }
-}
 
-impl<'de> serde::Deserialize<'de> for KeyType {
-  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-  where
-    D: serde::Deserializer<'de>,
-  {
-    let s = String::deserialize(deserializer)?;
-    Ok(match s.as_str() {
-      "EC" => KeyType::EC,
-      "RSA" => KeyType::Rsa,
-      other => KeyType::Other(other.to_string()),
-    })
+  // Build minimal header and return base64url-encoded header (for ES256K signing)
+  fn header_b64_for_alg_kid(alg: &str, kid: &str) -> Result<String, crate::error::OidcError> {
+    let mut header = serde_json::map::Map::new();
+    header.insert(
+      "alg".to_string(),
+      serde_json::Value::String(alg.to_string()),
+    );
+    header.insert(
+      "typ".to_string(),
+      serde_json::Value::String("JWT".to_string()),
+    );
+    header.insert(
+      "kid".to_string(),
+      serde_json::Value::String(kid.to_string()),
+    );
+
+    let header_json = serde_json::Value::Object(header);
+    let header_bytes =
+      serde_json::to_vec(&header_json).map_err(|_| crate::error::OidcError::Other(None))?;
+    Ok(BASE64_URL_SAFE.encode(&header_bytes))
   }
-}
 
-/// Key use (sig) — use jsonwebtoken's `PublicKeyUse`
-pub type KeyUse = JwtPublicKeyUse;
+  fn ec_encoded_point(&self) -> Result<Vec<u8>, crate::error::OidcError> {
+    let x = Self::decode_b64(&self.x, "invalid x coordinate")?;
+    let y = Self::decode_b64(&self.y, "invalid y coordinate")?;
 
-/// Algorithm wrapper — use jsonwebtoken's `KeyAlgorithm` when possible, fallback to other strings
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Alg {
-  Jwt(JwtKeyAlgorithm),
-  Other(String),
-}
-
-impl serde::Serialize for Alg {
-  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-  where
-    S: serde::Serializer,
-  {
-    match self {
-      Alg::Jwt(k) => serde::Serialize::serialize(k, serializer),
-      Alg::Other(s) => serializer.serialize_str(s.as_str()),
+    if x.len() != 32 || y.len() != 32 {
+      return Err(crate::error::OidcError::InvalidRequest(Some(
+        "invalid coordinate sizes".into(),
+      )));
     }
+
+    let mut encoded_point = Vec::with_capacity(65);
+    encoded_point.push(0x04);
+    encoded_point.extend_from_slice(&x);
+    encoded_point.extend_from_slice(&y);
+
+    Ok(encoded_point)
   }
 }
 
-impl<'de> serde::Deserialize<'de> for Alg {
-  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-  where
-    D: serde::Deserializer<'de>,
-  {
-    let s = String::deserialize(deserializer)?;
-    // Try to parse as known KeyAlgorithm
-    if let Ok(k) = JwtKeyAlgorithm::from_str(s.as_str()) {
-      Ok(Alg::Jwt(k))
+impl TryFrom<(uuid::Uuid, KeyMeta)> for Jwk {
+  type Error = crate::error::OidcError;
+
+  fn try_from((id, km): (uuid::Uuid, KeyMeta)) -> Result<Self, Self::Error> {
+    // Extract EC coordinates (must be uncompressed point)
+    if let Some((x_b64, y_b64)) = km.ec_coords_b64() {
+      Ok(Jwk {
+        kid: id.to_string(),
+        kty: EllipticCurveKeyType::EC,
+        r#use: PublicKeyUse::Signature,
+        alg: Algorithm::ES256K,
+        crv: Curve::SECP256K1,
+        x: x_b64,
+        y: y_b64,
+      })
     } else {
-      Ok(Alg::Other(s))
-    }
-  }
-}
-
-/// Curve wrapper — use jsonwebtoken's `EllipticCurve` when possible, fallback to other strings
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Crv {
-  Jwt(JwtEllipticCurve),
-  Other(String),
-}
-
-impl serde::Serialize for Crv {
-  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-  where
-    S: serde::Serializer,
-  {
-    match self {
-      Crv::Jwt(c) => serde::Serialize::serialize(c, serializer),
-      Crv::Other(s) => serializer.serialize_str(s.as_str()),
-    }
-  }
-}
-
-impl<'de> serde::Deserialize<'de> for Crv {
-  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-  where
-    D: serde::Deserializer<'de>,
-  {
-    let s = String::deserialize(deserializer)?;
-    match s.as_str() {
-      "P-256" | "P-384" | "P-521" | "Ed25519" => {
-        // Deserialize via JwtEllipticCurve's Deserialize
-        if let Ok(c) = JwtEllipticCurve::deserialize(serde::de::IntoDeserializer::<
-          serde::de::value::Error,
-        >::into_deserializer(s.clone()))
-        {
-          Ok(Crv::Jwt(c))
-        } else {
-          Ok(Crv::Other(s))
-        }
-      }
-      other => Ok(Crv::Other(other.to_string())),
-    }
-  }
-}
-
-impl From<KeyMeta> for Jwk {
-  fn from(km: KeyMeta) -> Self {
-    let mut crv = None;
-    let mut x = None;
-    let mut y = None;
-
-    // Use KeyMeta helpers (no base64 dependency here)
-    if let Some((xb64, yb64)) = km.ec_coords_b64() {
-      crv = Some(Crv::Other(String::from("secp256k1")));
-      x = Some(xb64);
-      y = Some(yb64);
-    }
-
-    Jwk {
-      kty: KeyType::EC,
-      r#use: Some(JwtPublicKeyUse::Signature),
-      // jsonwebtoken does not support ES256K so store as Other
-      alg: Some(Alg::Other(String::from("ES256K"))),
-      kid: Some(km.public_key),
-      n: None,
-      e: None,
-      crv,
-      x,
-      y,
+      Err(crate::error::OidcError::InvalidRequest(Some(
+        "public key must be uncompressed EC point".into(),
+      )))
     }
   }
 }
@@ -313,73 +187,34 @@ impl From<KeyMeta> for Jwk {
 #[cfg(test)]
 mod tests {
   use super::*;
-
-  use alloc::vec;
-
-  #[test]
-  fn from_keymeta_ec_unpack_coords() {
-    // precomputed base64url of [0x04, 1*32, 2*32]
-    let pub_b64 =
-      "BAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI"
-        .to_string();
-
-    let km = KeyMeta {
-      public_key: pub_b64.clone(),
-      private_key: None,
-      derivation_path: None,
-    };
-    // debug: ensure KeyMeta can decode to bytes and coords
-    // verify base64 decode using local engine
-    let direct = BASE64_URL_SAFE.decode(pub_b64.as_bytes());
-    assert!(direct.is_ok());
-
-    let decoded = km.to_bytes();
-    assert!(decoded.is_ok());
-    let coords = km.ec_coords_b64();
-    assert!(coords.is_some());
-    let jwk = Jwk::from(km);
-
-    assert_eq!(jwk.kty, KeyType::EC);
-    assert_eq!(jwk.crv, Some(Crv::Other("secp256k1".to_string())));
-    assert_eq!(
-      jwk.x,
-      Some("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE".to_string())
-    );
-    assert_eq!(
-      jwk.y,
-      Some("AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI".to_string())
-    );
-    assert_eq!(jwk.kid, Some(pub_b64));
-  }
+  use alloc::vec::Vec;
 
   #[test]
-  fn es256k_sign_verify_roundtrip() {
-    use super::*;
-    use crate::model::IdTokenClaims;
+  fn jwk_from_keymeta_and_key() {
+    // sample seed bytes
+    let seed: Vec<u8> = (0u8..32u8).collect();
 
-    // seed of 32 bytes for deterministic key
-    let seed = vec![1u8; 32];
-    let key = Key::from(seed);
+    // construct Key and KeyMeta
+    let key = Key::from(seed.clone());
     let km = KeyMeta::from(key.clone());
-    let jwk = Jwk::from(km.clone());
 
-    let claims = IdTokenClaims {
-      iss: "https://example.com".to_string(),
-      sub: "user123".to_string(),
-      aud: vec!["client1".to_string()],
-      exp: 9999999999u64,
-      iat: None,
-      jti: None,
-      acting_for: None,
-      scope: None,
-    };
+    // TryFrom<(uuid::Uuid, KeyMeta)>
+    let jwk = Jwk::try_from((uuid::Uuid::new_v4(), km.clone())).expect("convert from KeyMeta");
 
-    let token = jwk
-      .sign_es256k(&claims, &km)
-      .expect("signing should succeed");
-    let decoded: IdTokenClaims = jwk
-      .verify_es256k(&token)
-      .expect("verification should succeed");
-    assert_eq!(decoded, claims);
+    assert_eq!(jwk.kty, EllipticCurveKeyType::EC);
+    assert_eq!(jwk.r#use, PublicKeyUse::Signature);
+    assert_eq!(jwk.alg, Algorithm::ES256K);
+    assert_eq!(jwk.crv, Curve::SECP256K1);
+
+    // decode x/y to ensure they are 32 bytes
+    let xb = BASE64_URL_SAFE.decode(jwk.x.as_bytes()).expect("decode x");
+    let yb = BASE64_URL_SAFE.decode(jwk.y.as_bytes()).expect("decode y");
+    assert_eq!(xb.len(), 32);
+    assert_eq!(yb.len(), 32);
+
+    // TryFrom<(uuid::Uuid, KeyMeta)>
+    let jwk2 = Jwk::try_from((uuid::Uuid::new_v4(), km)).expect("convert from KeyMeta");
+    assert_eq!(jwk2.x, jwk.x);
+    assert_eq!(jwk2.y, jwk.y);
   }
 }

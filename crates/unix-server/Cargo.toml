@@ -22,8 +22,7 @@ mises-graph = { path = "../graph", default-features = false, features = [
   "uuid",
   "in-memory",
 ] }
-mises-key-vault = { path = "../key-vault", default-features = false, features = [
-] }
+
 mises-grpc-server = { path = "../grpc-server", default-features = false, features = [
   "file-descriptor-set",
 ] }

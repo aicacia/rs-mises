@@ -25,19 +25,29 @@ use zeroize::Zeroize;
 #[derive(Debug, Clone)]
 pub struct Key {
   xprv: XPrv,
-  /// Path from the root (empty for root keys)
+  /// Derivation path from the root (must include purpose', e.g. 44')
   children: Vec<ChildNumber>,
   /// Optional normalized seed bytes used to construct this key (if available).
   seed: Option<Vec<u8>>,
 }
 
+fn default_master_purpose_child() -> ChildNumber {
+  ChildNumber::new(44, true).expect("create master purpose child")
+}
+
 impl From<Mnemonic> for Key {
   fn from(mnemonic: Mnemonic) -> Self {
     let seed = mnemonic.to_seed_normalized("").to_vec();
-    let xprv = XPrv::new(seed.as_slice()).expect("create xprv");
+    // master/root xprv
+    let mut xprv = XPrv::new(seed.as_slice()).expect("create xprv");
+    // master key always includes the BIP44 purpose child (m/44') and the XPrv
+    // exposed by this Key is the node at that path
+    let purpose = default_master_purpose_child();
+    xprv = xprv.derive_child(purpose).expect("derive purpose");
+
     Self {
       xprv,
-      children: Vec::new(),
+      children: vec![purpose],
       seed: Some(seed),
     }
   }
@@ -45,10 +55,14 @@ impl From<Mnemonic> for Key {
 
 impl From<Vec<u8>> for Key {
   fn from(bytes: Vec<u8>) -> Self {
-    let xprv = XPrv::new(bytes.as_slice()).expect("create xprv");
+    // master/root xprv
+    let mut xprv = XPrv::new(bytes.as_slice()).expect("create xprv");
+    let purpose = default_master_purpose_child();
+    xprv = xprv.derive_child(purpose).expect("derive purpose");
+
     Self {
       xprv,
-      children: Vec::new(),
+      children: vec![purpose],
       seed: Some(bytes),
     }
   }
@@ -83,10 +97,24 @@ impl Key {
 
   pub fn child_from_derivation_path<S: AsRef<str>>(&self, path: S) -> Result<Self, KeyError> {
     let dp = DerivationPath::from_str(path.as_ref())?;
+    let dp_vec: Vec<ChildNumber> = dp.into_iter().collect();
+
+    // Verify that the requested path shares the current path as a prefix.
+    // We only support deriving *downwards* from the current key; divergent or parent
+    // paths are invalid.
+    if !dp_vec.starts_with(&self.children) {
+      return Err(KeyError::InvalidKey);
+    }
+
+    if dp_vec.len() == self.children.len() {
+      // exact match -> return self
+      return Ok(self.clone());
+    }
+
     let mut xprv = self.xprv.clone();
     let mut children = self.children.clone();
 
-    for cn in dp.into_iter() {
+    for cn in dp_vec.into_iter().skip(self.children.len()) {
       xprv = xprv.derive_child(cn)?;
       children.push(cn);
     }
@@ -113,15 +141,9 @@ impl Key {
   }
 
   /// Return a derivation path string (e.g. "m/44'/0'") if this key has children.
-  pub fn derivation_path(&self) -> Option<String> {
-    if self.children.is_empty() {
-      return None;
-    }
-    let mut parts: Vec<String> = Vec::new();
-    for cn in self.children.iter() {
-      parts.push(format!("{}", cn));
-    }
-    Some(format!("m/{}", parts.join("/")))
+  pub fn derivation_path(&self) -> String {
+    let parts: Vec<String> = self.children.iter().map(|cn| format!("{}", cn)).collect();
+    format!("m/{}", parts.join("/"))
   }
 
   pub fn secp256k1_secret_bytes(&self) -> Result<Vec<u8>, KeyError> {
@@ -192,8 +214,14 @@ mod tests {
   #[test]
   fn key_generate() {
     let key = Key::from_entropy(&TEST_ENTROPY).expect("generate key");
-    // root keys are node-only and do not retain the seed
-    assert_eq!(key.children.len(), 0);
+    // root keys now include the BIP44 purpose child (m/44')
+    assert_eq!(key.children.len(), 1);
+  }
+
+  #[test]
+  fn key_master_derivation_path_is_bip44() {
+    let key = Key::from_entropy(&TEST_ENTROPY).expect("generate key");
+    assert_eq!(key.derivation_path(), "m/44'");
   }
 
   #[test]
@@ -224,7 +252,8 @@ mod tests {
   fn key_child_from_name_and_error() {
     let key = Key::from_entropy(&TEST_ENTROPY).expect("generate key");
     let derived = key.child_from_name("0'").expect("child from name");
-    assert_eq!(derived.children.len(), 1);
+    // master already contains the purpose child; deriving "0'" appends one more
+    assert_eq!(derived.children.len(), 2);
     let err = key.child_from_name("");
     assert!(err.is_err());
   }
@@ -247,7 +276,7 @@ mod tests {
       .child_number(ChildNumber::new(0, true).expect("child number"))
       .expect("derive");
 
-    assert_eq!(derived.children.len(), 1);
+    assert_eq!(derived.children.len(), 2);
   }
 
   #[test]
@@ -281,7 +310,11 @@ mod tests {
     let mnemonic = Mnemonic::from_entropy(&entropy).expect("entropy to mnemonic");
 
     let seed = mnemonic.to_seed_normalized("").to_vec();
-    let xprv = XPrv::new(seed.as_slice()).expect("create xprv");
+    let mut xprv = XPrv::new(seed.as_slice()).expect("create xprv");
+    // account root is at m/44'
+    xprv = xprv
+      .derive_child(ChildNumber::new(44, true).expect("child number"))
+      .expect("derive 44'");
     let expected = xprv.private_key().to_bytes().to_vec();
 
     let key = Key::from(mnemonic.clone());
