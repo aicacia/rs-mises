@@ -30,7 +30,6 @@ async fn list_keys_returns_keymeta() {
   let repo = make_repo();
   let service = GraphService::new(repo.clone());
 
-  // Create a key and insert into repo
   let key = Key::from_entropy(&[2u8; 32]).expect("key from entropy");
   let km = KeyMeta::try_from(key).expect("create keymeta");
 
@@ -42,12 +41,10 @@ async fn list_keys_returns_keymeta() {
     .await
     .expect("create key node");
 
-  // Call list_keys
   let keys = service.list_keys().await.expect("list_keys");
 
   assert!(!keys.is_empty(), "expected at least one key");
 
-  // Ensure returned KeyMeta decodes and has EC coords
   let found = keys.into_iter().any(|(_, k): (Uuid, KeyMeta)| {
     let b = k.to_bytes();
     let coords = k.ec_coords_b64();

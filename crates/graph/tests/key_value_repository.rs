@@ -235,7 +235,7 @@ async fn in_memory_get_batch_returns_correct_order() {
   use mises_graph::KeyValueStoreExecutor;
 
   let store = InMemoryKeyValueStore::new();
-  // insert a couple of keys
+
   store.put(b"one".as_ref(), b"1".to_vec()).await.unwrap();
   store.put(b"two".as_ref(), b"2".to_vec()).await.unwrap();
 
@@ -253,7 +253,6 @@ async fn create_edge_cleanup_on_partial_failure() {
   use core::sync::atomic::{AtomicUsize, Ordering};
   use mises_graph::{KeyValueStore, KeyValueStoreExecutor};
 
-  // A thin wrapper over InMemoryKeyValueStore that fails on the Nth `put`.
   struct FailingStore {
     inner: InMemoryKeyValueStore,
     counter: AtomicUsize,
@@ -339,8 +338,6 @@ async fn create_edge_cleanup_on_partial_failure() {
     .await
     .unwrap();
 
-  // Attempt to create an edge; this should return an error and perform
-  // best-effort cleanup so no partial edge remains.
   let res = repo
     .create_edge(
       "KNOWS".into(),
@@ -351,7 +348,6 @@ async fn create_edge_cleanup_on_partial_failure() {
     .await;
   assert!(res.is_err());
 
-  // Ensure no edge exists after the failed operation.
   let q = Query::edges(EdgeQuery::new("KNOWS"));
   let out = repo.query(q).await.unwrap();
   assert_eq!(out.len(), 0);
@@ -362,20 +358,17 @@ async fn update_node_and_edge_conflict_and_success() {
   use mises_graph::GraphError;
   let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
 
-  // Node update conflict
   let n = repo
     .create_node("User".into(), serde_json::json!({"name": "C"}))
     .await
     .unwrap();
 
-  // Incorrect expected_updated_at -> Conflict
   let wrong_time = n.updated_at + chrono::Duration::seconds(1);
   let res = repo
     .update_node(n.id, serde_json::json!({"name": "X"}), Some(wrong_time))
     .await;
   assert!(matches!(res, Err(GraphError::Conflict)));
 
-  // Correct expected_updated_at -> success
   let before = repo.get_node_by_id(n.id).await.unwrap().unwrap();
   let res2 = repo
     .update_node(
@@ -392,7 +385,6 @@ async fn update_node_and_edge_conflict_and_success() {
   );
   assert!(after.updated_at > before.updated_at);
 
-  // Edge update conflict
   let n1 = repo
     .create_node("User".into(), serde_json::json!({"name": "D"}))
     .await
@@ -407,7 +399,6 @@ async fn update_node_and_edge_conflict_and_success() {
     .await
     .unwrap();
 
-  // Fetch current edge to inspect updated_at
   let current = repo.get_edge_by_id(e.id).await.unwrap().unwrap();
   let wrong_edge_time = current.updated_at + chrono::Duration::seconds(1);
   let eres = repo
@@ -415,7 +406,6 @@ async fn update_node_and_edge_conflict_and_success() {
     .await;
   assert!(matches!(eres, Err(GraphError::Conflict)));
 
-  // Correct expected_updated_at -> success
   let eres2 = repo
     .update_edge(e.id, serde_json::json!({"k": 3}), Some(current.updated_at))
     .await;
@@ -447,23 +437,20 @@ async fn delete_node_cascade_removes_edges() {
     .await
     .unwrap();
 
-  // Ensure edge exists
   assert!(repo.get_edge_by_id(e.id).await.unwrap().is_some());
 
-  // Delete node `a` should remove the edge as well
   repo.delete_node(a.id).await.unwrap();
 
   assert!(repo.get_node_by_id(a.id).await.unwrap().is_none());
   assert!(repo.get_edge_by_id(e.id).await.unwrap().is_none());
 
-  // Other node remains
   assert!(repo.get_node_by_id(b.id).await.unwrap().is_some());
 }
 
 #[tokio::test]
 async fn delete_node_handles_missing_main_edge_cleanup() {
   use mises_graph::KeyValueStoreExecutor;
-  // Create store explicitly so we can manipulate it directly
+
   let store = InMemoryKeyValueStore::new();
   let repo = Repo::new(store.clone(), UsizeIdGenerator::new());
 
@@ -486,16 +473,13 @@ async fn delete_node_handles_missing_main_edge_cleanup() {
     .await
     .unwrap();
 
-  // Simulate corruption: remove main edge record but leave index entries intact
   let mut main_key = b"edge:".to_vec();
   let id_bytes = serde_json::to_vec(&e.id).unwrap();
   main_key.extend_from_slice(&id_bytes);
   store.delete(main_key).await.unwrap();
 
-  // Sanity: main edge gone
   assert!(repo.get_edge_by_id(e.id).await.unwrap().is_none());
 
-  // Ensure from-index entry still exists (pointing to the edge id)
   let mut from_prefix = b"edge_from:".to_vec();
   from_prefix.extend_from_slice(&serde_json::to_vec(&a.id).unwrap());
   from_prefix.push(0);
@@ -506,10 +490,8 @@ async fn delete_node_handles_missing_main_edge_cleanup() {
       .any(|(_, v)| v == &serde_json::to_vec(&e.id).unwrap())
   );
 
-  // Delete node should not error and should clean up dangling index entries
   repo.delete_node(a.id).await.unwrap();
 
-  // Verify index entries referencing this edge were removed
   let all_from_entries = store
     .scan(b"edge_from:".to_vec().., |_, _| Some(true))
     .await

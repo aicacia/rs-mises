@@ -83,6 +83,5 @@ impl From<bip39::Error> for KeyError {
 #[cfg(not(feature = "std"))]
 impl Error for KeyError {}
 
-// For std builds provide `std::error::Error` impl for interoperability.
 #[cfg(feature = "std")]
 impl std::error::Error for KeyError {}

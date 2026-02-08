@@ -4,7 +4,7 @@ use mises_core::model::edge::EdgeProps;
 use mises_core::model::identity::{IdentityMeta, IdentityType};
 use mises_core::model::node::NodeMeta;
 use mises_core::service::identity::IdentityService;
-use mises_graph::{IdGenerator, InMemoryKeyValueStore, KeyValueRepository, Executor};
+use mises_graph::{Executor, IdGenerator, InMemoryKeyValueStore, KeyValueRepository};
 use uuid::Uuid; // to get create_node
 
 #[derive(Clone)]
@@ -36,12 +36,12 @@ async fn get_node_by_id_and_identity_type_happy_path() {
   let repo = make_repo();
   let service = IdentityService::new(repo.clone());
 
-  // create application identity
   let id = create_identity(
     &repo,
     IdentityMeta::Application {
       name: "app".to_string(),
       local: true,
+      oidc_client: None,
     },
   )
   .await;
@@ -59,7 +59,6 @@ async fn get_node_by_id_and_identity_type_mismatch_and_not_found() {
   let repo = make_repo();
   let service = IdentityService::new(repo.clone());
 
-  // create a user (not application)
   let id = create_identity(
     &repo,
     IdentityMeta::User {
@@ -80,7 +79,6 @@ async fn get_node_by_id_and_identity_type_mismatch_and_not_found() {
     Ok(_) => panic!("expected error for mismatched type"),
   }
 
-  // not found
   let missing = Uuid::new_v4();
   let res = service
     .get_node_by_id_and_identity_type(missing, IdentityType::Application)

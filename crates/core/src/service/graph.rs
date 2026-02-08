@@ -226,7 +226,6 @@ where
     };
 
     let (root_group_id, _master_key, master_key_public_key, master_key_created) = match group_node {
-      // (group_id, key_id, public_key, optional_private_key_b64)
       Some((group_id, key_id, public_key, _priv_b64)) => (group_id, key_id, public_key, false),
       None => {
         let (master_key, seed_bytes, master_key_created): (Key, Vec<u8>, bool) =
@@ -253,7 +252,7 @@ where
             }),
           )
           .await?;
-        // Create master group
+
         let group_node = tx
           .create_node(
             NodeType::Identity.as_str().to_string(),
@@ -265,7 +264,7 @@ where
             }),
           )
           .await?;
-        // Set group OWNS key
+
         tx.create_edge(
           EdgeType::Owns.as_str().to_string(),
           group_node.id,
@@ -294,8 +293,6 @@ where
     let owner_user_id = match identity.find_owner(root_group_id).await? {
       Some(owner_node) => owner_node.id,
       None => {
-        // Create the owner user and the OWNS edge in a single transaction so
-        // the two-step operation is atomic and cannot leave partial state.
         let tx = self.exec.transaction().await?;
 
         let user_node = tx
@@ -324,7 +321,6 @@ where
 
         tx.commit().await?;
 
-        // DEBUG: indicate owner creation succeeded
         log::debug!(
           "bootstrap: created owner user {} for group {}",
           user_node.id,
@@ -345,8 +341,6 @@ where
     let device_id = if let Some(did_node) = devices.into_iter().next() {
       did_node.id
     } else {
-      // Create the device node and MEMBER_OF edge in a single transaction to
-      // avoid leaving a device without its group membership on failure.
       let tx = self.exec.transaction().await?;
       let device_node = tx
         .create_node(

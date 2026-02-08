@@ -94,7 +94,6 @@ async fn bootstrap_reads_existing_key_node() {
   let res = (&service).bootstrap(opts).await.unwrap();
   assert!(!res.master_key_created);
 
-  // Search all key nodes and verify the inserted private key exists on at least one
   let all_query = Query::nodes(NodeQuery::new(NodeType::Key.as_str()));
   let elements = repo.query(all_query).await.unwrap();
   let mut found = false;

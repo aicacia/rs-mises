@@ -33,7 +33,7 @@ serde = { version = "1", default-features = false, features = [
   "alloc",
 ] }
 serde_json = { version = "1", default-features = false, features = ["alloc"] }
-async-trait = { version = "0.1", default-features = false }
+async-trait = { version = "0.1", features = [], default-features = false }
 spin = { version = "0.10", optional = true, default-features = false, features = [
   "rwlock",
 ] }

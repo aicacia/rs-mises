@@ -131,7 +131,6 @@ pub fn grpc(
               e
             );
           } else {
-            // Log data frames content for debugging: length and first bytes (if present)
             match &data {
               Frame::Data { data: d } => log::debug!(
                 "request {}: emitting data frame ({} bytes) first_bytes={:?}",

@@ -24,7 +24,6 @@ impl TryFrom<Key> for KeyMeta {
   type Error = mises_key::KeyError;
 
   fn try_from(key: Key) -> Result<Self, Self::Error> {
-    // Attempt to derive a secp256k1 keypair; propagate the error if it fails.
     let (_sk, vk) = key.secp256k1_keypair()?;
     let encoded_point = vk.to_encoded_point(false);
     let public_key = BASE64_URL_SAFE.encode(encoded_point.as_bytes());
@@ -47,21 +46,16 @@ impl TryFrom<KeyMeta> for Key {
   type Error = mises_key::KeyError;
 
   fn try_from(km: KeyMeta) -> Result<Self, Self::Error> {
-    // We must have a seed to reconstruct a Key
     if let Some(b64) = km.private_key {
-      // decode base64 first
       let bytes = match BASE64_URL_SAFE.decode(b64.as_bytes()) {
         Ok(b) => b,
         Err(_) => {
-          // invalid base64 + path => InvalidKey (path is required)
           return Err(mises_key::KeyError::InvalidKey);
         }
       };
 
-      // construct base Key from seed bytes
       let base_key = Key::from(bytes);
 
-      // derive the key using the required derivation path
       match base_key.child_from_derivation_path(km.derivation_path) {
         Ok(derived) => Ok(derived),
         Err(_) => Err(mises_key::KeyError::InvalidKey),
@@ -77,7 +71,6 @@ impl KeyMeta {
   ///
   /// Returns a `crate::Result<Vec<u8>>` so callers get `CoreError::InvalidInput` on failure.
   pub fn to_bytes(&self) -> crate::Result<Vec<u8>> {
-    // Try the prelude engine first, fall back to the NO_PAD engine on error.
     if let Ok(b) = BASE64_URL_SAFE.decode(self.public_key.as_bytes()) {
       return Ok(b);
     }
@@ -95,7 +88,6 @@ impl KeyMeta {
   ///
   /// Returns `None` for other formats or decoding failures.
   pub fn ec_coords_b64(&self) -> Option<(String, String)> {
-    // Try to decode using the prelude engine, fall back to NO_PAD engine when necessary.
     let bytes = if let Ok(b) = BASE64_URL_SAFE.decode(self.public_key.as_bytes()) {
       b
     } else if let Ok(b) =
@@ -121,12 +113,11 @@ impl KeyMeta {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
-  use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+  use super::{BASE64_URL_SAFE, KeyMeta};
+  use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 
   #[test]
   fn keymeta_to_bytes_and_coords() {
-    // build uncompressed point [0x04, 1*32, 2*32]
     let mut bytes = Vec::with_capacity(65);
     bytes.push(0x04);
     bytes.extend([1u8; 32]);
@@ -164,7 +155,6 @@ mod tests {
 
   #[test]
   fn ec_coords_b64_non_ec_returns_none() {
-    // Create a valid base64 string that does not represent an uncompressed EC point
     let bytes = [0u8; 64];
     let pub_b64 = BASE64_URL_SAFE.encode(bytes.as_slice());
 

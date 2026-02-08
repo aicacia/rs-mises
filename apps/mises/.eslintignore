@@ -1,0 +1,2 @@
+# Ignore generated or special-case routes that aren't part of the TS project
+src/routes/.well-known/**

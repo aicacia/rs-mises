@@ -17,13 +17,6 @@ use slip10::{
 
 use zeroize::Zeroizing;
 
-#[cfg(test)]
-use ed25519_dalek::{Signer as EdSigner, Verifier as EdVerifier};
-#[cfg(test)]
-use k256::ecdsa::{signature::Signer as KSigner, signature::Verifier as KVerifier};
-#[cfg(test)]
-use zeroize::Zeroize;
-
 /// A hierarchical deterministic (HD) key wrapper.
 ///
 /// - Stores the XPrv node at a given derivation path (the crate initializes keys
@@ -49,8 +42,7 @@ impl From<Mnemonic> for Key {
   fn from(mnemonic: Mnemonic) -> Self {
     let seed = mnemonic.to_seed_normalized("").to_vec();
     let mut xprv = XPrv::new(seed.as_slice()).expect("create xprv");
-    // master key always includes the BIP44 purpose child (m/44') and the XPrv
-    // exposed by this Key is the node at that path
+
     let purpose = default_master_purpose_child();
     xprv = xprv.derive_child(purpose).expect("derive purpose");
 
@@ -107,15 +99,11 @@ impl Key {
     let dp = DerivationPath::from_str(path.as_ref())?;
     let dp_vec: Vec<ChildNumber> = dp.into_iter().collect();
 
-    // Verify that the requested path shares the current path as a prefix.
-    // We only support deriving *downwards* from the current key; divergent or parent
-    // paths are invalid.
     if !dp_vec.starts_with(&self.children) {
       return Err(KeyError::InvalidKey);
     }
 
     if dp_vec.len() == self.children.len() {
-      // exact match -> return self
       return Ok(self.clone());
     }
 
@@ -171,7 +159,6 @@ impl Key {
   }
 
   pub fn ed25519_secret_bytes(&self) -> Result<Vec<u8>, KeyError> {
-    // Node-only keys derive ed25519 from this node's private key bytes via SLIP-0010.
     let seed = self.xprv.private_key().to_bytes();
     let path = Slip10BIP32Path::from(vec![]);
     let key = slip10_derive_key_from_path(seed.as_ref(), Slip10Curve::Ed25519, &path)?;
@@ -223,7 +210,13 @@ fn parse_child_number<S: AsRef<str>>(s: S) -> Result<ChildNumber, KeyError> {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+  use bip32::XPrv;
+  use bip39::Mnemonic;
+  use ed25519_dalek::{Signer as _, Verifier as _};
+  use k256::ecdsa::signature::{Signer as _, Verifier as _};
+  use zeroize::Zeroize;
+
+  use super::{ChildNumber, Key};
 
   static TEST_ENTROPY: [u8; 32] = [
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
@@ -233,7 +226,7 @@ mod tests {
   #[test]
   fn key_generate() {
     let key = Key::from_entropy(&TEST_ENTROPY).expect("generate key");
-    // root keys now include the BIP44 purpose child (m/44')
+
     assert_eq!(key.children.len(), 1);
   }
 
@@ -271,7 +264,7 @@ mod tests {
   fn key_child_from_name_and_error() {
     let key = Key::from_entropy(&TEST_ENTROPY).expect("generate key");
     let derived = key.child_from_name("0'").expect("child from name");
-    // master already contains the purpose child; deriving "0'" appends one more
+
     assert_eq!(derived.children.len(), 2);
     let err = key.child_from_name("");
     assert!(err.is_err());
@@ -330,7 +323,7 @@ mod tests {
 
     let seed = mnemonic.to_seed_normalized("").to_vec();
     let mut xprv = XPrv::new(seed.as_slice()).expect("create xprv");
-    // account root is at m/44'
+
     xprv = xprv
       .derive_child(ChildNumber::new(44, true).expect("child number"))
       .expect("derive 44'");
@@ -359,7 +352,7 @@ mod tests {
     let kp = derived.ed25519_keypair().expect("keypair");
 
     let msg = b"hello world";
-    let sig = kp.sign(msg);
+    let sig: ed25519_dalek::Signature = kp.sign(msg);
     assert!(kp.public.verify(msg, &sig).is_ok());
   }
 

@@ -17,15 +17,18 @@ pub mod types;
 #[cfg(feature = "uuid")]
 pub mod uuid_generator;
 
-pub use crate::edge::*;
-pub use crate::error::*;
+pub use crate::edge::Edge;
+pub use crate::error::GraphError;
 #[cfg(feature = "in-memory")]
-pub use crate::in_memory_key_value_store::*;
-pub use crate::key_value_repository::*;
-pub use crate::key_value_store::*;
-pub use crate::node::*;
-pub use crate::query::*;
-pub use crate::repository::*;
-pub use crate::types::*;
+pub use crate::in_memory_key_value_store::{InMemoryKeyValueStore, InMemoryTransaction};
+pub use crate::key_value_repository::{IdGenerator, KeyValueRepository, KeyValueTransaction};
+pub use crate::key_value_store::{KeyValueStore, KeyValueStoreExecutor, KeyValueStoreTransaction};
+pub use crate::node::Node;
+pub use crate::query::{
+  ComparisonOp, EdgeDirection, EdgeQuery, Field, Filter, NodeQuery, Predicate, Query, QueryOptions,
+  field,
+};
+pub use crate::repository::{Executor, Repository, Transaction};
+pub use crate::types::{Element, Id, Value};
 #[cfg(feature = "uuid")]
-pub use crate::uuid_generator::*;
+pub use crate::uuid_generator::UuidGenerator;

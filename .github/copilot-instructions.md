@@ -77,7 +77,7 @@ Examples:
 Good (minimal `mod.rs`):
 
 ```rust
-// crates/my_crate/src/foo/mod.rs
+
 pub mod bar;
 pub use bar::Bar;
 ```
@@ -85,16 +85,16 @@ pub use bar::Bar;
 Implementation kept in submodule:
 
 ```rust
-// crates/my_crate/src/foo/bar.rs
-pub struct Bar { /* ... */ }
+
+pub struct Bar {  }
 ```
 
 Bad (avoid placing implementations in `mod.rs`):
 
 ```rust
-// crates/my_crate/src/foo/mod.rs
-pub struct Bar { /* ... */ } // implementation in mod.rs — NO
-pub fn do_work() { /* ... */ } // implementation — NO
+
+pub struct Bar {  } // implementation in mod.rs — NO
+pub fn do_work() {  } // implementation — NO
 ```
 
 - Benefits: keeps the module tree clear, improves readability and reviewability, and helps maintain consistent file organization.

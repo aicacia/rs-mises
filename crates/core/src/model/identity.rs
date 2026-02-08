@@ -1,10 +1,10 @@
 use alloc::string::String;
+use alloc::vec::Vec;
 
 use uuid::Uuid;
 
 use serde::{Deserialize, Serialize};
 
-// Convenience enum for node types matching those in IdentityMeta
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum IdentityType {
@@ -65,7 +65,22 @@ pub enum IdentityMeta {
   Application {
     name: String,
     local: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    oidc_client: Option<ApplicationMeta>,
   },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ApplicationMeta {
+  #[serde(default)]
+  pub redirect_uris: Vec<String>,
+  #[serde(default)]
+  pub response_types: Vec<String>,
+  #[serde(default)]
+  pub grant_types: Vec<String>,
+  #[serde(default)]
+  pub scopes: Vec<String>,
+  pub token_endpoint_auth_method: Option<String>,
 }
 
 impl IdentityMeta {

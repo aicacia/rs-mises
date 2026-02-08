@@ -12,7 +12,7 @@ use mises_core::{
 };
 use mises_graph::{
   EdgeQuery, Element, Executor, IdGenerator, InMemoryKeyValueStore, KeyValueRepository, NodeQuery,
-  Query, field, Repository, Transaction,
+  Query, Repository, Transaction, field,
 };
 use uuid::Uuid;
 
@@ -297,7 +297,6 @@ async fn approval_nodes_and_edges_created() {
     .await
     .unwrap();
 
-  // First exercise the service method
   service.approve_request(request_id, owner).await.unwrap();
 
   let query = Query::edges(
@@ -313,8 +312,6 @@ async fn approval_nodes_and_edges_created() {
     }
   }
 
-  // If the service method did not persist, try doing it manually via tx to
-  // validate that transactions work and to help debug the failure.
   if approval_nodes.is_empty() {
     let tx = service.repo().transaction().await.unwrap();
 
@@ -333,7 +330,9 @@ async fn approval_nodes_and_edges_created() {
       EdgeType::HasApproval.as_str().to_string(),
       request_id,
       approval_node.id,
-      EdgeProps::HasApproval { at: chrono::Utc::now() },
+      EdgeProps::HasApproval {
+        at: chrono::Utc::now(),
+      },
     )
     .await
     .unwrap();
@@ -342,7 +341,9 @@ async fn approval_nodes_and_edges_created() {
       EdgeType::ApprovedBy.as_str().to_string(),
       approval_node.id,
       owner,
-      EdgeProps::ApprovedBy { at: chrono::Utc::now() },
+      EdgeProps::ApprovedBy {
+        at: chrono::Utc::now(),
+      },
     )
     .await
     .unwrap();
@@ -514,7 +515,9 @@ async fn policy_custom_action_case_insensitive() {
         name: "case-insensitive".to_string(),
         rules: vec![mises_core::model::policy::PolicyRule {
           effect: mises_core::model::policy::PolicyEffect::Allow,
-          actions: vec![mises_core::model::policy::PolicyAction::Custom("Foo".to_string())],
+          actions: vec![mises_core::model::policy::PolicyAction::Custom(
+            "Foo".to_string(),
+          )],
         }],
       }),
     )
@@ -528,14 +531,16 @@ async fn policy_custom_action_case_insensitive() {
       EdgeType::MemberOf.as_str().to_string(),
       identity,
       policy_node,
-      EdgeProps::MemberOf { since: None, until: None },
+      EdgeProps::MemberOf {
+        since: None,
+        until: None,
+      },
     )
     .await
     .unwrap();
 
   let resource = create_resource(service.repo(), "file-system").await;
 
-  // Use uppercase action to ensure case-insensitive match
   let _req_id = service
     .create_request(
       identity,

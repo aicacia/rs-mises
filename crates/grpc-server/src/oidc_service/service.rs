@@ -1,12 +1,8 @@
 use tonic::{Request, Response, Status};
 
-use mises_core::{
-  CoreError,
-  model::identity::IdentityType,
-  service::{graph::GraphService, identity::IdentityService},
-  traits::Repository,
-};
-use uuid::Uuid;
+use mises_core::{service::graph::GraphService, traits::Repository};
+
+use crate::oidc_service::{authorize::authorize, constants};
 
 /// OIDC gRPC service implementation. Uses the repository/graph service directly
 /// to implement behavior (not the `mises-oidc` crate).
@@ -42,81 +38,7 @@ where
     request: Request<mises_proto::AuthorizeRequest>,
   ) -> Result<Response<mises_proto::AuthorizeResponse>, Status> {
     let req = request.into_inner();
-
-    // client_id is required
-    if req.client_id.trim().is_empty() {
-      return Err(Status::invalid_argument("client_id is required"));
-    }
-
-    // response_type is required and must be supported
-    if req.response_type.trim().is_empty() {
-      return Err(Status::invalid_argument("response_type is required"));
-    }
-
-    // support the standard response types: code, token, id_token
-    let supported: [&str; 3] = ["code", "token", "id_token"];
-    for part in req.response_type.split_whitespace() {
-      if !supported.contains(&part) {
-        return Err(Status::invalid_argument(format!(
-          "unsupported response_type: {}",
-          part
-        )));
-      }
-    }
-
-    // if redirect_uri is provided, ensure it's a valid absolute URI
-    if let Some(ref redirect) = req.redirect_uri {
-      if redirect.trim().is_empty() {
-        return Err(Status::invalid_argument("redirect_uri provided is empty"));
-      }
-      if url::Url::parse(redirect).is_err() {
-        return Err(Status::invalid_argument(format!(
-          "invalid redirect_uri: {}",
-          redirect
-        )));
-      }
-    }
-
-    // Validate that the client_id corresponds to an Application identity in the graph
-    let client_uuid = match Uuid::parse_str(req.client_id.trim()) {
-      Ok(u) => u,
-      Err(_) => {
-        return Err(Status::invalid_argument(format!(
-          "invalid client_id: {}",
-          req.client_id
-        )));
-      }
-    };
-
-    let identity_service = IdentityService::new(self.repo.clone());
-
-    if let Err(e) = identity_service
-      .get_node_by_id_and_identity_type(client_uuid, IdentityType::Application)
-      .await
-    {
-      return match e {
-        CoreError::NotFound => Err(Status::invalid_argument(format!(
-          "client_id not found: {}",
-          req.client_id
-        ))),
-        CoreError::InvalidInput(_) => Err(Status::invalid_argument(
-          "client_id does not refer to an application",
-        )),
-        _ => Err(Status::internal(format!("identity service error: {}", e))),
-      };
-    }
-
-    Ok(Response::new(mises_proto::AuthorizeResponse {
-      redirect_uri: req.redirect_uri,
-    }))
-  }
-
-  async fn token(
-    &self,
-    _request: Request<mises_proto::TokenRequest>,
-  ) -> Result<Response<mises_proto::TokenResponse>, Status> {
-    // TODO: Implement token handling using repository
-    Err(Status::unimplemented("token endpoint not implemented"))
+    authorize(self.repo.clone(), req).await.map(Response::new)
   }
 
   async fn device_authorize(
@@ -124,6 +46,13 @@ where
     _request: Request<mises_proto::DeviceAuthorizeRequest>,
   ) -> Result<Response<mises_proto::DeviceAuthorizeResponse>, Status> {
     Err(Status::unimplemented("device_authorize not implemented"))
+  }
+
+  async fn token(
+    &self,
+    _request: Request<mises_proto::TokenRequest>,
+  ) -> Result<Response<mises_proto::TokenResponse>, Status> {
+    Err(Status::unimplemented("token not implemented"))
   }
 
   async fn introspect(
@@ -222,37 +151,46 @@ where
       )
     };
 
-    let response_types_supported = vec![
-      String::from("code"),
-      String::from("token"),
-      String::from("id_token"),
-    ];
+    let response_types_supported = constants::RESPONSE_TYPES_SUPPORTED
+      .iter()
+      .map(|s| s.to_string())
+      .collect::<Vec<_>>();
 
-    let response_modes_supported = vec![
-      String::from("query"),
-      String::from("fragment"),
-      String::from("form_post"),
-    ];
+    let response_modes_supported = constants::RESPONSE_MODES
+      .iter()
+      .map(|s| s.to_string())
+      .collect::<Vec<_>>();
 
-    let grant_types_supported = vec![
-      String::from("authorization_code"),
-      String::from("refresh_token"),
-      String::from("client_credentials"),
-      String::from("urn:ietf:params:oauth:grant-type:device_code"),
-    ];
+    let grant_types_supported = constants::GRANT_TYPES_SUPPORTED
+      .iter()
+      .map(|s| s.to_string())
+      .collect::<Vec<_>>();
 
-    let token_endpoint_auth_methods_supported = vec![
-      String::from("client_secret_basic"),
-      String::from("client_secret_post"),
-    ];
+    let token_endpoint_auth_methods_supported = constants::TOKEN_AUTH_METHODS_SUPPORTED
+      .iter()
+      .map(|s| s.to_string())
+      .collect::<Vec<_>>();
 
-    let token_endpoint_auth_signing_alg_values_supported = vec![String::from("ES256K")];
+    let token_endpoint_auth_signing_alg_values_supported =
+      constants::TOKEN_AUTH_SIGNING_ALGS_SUPPORTED
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>();
 
-    let code_challenge_methods_supported = vec![String::from("S256")];
+    let code_challenge_methods_supported = constants::CODE_CHALLENGE_METHODS_SUPPORTED
+      .iter()
+      .map(|s| s.to_string())
+      .collect::<Vec<_>>();
 
-    let subject_types_supported = vec![String::from("public")];
+    let subject_types_supported = constants::SUBJECT_TYPES_SUPPORTED
+      .iter()
+      .map(|s| s.to_string())
+      .collect::<Vec<_>>();
 
-    let id_token_signing_alg_values_supported = vec![String::from("ES256K")];
+    let id_token_signing_alg_values_supported = constants::ID_TOKEN_SIGNING_ALGS_SUPPORTED
+      .iter()
+      .map(|s| s.to_string())
+      .collect::<Vec<_>>();
 
     let id_token_encryption_alg_values_supported: Vec<String> = Vec::new();
 
@@ -262,32 +200,24 @@ where
 
     let request_object_encryption_alg_values_supported: Vec<String> = Vec::new();
 
-    let userinfo_signing_alg_values_supported = vec![String::from("ES256K")];
-    let request_object_signing_alg_values_supported = vec![String::from("ES256K")];
+    let userinfo_signing_alg_values_supported = constants::ID_TOKEN_SIGNING_ALGS_SUPPORTED
+      .iter()
+      .map(|s| s.to_string())
+      .collect::<Vec<_>>();
+    let request_object_signing_alg_values_supported = constants::ID_TOKEN_SIGNING_ALGS_SUPPORTED
+      .iter()
+      .map(|s| s.to_string())
+      .collect::<Vec<_>>();
 
-    let scopes_supported = vec![
-      String::from("openid"),
-      String::from("profile"),
-      String::from("email"),
-      String::from("offline_access"),
-    ];
+    let scopes_supported = constants::SCOPES_SUPPORTED
+      .iter()
+      .map(|s| s.to_string())
+      .collect::<Vec<_>>();
 
-    let claims_supported = vec![
-      String::from("iss"),
-      String::from("aud"),
-      String::from("exp"),
-      String::from("jti"),
-      String::from("scope"),
-      String::from("acting_for"),
-      String::from("sub"),
-      String::from("name"),
-      String::from("given_name"),
-      String::from("family_name"),
-      String::from("preferred_username"),
-      String::from("email"),
-      String::from("email_verified"),
-      String::from("picture"),
-    ];
+    let claims_supported = constants::CLAIMS_SUPPORTED
+      .iter()
+      .map(|s| s.to_string())
+      .collect::<Vec<_>>();
 
     Ok(Response::new(mises_proto::OpenIdConfiguration {
       issuer,
@@ -336,7 +266,6 @@ where
   }
 
   async fn get_jwks(&self, _request: Request<()>) -> Result<Response<mises_proto::Jwks>, Status> {
-    // Get keys from GraphService and convert EC public keys to JWKs
     let entries = GraphService::new(self.repo.clone())
       .list_keys()
       .await

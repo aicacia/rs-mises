@@ -26,6 +26,10 @@ prost-types = { version = "0.14", default-features = false, features = [] }
 
 
 [dev-dependencies]
+mises-graph = { path = "../graph", default-features = false, features = [
+  "in-memory",
+] }
+tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
 
 [features]
 default = ["file-descriptor-set"]

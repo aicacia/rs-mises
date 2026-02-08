@@ -260,8 +260,6 @@ where
   let to_prefix = edge_to_index_prefix(&id)?;
   let mut edge_ids: BTreeSet<I> = BTreeSet::new();
 
-  // Map edge_id -> index keys to allow cleanup of dangling index entries when
-  // the main edge record is missing.
   let mut index_keys: hashbrown::HashMap<I, Vec<Vec<u8>>> = HashMap::new();
 
   let from_edges = scan_prefix(store, from_prefix, |_, v| Some(!v.is_empty())).await?;
@@ -284,25 +282,17 @@ where
     match delete_edge::<I, P, S>(store, edge_id.clone()).await {
       Ok(()) => continue,
       Err(GraphError::NotFound) => {
-        // Best-effort cleanup: remove any index entries we recorded for this
-        // edge id (entries under the deleted node's prefixes). Ignore missing
-        // keys, but propagate other errors.
         if let Some(keys) = index_keys.get(&edge_id) {
           for key in keys {
             let _ = store.delete(key).await;
           }
         }
 
-        // Also scan the global `edge_from:` and `edge_to:` indexes for any
-        // entries referencing this `edge_id` and remove them. This handles
-        // the case where the main edge record is missing, and index entries
-        // exist under other node prefixes.
         let edge_id_bytes = match serde_json::to_vec(&edge_id) {
           Ok(b) => b,
           Err(e) => return Err(GraphError::SerializationError(e.to_string())),
         };
 
-        // helper closure to find matching index entries and delete them
         for prefix in &[EDGE_FROM_PREFIX, EDGE_TO_PREFIX] {
           if let Ok(found) = scan_prefix(store, prefix.to_vec(), |_, v| {
             if v == &edge_id_bytes {
@@ -318,8 +308,6 @@ where
             }
           }
         }
-
-        // continue with next edge
       }
       Err(e) => return Err(e),
     }
@@ -365,9 +353,7 @@ where
   let key = edge_key(&id)?;
   let value =
     serde_json::to_vec(&edge).map_err(|e| GraphError::SerializationError(e.to_string()))?;
-  // Write the main edge record first. If subsequent index writes fail, do a
-  // best-effort cleanup to avoid leaving a dangling main edge without its
-  // index entries.
+
   store.put(key.clone(), value).await?;
 
   let edge_id_bytes =
@@ -375,7 +361,6 @@ where
   let from_index_key = edge_from_index_key(&edge.from_id, &edge.id)?;
   let to_index_key = edge_to_index_key(&edge.to_id, &edge.id)?;
 
-  // Write from-index; on failure, remove the main edge record and return the error.
   if let Err(e) = store
     .put(from_index_key.clone(), edge_id_bytes.clone())
     .await
@@ -384,8 +369,6 @@ where
     return Err(e);
   }
 
-  // Write to-index; on failure remove the main edge record and the from-index
-  // entry (best-effort) then return the error.
   if let Err(e) = store.put(to_index_key.clone(), edge_id_bytes.clone()).await {
     let _ = store.delete(&key).await;
     let _ = store.delete(&from_index_key).await;
@@ -486,8 +469,6 @@ where
   M: Value,
   S: KeyValueStoreExecutor,
 {
-  // Ensure all ids serialize to keys successfully; if serialization fails,
-  // propagate the error rather than silently skipping ids.
   let mut keys: Vec<Vec<u8>> = Vec::with_capacity(ids.len());
   for id in ids {
     keys.push(node_key(id)?);
@@ -498,8 +479,6 @@ where
 
   for (idx, maybe_data) in results.into_iter().enumerate() {
     if let Some(data) = maybe_data {
-      // If deserialization fails, surface the error to avoid silently
-      // ignoring corrupted data.
       let node: Node<I, M> =
         serde_json::from_slice(&data).map_err(|e| GraphError::SerializationError(e.to_string()))?;
       nodes.insert(ids[idx].clone(), node);
@@ -517,7 +496,6 @@ fn get_json_field<'a>(v: &'a serde_json::Value, path: &str) -> Option<&'a serde_
         if let Some(next) = map.get(part) {
           cur = next;
         } else if map.len() == 1 {
-          // Fallback for single-item enum-wrapped values
           if let Some(sole_value) = map.values().next() {
             if let Some(obj) = sole_value.as_object() {
               if let Some(next) = obj.get(part) {
@@ -539,8 +517,6 @@ fn get_json_field<'a>(v: &'a serde_json::Value, path: &str) -> Option<&'a serde_
   Some(cur)
 }
 
-// Strip a leading `<prefix>.` from predicate fields so filters targeting
-// `metadata.xxx` or `properties.yyy` can be applied directly to the value.
 fn strip_field_prefix_in_predicate(p: &Predicate, prefix: &str) -> Predicate {
   let mut p2 = p.clone();
   let pat = format!("{}.", prefix);
@@ -651,14 +627,9 @@ where
     return false;
   }
   if let Some(filter) = &nq.filter {
-    // Strip `metadata.` prefixes for convenience. First try evaluating on
-    // `metadata` value to avoid serializing full `Node`. If that does not
-    // match, fall back to evaluating on the whole serialized `Node` (so
-    // filters like `field("id").eq(...)` will work).
     let filter = strip_field_prefix_in_filter(filter, "metadata");
     let meta_json = serde_json::to_value(&n.metadata).unwrap_or(serde_json::Value::Null);
     if eval_filter_on_json(&meta_json, &filter) {
-      // metadata matched — continue
     } else {
       let node_json = serde_json::to_value(n).unwrap_or(serde_json::Value::Null);
       if !eval_filter_on_json(&node_json, &filter) {
@@ -682,8 +653,6 @@ where
   }
 
   if let Some(filter) = &eq.filter {
-    // Strip `properties.` prefixes and evaluate on the properties value to avoid
-    // serializing the full `Edge`.
     let filter = strip_field_prefix_in_filter(filter, "properties");
     let json = serde_json::to_value(&e.properties).unwrap_or(serde_json::Value::Null);
     if !eval_filter_on_json(&json, &filter) {
@@ -1050,8 +1019,6 @@ where
           }
 
           if let Some(filter) = &qe.filter {
-            // Strip `properties.` prefixes and evaluate on the properties value to
-            // avoid serializing the whole `Edge`.
             let filter = strip_field_prefix_in_filter(filter, "properties");
             let json = serde_json::to_value(&edge.properties).unwrap_or(serde_json::Value::Null);
             if !eval_filter_on_json(&json, &filter) {
@@ -1086,7 +1053,6 @@ where
         }
 
         if let Some(filter) = &qe.filter {
-          // Avoid serializing the entire `Edge`; evaluate on `properties` instead.
           let json = serde_json::to_value(&edge.properties).unwrap_or(serde_json::Value::Null);
           if !eval_filter_on_json(&json, filter) {
             return Some(false);
@@ -1328,7 +1294,9 @@ where
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+  use super::get_json_field;
+
+  use crate::KeyValueStoreExecutor;
   #[cfg(feature = "in-memory")]
   use crate::in_memory_key_value_store::InMemoryKeyValueStore;
 

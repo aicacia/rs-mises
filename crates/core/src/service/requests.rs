@@ -297,7 +297,6 @@ where
     )
     .await?;
 
-    // count approvals and update status if quorum met
     let approval_count = {
       let count_query = Query::edges(
         EdgeQuery::outgoing(EdgeType::HasApproval.as_str())

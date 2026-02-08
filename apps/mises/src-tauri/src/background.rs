@@ -130,7 +130,6 @@ async fn start_client(
               .header(CONTENT_TYPE, "application/grpc")
               .header(TE, "trailers");
 
-            // Attach metadata as HTTP/2 headers
             for (k, vals) in metadata.iter() {
               let key = k.to_ascii_lowercase();
               match HeaderName::from_bytes(key.as_bytes()) {
@@ -197,7 +196,6 @@ async fn start_client(
               }
             };
 
-            // Convert initial HTTP headers into a Header frame and send it before reading body
             {
               let mut hdrs: HashMap<String, Vec<MetadataValue>> = HashMap::new();
               for (name, value) in response.headers().iter() {
@@ -233,7 +231,6 @@ async fn start_client(
               }
             }
 
-            // Read the response body manually so we can retrieve HTTP trailers afterwards
             let mut body = response.into_body();
             let mut bytes = Vec::new();
             while let Some(chunk_res) = body.data().await {
@@ -242,8 +239,6 @@ async fn start_client(
                 Err(e) => {
                   log::debug!("request {}: failed to read response body: {}", request_id, e);
 
-                  // Emit a trailer frame with grpc-status and grpc-message so the client
-                  // receives a proper gRPC status via trailers instead of an opaque error
                   let mut trails: HashMap<String, Vec<MetadataValue>> = HashMap::new();
                   trails.insert(
                     "grpc-status".to_string(),
@@ -320,7 +315,7 @@ async fn start_client(
             }
 
             let msg = bytes[5..5 + len].to_vec();
-            // Reconstruct gRPC wire frame: compression flag (0) + 4-byte big-endian length + payload
+
             let mut framed_msg = Vec::with_capacity(5 + msg.len());
             framed_msg.push(0u8);
             framed_msg.extend_from_slice(&(msg.len() as u32).to_be_bytes());

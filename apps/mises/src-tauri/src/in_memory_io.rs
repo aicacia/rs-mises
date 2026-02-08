@@ -165,7 +165,9 @@ impl InMemoryDialer {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+  use std::io;
+
+  use super::InMemoryIO;
 
   #[test]
   fn dial_queue_full() {
