@@ -24,6 +24,8 @@ impl Display for InvalidInput {
   }
 }
 
+impl core::error::Error for InvalidInput {}
+
 #[derive(Debug)]
 pub enum CoreError {
   Graph(GraphError),
@@ -65,8 +67,8 @@ impl CoreError {
 impl Display for CoreError {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
-      CoreError::Graph(e) => write!(f, "graph error: {:?}", e),
-      CoreError::Key(e) => write!(f, "key error: {:?}", e),
+      CoreError::Graph(e) => write!(f, "graph error: {}", e),
+      CoreError::Key(e) => write!(f, "key error: {}", e),
       CoreError::Serde(e) => write!(f, "serde error: {}", e),
       CoreError::NotFound => write!(f, "not found"),
       CoreError::Conflict => write!(f, "conflict"),

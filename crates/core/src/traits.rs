@@ -1,5 +1,6 @@
 use mises_graph::{
-  Edge as MisesGraphEdge, Node as MisesGraphNode, Repository as MisesGraphRepository,
+  Edge as MisesGraphEdge, Executor as MisesGraphExecutor, Node as MisesGraphNode,
+  Repository as MisesGraphRepository,
 };
 use uuid::Uuid;
 
@@ -21,6 +22,22 @@ pub trait Repository:
 
 impl<T> Repository for T where
   T: MisesGraphRepository<
+      Id = Uuid,
+      NodeMeta = NodeMeta,
+      EdgeProps = EdgeProps,
+      Node = Node,
+      Edge = Edge,
+    >
+{
+}
+
+pub trait Executor:
+  MisesGraphExecutor<Id = Uuid, NodeMeta = NodeMeta, EdgeProps = EdgeProps, Node = Node, Edge = Edge>
+{
+}
+
+impl<T> Executor for T where
+  T: MisesGraphExecutor<
       Id = Uuid,
       NodeMeta = NodeMeta,
       EdgeProps = EdgeProps,

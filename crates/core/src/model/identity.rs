@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use serde::{Deserialize, Serialize};
 
-// Convinience enum for node types matching those in IdentityMeta
+// Convenience enum for node types matching those in IdentityMeta
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum IdentityType {

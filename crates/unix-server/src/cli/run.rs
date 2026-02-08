@@ -114,7 +114,7 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
 
   let repo = KeyValueRepository::new(InMemoryKeyValueStore::default(), UuidGenerator::new());
 
-  let graph_service = GraphService::new(repo);
+  let _graph_service = GraphService::new(repo.clone());
 
   let reflection_service = tonic_reflection::server::Builder::configure()
     .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)
@@ -123,10 +123,10 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
 
   let server_result = Server::builder()
     .add_service(BootstrapServiceServer::new(BootstrapService::new(
-      graph_service.clone(),
+      repo.clone(),
     )))
     .add_service(OidcServiceServer::new(OidcService::new(
-      graph_service,
+      repo.clone(),
       bind_path.to_string_lossy().to_string(),
       None,
     )))

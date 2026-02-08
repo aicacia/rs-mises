@@ -3,7 +3,7 @@ use std::{collections::HashMap, io, sync::Arc};
 use mises_core::service::graph::GraphService;
 use mises_graph::{InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
 
-use mises_grpc_server::{BootstrapService, BootstrapServiceServer, proto::FILE_DESCRIPTOR_SET};
+use mises_grpc_server::{BootstrapService, proto::FILE_DESCRIPTOR_SET};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use hyper::{
@@ -11,6 +11,7 @@ use hyper::{
   header::{CONTENT_TYPE, HeaderName, HeaderValue, TE},
   {Body, Method, Request},
 };
+use mises_proto::bootstrap_service_server::BootstrapServiceServer;
 use prost::Message;
 use tauri::async_runtime;
 use tokio::{sync::mpsc, time::timeout};
@@ -379,7 +380,7 @@ async fn start_client(
 async fn start_server(io: InMemoryIO, cancellation_token: CancellationToken) -> io::Result<()> {
   let repo = KeyValueRepository::new(InMemoryKeyValueStore::default(), UuidGenerator::new());
 
-  let graph_service = GraphService::new(repo);
+  let _graph_service = GraphService::new(repo.clone());
 
   let reflection_service = tonic_reflection::server::Builder::configure()
     .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)
@@ -388,7 +389,7 @@ async fn start_server(io: InMemoryIO, cancellation_token: CancellationToken) -> 
 
   Server::builder()
     .add_service(BootstrapServiceServer::new(BootstrapService::new(
-      graph_service,
+      repo.clone(),
     )))
     .add_service(reflection_service)
     .serve_with_incoming_shutdown(io, cancellation_token.cancelled())

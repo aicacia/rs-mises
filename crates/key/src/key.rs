@@ -15,6 +15,8 @@ use slip10::{
   path::BIP32Path as Slip10BIP32Path,
 };
 
+use zeroize::Zeroizing;
+
 #[cfg(test)]
 use ed25519_dalek::{Signer as EdSigner, Verifier as EdVerifier};
 #[cfg(test)]
@@ -22,13 +24,21 @@ use k256::ecdsa::{signature::Signer as KSigner, signature::Verifier as KVerifier
 #[cfg(test)]
 use zeroize::Zeroize;
 
+/// A hierarchical deterministic (HD) key wrapper.
+///
+/// - Stores the XPrv node at a given derivation path (the crate initializes keys
+///   to include the BIP44 purpose child: `m/44'`).
+/// - Optionally retains the normalized seed bytes used to construct the master
+///   key. Seed bytes are stored in a `Zeroizing<Vec<u8>>` to ensure they are
+///   zeroed on drop.
 #[derive(Debug, Clone)]
 pub struct Key {
   xprv: XPrv,
   /// Derivation path from the root (must include purpose', e.g. 44')
   children: Vec<ChildNumber>,
   /// Optional normalized seed bytes used to construct this key (if available).
-  seed: Option<Vec<u8>>,
+  /// Stored in a `Zeroizing` wrapper to ensure memory is cleared on drop.
+  seed: Option<Zeroizing<Vec<u8>>>,
 }
 
 fn default_master_purpose_child() -> ChildNumber {
@@ -47,7 +57,7 @@ impl From<Mnemonic> for Key {
     Self {
       xprv,
       children: vec![purpose],
-      seed: Some(seed),
+      seed: Some(Zeroizing::new(seed)),
     }
   }
 }
@@ -61,7 +71,7 @@ impl From<Vec<u8>> for Key {
     Self {
       xprv,
       children: vec![purpose],
-      seed: Some(bytes),
+      seed: Some(Zeroizing::new(bytes)),
     }
   }
 }
@@ -134,8 +144,12 @@ impl Key {
   }
 
   /// Return a copy of the normalized seed bytes if available.
+  ///
+  /// The returned `Vec<u8>` is a clone of the stored seed. The internal storage
+  /// uses `Zeroizing<Vec<u8>>` so the original bytes will be zeroed on drop.
   pub fn seed_bytes(&self) -> Option<Vec<u8>> {
-    self.seed.clone()
+    use core::ops::Deref;
+    self.seed.as_ref().map(|z| z.deref().clone())
   }
 
   /// Return a derivation path string (e.g. "m/44'/0'") if this key has children.
@@ -172,6 +186,13 @@ impl Key {
   }
 }
 
+/// Parse a human-friendly child identifier into a `ChildNumber`.
+///
+/// Supported forms:
+/// - numeric index (e.g. `0`, `1`)
+/// - hardened suffix with `'` or `h`/`H` (e.g. `0'` or `0h`)
+/// - non-numeric names are CRC32 hashed to produce a stable index
+///   (the index is masked to fit the allowed range for `ChildNumber`).
 fn parse_child_number<S: AsRef<str>>(s: S) -> Result<ChildNumber, KeyError> {
   let s = s.as_ref().trim();
   if s.is_empty() {

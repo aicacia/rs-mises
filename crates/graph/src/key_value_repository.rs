@@ -260,22 +260,69 @@ where
   let to_prefix = edge_to_index_prefix(&id)?;
   let mut edge_ids: BTreeSet<I> = BTreeSet::new();
 
+  // Map edge_id -> index keys to allow cleanup of dangling index entries when
+  // the main edge record is missing.
+  let mut index_keys: hashbrown::HashMap<I, Vec<Vec<u8>>> = HashMap::new();
+
   let from_edges = scan_prefix(store, from_prefix, |_, v| Some(!v.is_empty())).await?;
-  for (_, v) in from_edges {
+  for (k, v) in from_edges {
     if let Ok(edge_id) = serde_json::from_slice::<I>(&v) {
-      edge_ids.insert(edge_id);
+      edge_ids.insert(edge_id.clone());
+      index_keys.entry(edge_id).or_default().push(k);
     }
   }
 
   let to_edges = scan_prefix(store, to_prefix, |_, v| Some(!v.is_empty())).await?;
-  for (_, v) in to_edges {
+  for (k, v) in to_edges {
     if let Ok(edge_id) = serde_json::from_slice::<I>(&v) {
-      edge_ids.insert(edge_id);
+      edge_ids.insert(edge_id.clone());
+      index_keys.entry(edge_id).or_default().push(k);
     }
   }
 
   for edge_id in edge_ids {
-    delete_edge::<I, P, S>(store, edge_id).await?;
+    match delete_edge::<I, P, S>(store, edge_id.clone()).await {
+      Ok(()) => continue,
+      Err(GraphError::NotFound) => {
+        // Best-effort cleanup: remove any index entries we recorded for this
+        // edge id (entries under the deleted node's prefixes). Ignore missing
+        // keys, but propagate other errors.
+        if let Some(keys) = index_keys.get(&edge_id) {
+          for key in keys {
+            let _ = store.delete(key).await;
+          }
+        }
+
+        // Also scan the global `edge_from:` and `edge_to:` indexes for any
+        // entries referencing this `edge_id` and remove them. This handles
+        // the case where the main edge record is missing, and index entries
+        // exist under other node prefixes.
+        let edge_id_bytes = match serde_json::to_vec(&edge_id) {
+          Ok(b) => b,
+          Err(e) => return Err(GraphError::SerializationError(e.to_string())),
+        };
+
+        // helper closure to find matching index entries and delete them
+        for prefix in &[EDGE_FROM_PREFIX, EDGE_TO_PREFIX] {
+          if let Ok(found) = scan_prefix(store, prefix.to_vec(), |_, v| {
+            if v == &edge_id_bytes {
+              Some(true)
+            } else {
+              Some(false)
+            }
+          })
+          .await
+          {
+            for (k, _) in found {
+              let _ = store.delete(k).await;
+            }
+          }
+        }
+
+        // continue with next edge
+      }
+      Err(e) => return Err(e),
+    }
   }
 
   Ok(())
@@ -318,13 +365,33 @@ where
   let key = edge_key(&id)?;
   let value =
     serde_json::to_vec(&edge).map_err(|e| GraphError::SerializationError(e.to_string()))?;
-  store.put(key, value).await?;
+  // Write the main edge record first. If subsequent index writes fail, do a
+  // best-effort cleanup to avoid leaving a dangling main edge without its
+  // index entries.
+  store.put(key.clone(), value).await?;
+
   let edge_id_bytes =
     serde_json::to_vec(&edge.id).map_err(|e| GraphError::SerializationError(e.to_string()))?;
   let from_index_key = edge_from_index_key(&edge.from_id, &edge.id)?;
   let to_index_key = edge_to_index_key(&edge.to_id, &edge.id)?;
-  store.put(from_index_key, edge_id_bytes.clone()).await?;
-  store.put(to_index_key, edge_id_bytes).await?;
+
+  // Write from-index; on failure, remove the main edge record and return the error.
+  if let Err(e) = store
+    .put(from_index_key.clone(), edge_id_bytes.clone())
+    .await
+  {
+    let _ = store.delete(&key).await;
+    return Err(e);
+  }
+
+  // Write to-index; on failure remove the main edge record and the from-index
+  // entry (best-effort) then return the error.
+  if let Err(e) = store.put(to_index_key.clone(), edge_id_bytes.clone()).await {
+    let _ = store.delete(&key).await;
+    let _ = store.delete(&from_index_key).await;
+    return Err(e);
+  }
+
   Ok(edge)
 }
 
@@ -419,15 +486,22 @@ where
   M: Value,
   S: KeyValueStoreExecutor,
 {
-  let keys: Vec<_> = ids.iter().filter_map(|id| node_key(id).ok()).collect();
+  // Ensure all ids serialize to keys successfully; if serialization fails,
+  // propagate the error rather than silently skipping ids.
+  let mut keys: Vec<Vec<u8>> = Vec::with_capacity(ids.len());
+  for id in ids {
+    keys.push(node_key(id)?);
+  }
 
   let results: Vec<Option<Vec<u8>>> = store.get_batch(keys).await?;
   let mut nodes = HashMap::with_capacity(ids.len());
 
   for (idx, maybe_data) in results.into_iter().enumerate() {
-    if let Some(data) = maybe_data
-      && let Ok(node) = serde_json::from_slice::<Node<I, M>>(&data)
-    {
+    if let Some(data) = maybe_data {
+      // If deserialization fails, surface the error to avoid silently
+      // ignoring corrupted data.
+      let node: Node<I, M> =
+        serde_json::from_slice(&data).map_err(|e| GraphError::SerializationError(e.to_string()))?;
       nodes.insert(ids[idx].clone(), node);
     }
   }
@@ -577,12 +651,19 @@ where
     return false;
   }
   if let Some(filter) = &nq.filter {
-    // Strip `metadata.` prefixes and evaluate on the metadata value to avoid
-    // serializing the full `Node`.
+    // Strip `metadata.` prefixes for convenience. First try evaluating on
+    // `metadata` value to avoid serializing full `Node`. If that does not
+    // match, fall back to evaluating on the whole serialized `Node` (so
+    // filters like `field("id").eq(...)` will work).
     let filter = strip_field_prefix_in_filter(filter, "metadata");
-    let json = serde_json::to_value(&n.metadata).unwrap_or(serde_json::Value::Null);
-    if !eval_filter_on_json(&json, &filter) {
-      return false;
+    let meta_json = serde_json::to_value(&n.metadata).unwrap_or(serde_json::Value::Null);
+    if eval_filter_on_json(&meta_json, &filter) {
+      // metadata matched — continue
+    } else {
+      let node_json = serde_json::to_value(n).unwrap_or(serde_json::Value::Null);
+      if !eval_filter_on_json(&node_json, &filter) {
+        return false;
+      }
     }
   }
   true
@@ -1242,5 +1323,46 @@ where
   async fn transaction(&self) -> Result<Self::Transaction, GraphError> {
     let tx = self.store.transaction().await?;
     Ok(KeyValueTransaction::new(tx, self.id_gen.clone()))
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  #[cfg(feature = "in-memory")]
+  use crate::in_memory_key_value_store::InMemoryKeyValueStore;
+
+  #[cfg(feature = "in-memory")]
+  #[tokio::test]
+  async fn scan_predicate_semantics() -> Result<(), crate::error::GraphError> {
+    let store = InMemoryKeyValueStore::default();
+    store.put(b"key1".as_ref(), b"v1".to_vec()).await?;
+    store.put(b"key2".as_ref(), b"v2".to_vec()).await?;
+    store.put(b"key3".as_ref(), b"v3".to_vec()).await?;
+
+    let res: Vec<(Vec<u8>, Vec<u8>)> = store
+      .scan(b"key1".to_vec()..b"key9".to_vec(), |k, _v| {
+        if k == &b"key2".to_vec() {
+          None // stop scanning early
+        } else if k == &b"key1".to_vec() {
+          Some(true) // include key1
+        } else {
+          Some(false) // skip others
+        }
+      })
+      .await?;
+
+    assert_eq!(res.len(), 1);
+    assert_eq!(res[0].0, b"key1".to_vec());
+    Ok(())
+  }
+
+  #[test]
+  fn get_json_field_enum_wrapped() {
+    let v = serde_json::json!({"Some": {"name": "Alice"}});
+    assert_eq!(
+      get_json_field(&v, "name").and_then(|x| x.as_str()),
+      Some("Alice")
+    );
   }
 }

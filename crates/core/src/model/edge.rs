@@ -11,7 +11,7 @@ use alloc::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-// Convinience enum for edge types matching those in EdgeProps
+// Convenience enum for edge types matching those in EdgeProps
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum EdgeType {

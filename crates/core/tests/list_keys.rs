@@ -32,7 +32,7 @@ async fn list_keys_returns_keymeta() {
 
   // Create a key and insert into repo
   let key = Key::from_entropy(&[2u8; 32]).expect("key from entropy");
-  let km = KeyMeta::from(key);
+  let km = KeyMeta::try_from(key).expect("create keymeta");
 
   let _node = repo
     .create_node(

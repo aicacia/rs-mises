@@ -7,7 +7,7 @@ fn keymeta_roundtrip_master() {
   let seed = vec![0u8; 32];
   let key = Key::from(seed.clone());
 
-  let km = KeyMeta::from(key.clone());
+  let km = KeyMeta::try_from(key.clone()).expect("create keymeta");
   let k2 = Key::try_from(km).expect("convert back to key");
 
   let a = key.secp256k1_secret_bytes().expect("orig secret");
@@ -21,7 +21,7 @@ fn keymeta_roundtrip_derived() {
   let key = Key::from(seed.clone());
   let derived = key.child_from_derivation_path("m/44'/0'").expect("derive");
 
-  let km = KeyMeta::from(derived.clone());
+  let km = KeyMeta::try_from(derived.clone()).expect("create keymeta");
   assert_eq!(km.derivation_path, "m/44'/0'");
 
   let k2 = Key::try_from(km).expect("convert back to derived key");

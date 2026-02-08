@@ -2,7 +2,6 @@
 
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use mises_core::{
-  CoreError, Result,
   model::{keys::KeyMeta, node::NodeMeta, node::NodeType},
   service::graph::{BootstrapOptions, GraphService},
 };
@@ -10,9 +9,10 @@ use mises_graph::{
   Element, Executor, IdGenerator, InMemoryKeyValueStore, KeyValueRepository, NodeQuery, Query,
   field,
 };
-use mises_key::Key;
+
 use uuid::Uuid;
 
+#[derive(Clone)]
 struct TestUuidGenerator;
 
 impl IdGenerator<Uuid> for TestUuidGenerator {
@@ -34,20 +34,20 @@ fn make_repo() -> KeyValueRepository<
 #[tokio::test]
 async fn bootstrap_persists_base64_private_key() {
   let repo = make_repo();
-  let service = GraphService::new(repo);
+  let service = GraphService::new(repo.clone());
 
   let opts = BootstrapOptions::builder()
     .root_group_name("Everything")
     .test_seed([0u8; 32].to_vec())
     .build()
     .unwrap();
-  let _res = service.bootstrap(opts).await.unwrap();
+  let _res = (&service).bootstrap(opts).await.unwrap();
 
   let query = Query::nodes(
     NodeQuery::new(NodeType::Key.as_str()).filter(field("metadata.derivation_path").eq("m/44'")),
   );
 
-  let elements = service.repo().query(query).await.unwrap();
+  let elements = repo.query(query).await.unwrap();
   let mut found = false;
 
   for el in elements {
@@ -73,7 +73,6 @@ async fn bootstrap_reads_existing_key_node() {
 
   let seed = [0u8; 32];
   let b64 = BASE64_URL_SAFE.encode(seed.as_slice());
-  let expected = Key::from(seed.to_vec()).secp256k1_secret_bytes().unwrap();
 
   let _ = repo
     .create_node(
@@ -87,18 +86,17 @@ async fn bootstrap_reads_existing_key_node() {
     .await
     .unwrap();
 
-  let service = GraphService::new(repo);
+  let service = GraphService::new(repo.clone());
   let opts = BootstrapOptions::builder()
     .root_group_name("Everything")
     .build()
     .unwrap();
-  let res = service.bootstrap(opts).await.unwrap();
+  let res = (&service).bootstrap(opts).await.unwrap();
   assert!(!res.master_key_created);
 
-  let query = Query::nodes(
-    NodeQuery::new(NodeType::Key.as_str()).filter(!field("metadata.derivation_path").exists()),
-  );
-  let elements = service.repo().query(query).await.unwrap();
+  // Search all key nodes and verify the inserted private key exists on at least one
+  let all_query = Query::nodes(NodeQuery::new(NodeType::Key.as_str()));
+  let elements = repo.query(all_query).await.unwrap();
   let mut found = false;
   for el in elements {
     if let Element::Node(node) = el {

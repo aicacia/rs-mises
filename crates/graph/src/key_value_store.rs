@@ -14,6 +14,18 @@ pub trait KeyValueStoreExecutor: Send + Sync {
   async fn delete<K>(&self, key: K) -> Result<(), GraphError>
   where
     K: AsRef<[u8]> + Send;
+  /// Scan entries in `range`, invoking `predicate` for each entry.
+  ///
+  /// The `predicate` controls scanning and selection using the following return
+  /// values:
+  ///
+  /// - `Some(true)` — include the `(key, value)` pair in the returned results and continue scanning.
+  /// - `Some(false)` — skip the pair and continue scanning.
+  /// - `None` — stop scanning early and return the results collected so far.
+  ///
+  /// Implementations should iterate keys in range order and call `predicate` on
+  /// each `(key, value)`. This API allows callers to both filter which entries
+  /// are returned and to stop scanning early for efficiency.
   async fn scan<R, F>(&self, range: R, predicate: F) -> Result<Vec<(Vec<u8>, Vec<u8>)>, GraphError>
   where
     R: RangeBounds<Vec<u8>> + Send,

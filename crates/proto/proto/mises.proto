@@ -151,6 +151,9 @@ message IntrospectResponse {
     optional string aud = 10;
     optional string iss = 11;
     optional string jti = 12;
+    // When an access token delegates authority to another identity this
+    // claim contains the delegated identity id (e.g., a graph Identity ID)
+    optional string acting_for = 13;
 }
 
 message RevokeRequest {
@@ -240,15 +243,65 @@ message UserInfo {
 }
 
 message OpenIdConfiguration {
+    // Core issuer & endpoints
     string issuer = 1;
-    optional string jwks_uri = 2;
-    optional string authorization_endpoint = 3;
-    optional string token_endpoint = 4;
-    optional string userinfo_endpoint = 5;
-    optional string end_session_endpoint = 6;
-    repeated string response_types_supported = 7;
-    repeated string subject_types_supported = 8;
-    repeated string id_token_signing_alg_values_supported = 9;
+    optional string authorization_endpoint = 2;
+    optional string token_endpoint = 3;
+    optional string userinfo_endpoint = 4;
+    optional string revocation_endpoint = 5;
+    optional string introspection_endpoint = 6;
+    optional string jwks_uri = 7;
+    optional string registration_endpoint = 8;
+
+    // Supported values
+    repeated string scopes_supported = 9;
+    repeated string response_types_supported = 10;
+    repeated string response_modes_supported = 11;
+    repeated string grant_types_supported = 12;
+    repeated string token_endpoint_auth_methods_supported = 13;
+    repeated string token_endpoint_auth_signing_alg_values_supported = 14;
+    repeated string code_challenge_methods_supported = 15;
+
+    // Subject & ID token algorithms
+    repeated string subject_types_supported = 16;
+    repeated string id_token_signing_alg_values_supported = 17;
+    repeated string id_token_encryption_alg_values_supported = 18;
+    repeated string id_token_encryption_enc_values_supported = 19;
+
+    // UserInfo & Request object algs
+    repeated string userinfo_signing_alg_values_supported = 20;
+    repeated string userinfo_encryption_alg_values_supported = 21;
+    repeated string request_object_signing_alg_values_supported = 22;
+    repeated string request_object_encryption_alg_values_supported = 23;
+
+    // RFC/OIDC metadata
+    optional string service_documentation = 24;
+    repeated string claims_supported = 25;
+    repeated string claims_locales_supported = 26;
+    repeated string ui_locales_supported = 27;
+    repeated string acr_values_supported = 28;
+
+    // Feature / boolean flags
+    optional bool claims_parameter_supported = 29;
+    optional bool request_parameter_supported = 30;
+    optional bool request_uri_parameter_supported = 31;
+    optional bool require_request_uri_registration = 32;
+
+    // Policy & legal
+    optional string op_policy_uri = 33;
+    optional string op_tos_uri = 34;
+
+    // Session & logout
+    optional string check_session_iframe = 35;
+    optional string end_session_endpoint = 36;
+    optional bool frontchannel_logout_supported = 37;
+    optional bool frontchannel_logout_session_supported = 38;
+    optional bool backchannel_logout_supported = 39;
+    optional bool backchannel_logout_session_supported = 40;
+
+    // Extensions
+    optional string device_authorization_endpoint = 41;
+    optional string pushed_authorization_request_endpoint = 42;
 }
 
 message Jwk {

@@ -1,12 +1,16 @@
 use crate::CoreError;
+use crate::service::identity::IdentityService;
 use alloc::format;
 use alloc::{
+  borrow::ToOwned,
   string::{String, ToString},
   vec::Vec,
 };
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use chrono::{DateTime, Utc};
-use mises_graph::{EdgeQuery, Element, Executor, Filter, NodeQuery, Query, Transaction, field};
+use mises_graph::Executor as MisesGraphExecutor;
+use mises_graph::{EdgeQuery, Element, NodeQuery, Query, Transaction, field};
+
 use mises_key::Key;
 use uuid::Uuid;
 
@@ -20,20 +24,11 @@ use crate::{
   {
     Result,
     model::{identity::IdentityType, node::NodeType},
-    traits::Repository,
+    traits::{Executor, Repository},
   },
 };
 
-#[derive(Debug)]
-struct SimpleError(String);
-
-impl core::fmt::Display for SimpleError {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    write!(f, "{}", self.0)
-  }
-}
-
-impl core::error::Error for SimpleError {}
+use crate::InvalidInput;
 
 #[derive(Clone)]
 pub struct BootstrapOptions {
@@ -121,24 +116,19 @@ pub struct BootstrapResult {
 }
 
 #[derive(Clone)]
-pub struct GraphService<R>
+pub struct GraphService<E>
 where
-  R: Repository,
+  E: Executor,
 {
-  repo: R,
+  exec: E,
 }
 
-impl<R> GraphService<R>
+impl<E> GraphService<E>
 where
-  R: Repository,
+  E: Executor,
 {
-  pub fn new(repo: R) -> Self {
-    Self { repo }
-  }
-
-  /// Accessor for underlying repository (helpful in tests).
-  pub fn repo(&self) -> &R {
-    &self.repo
+  pub fn new(exec: E) -> Self {
+    Self { exec }
   }
 
   async fn get_or_create_master_key(
@@ -148,7 +138,7 @@ where
     let query = Query::nodes(
       NodeQuery::new(NodeType::Key.as_str()).filter(field("metadata.derivation_path").eq("m/44'")),
     );
-    let elements = self.repo.query(query).await?;
+    let elements = self.exec.query(query).await?;
 
     for el in elements {
       if let Element::Node(node) = el
@@ -157,9 +147,9 @@ where
           ..
         }) = &node.metadata
       {
-        let bytes = BASE64_URL_SAFE
-          .decode(b64.as_bytes())
-          .map_err(|e| CoreError::other(SimpleError(format!("base64 decode error: {}", e))))?;
+        let bytes = BASE64_URL_SAFE.decode(b64.as_bytes()).map_err(|e| {
+          CoreError::other(InvalidInput::Other(format!("base64 decode error: {}", e)))
+        })?;
         return Ok((Key::from(bytes.clone()), bytes, false));
       }
     }
@@ -167,21 +157,24 @@ where
     let mut entropy = [0u8; 32];
     if let Some(seed) = options.test_seed.as_ref() {
       if seed.len() != 32 {
-        return Err(CoreError::other(SimpleError(
+        return Err(CoreError::InvalidInput(InvalidInput::Other(
           "test_seed must be 32 bytes".to_string(),
         )));
       }
       entropy.copy_from_slice(&seed[..32]);
     } else {
       getrandom::getrandom(&mut entropy)
-        .map_err(|e| CoreError::other(SimpleError(format!("getrandom error: {}", e))))?;
+        .map_err(|e| CoreError::other(InvalidInput::Other(format!("getrandom error: {}", e))))?;
     }
     let key = Key::from_entropy(&entropy).map_err(CoreError::from)?;
 
     Ok((key, entropy.to_vec(), true))
   }
 
-  pub async fn bootstrap(&self, options: BootstrapOptions) -> Result<BootstrapResult> {
+  pub async fn bootstrap(&self, options: BootstrapOptions) -> Result<BootstrapResult>
+  where
+    E: Repository + Clone,
+  {
     let group_node = {
       let query = Query::nodes(
         NodeQuery::new(NodeType::Key.as_str())
@@ -193,7 +186,7 @@ where
             ),
           ),
       );
-      let elements = self.repo.query(query).await?;
+      let elements = self.exec.query(query).await?;
       let mut group_id = None;
       let mut key_id = None;
       let mut key_public_key = None;
@@ -248,7 +241,7 @@ where
           log::debug!("A new master key was created");
         }
 
-        let tx = self.repo.transaction().await?;
+        let tx = self.exec.transaction().await?;
 
         let key_node = tx
           .create_node(
@@ -296,37 +289,23 @@ where
       }
     };
 
-    let owner_user_id = {
-      let query = Query::nodes(
-        NodeQuery::new(NodeType::Identity.as_str())
-          .filter(field("id").eq(root_group_id.to_string()))
-          .include(
-            EdgeQuery::incoming(EdgeType::Owns.as_str())
-              .from(NodeQuery::new(NodeType::Identity.as_str())),
-          ),
-      );
-      let elements = self.repo.query(query).await?;
-      let mut user_id = None;
+    let identity = IdentityService::new(self.exec.clone());
 
-      for el in elements {
-        if let Element::Edge(edge) = el
-          && edge.r#type == EdgeType::Owns.as_str()
-        {
-          log::debug!("Found existing owner user with id {}", edge.from_id);
-          user_id = Some(edge.from_id);
-        }
-      }
-
-      if let Some(uid) = user_id {
-        uid
-      } else {
-        let tx = self.repo.transaction().await?;
+    let owner_user_id = match identity.find_owner(root_group_id).await? {
+      Some(owner_node) => owner_node.id,
+      None => {
+        // Create the owner user and the OWNS edge in a single transaction so
+        // the two-step operation is atomic and cannot leave partial state.
+        let tx = self.exec.transaction().await?;
 
         let user_node = tx
           .create_node(
             NodeType::Identity.as_str().to_string(),
             NodeMeta::Identity(IdentityMeta::User {
-              name: options.owner_name.unwrap_or_else(|| "admin".to_string()),
+              name: options
+                .owner_name
+                .clone()
+                .unwrap_or_else(|| "admin".to_owned()),
               local: true,
             }),
           )
@@ -337,13 +316,20 @@ where
           user_node.id,
           root_group_id,
           EdgeProps::Owns {
-            since: None,
-            until: None,
+            since: options.now,
+            until: options.now,
           },
         )
         .await?;
 
         tx.commit().await?;
+
+        // DEBUG: indicate owner creation succeeded
+        log::debug!(
+          "bootstrap: created owner user {} for group {}",
+          user_node.id,
+          root_group_id
+        );
 
         log::debug!(
           "Created owner user with id {} for master group {}",
@@ -355,65 +341,40 @@ where
       }
     };
 
-    let device_id = {
-      let query = Query::nodes(
-        NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
-          field("metadata.type")
-            .eq(IdentityType::Device.as_str())
-            .into(),
-          field("metadata.root").eq(root_group_id.to_string()).into(),
-        ])),
-      );
-
-      let elements = self.repo.query(query).await?;
-      let mut found_device = None;
-
-      for el in elements {
-        if let Element::Node(node) = el
-          && let NodeMeta::Identity(IdentityMeta::Device { .. }) = &node.metadata
-        {
-          log::debug!("Found existing device with id {}", node.id);
-          found_device = Some(node.id);
-        }
-      }
-
-      if let Some(did) = found_device {
-        did
-      } else {
-        let tx = self.repo.transaction().await?;
-
-        let device_node = tx
-          .create_node(
-            NodeType::Identity.as_str().to_string(),
-            NodeMeta::Identity(IdentityMeta::Device {
-              name: options.device_name.unwrap_or_else(|| "device".to_string()),
-              local: true,
-              root: Some(root_group_id),
-            }),
-          )
-          .await?;
-
-        tx.create_edge(
-          EdgeType::MemberOf.as_str().to_string(),
-          device_node.id,
-          root_group_id,
-          EdgeProps::MemberOf {
-            since: options.now,
-            until: options.now,
-          },
+    let devices = identity.find_root_devices(root_group_id).await?;
+    let device_id = if let Some(did_node) = devices.into_iter().next() {
+      did_node.id
+    } else {
+      // Create the device node and MEMBER_OF edge in a single transaction to
+      // avoid leaving a device without its group membership on failure.
+      let tx = self.exec.transaction().await?;
+      let device_node = tx
+        .create_node(
+          NodeType::Identity.as_str().to_string(),
+          NodeMeta::Identity(IdentityMeta::Device {
+            name: options.device_name.unwrap_or_else(|| "device".to_string()),
+            local: true,
+            root: Some(root_group_id),
+          }),
         )
         .await?;
-
-        tx.commit().await?;
-
-        log::debug!(
-          "Created device with id {} belonging to master group {}",
-          device_node.id,
-          root_group_id
-        );
-
-        device_node.id
-      }
+      tx.create_edge(
+        EdgeType::MemberOf.as_str().to_string(),
+        device_node.id,
+        root_group_id,
+        EdgeProps::MemberOf {
+          since: options.now,
+          until: options.now,
+        },
+      )
+      .await?;
+      tx.commit().await?;
+      log::debug!(
+        "Created device with id {} belonging to master group {}",
+        device_node.id,
+        root_group_id
+      );
+      device_node.id
     };
 
     Ok(BootstrapResult {
@@ -428,15 +389,16 @@ where
   /// Return all Key nodes as (id, KeyMeta) pairs.
   pub async fn list_keys(&self) -> Result<Vec<(uuid::Uuid, KeyMeta)>> {
     let query = Query::nodes(NodeQuery::new(NodeType::Key.as_str()));
-    let elements = self.repo.query(query).await?;
+    let elements = self.exec.query(query).await?;
 
     let mut out: Vec<(uuid::Uuid, KeyMeta)> = Vec::new();
 
     for el in elements {
       if let Element::Node(node) = el
-        && let NodeMeta::Key(km) = node.metadata {
-          out.push((node.id, km));
-        }
+        && let NodeMeta::Key(km) = node.metadata
+      {
+        out.push((node.id, km));
+      }
     }
 
     Ok(out)
