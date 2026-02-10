@@ -8,24 +8,24 @@ use alloc::{
 };
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use chrono::{DateTime, Utc};
-use mises_graph::Executor as MisesGraphExecutor;
-use mises_graph::{EdgeQuery, Element, NodeQuery, Query, Transaction, field};
+use mises_graph::{
+  EdgeQuery, Element, Executor as MisesGraphExecutor, NodeQuery, Query, Transaction, field,
+};
 
 use mises_key::Key;
 use uuid::Uuid;
 
 use crate::{
+  Result,
   model::{
     edge::{EdgeProps, EdgeType},
+    identity::ApplicationMeta,
     identity::IdentityMeta,
     keys::KeyMeta,
     node::NodeMeta,
   },
-  {
-    Result,
-    model::{identity::IdentityType, node::NodeType},
-    traits::{Executor, Repository},
-  },
+  model::{identity::IdentityType, node::NodeType},
+  traits::{Executor, Repository},
 };
 
 use crate::InvalidInput;
@@ -150,7 +150,10 @@ where
         let bytes = BASE64_URL_SAFE.decode(b64.as_bytes()).map_err(|e| {
           CoreError::other(InvalidInput::Other(format!("base64 decode error: {}", e)))
         })?;
-        return Ok((Key::from(bytes.clone()), bytes, false));
+        let key = Key::try_from(bytes.clone()).map_err(|e| {
+          CoreError::other(InvalidInput::Other(format!("invalid key bytes: {}", e)))
+        })?;
+        return Ok((key, bytes, false));
       }
     }
 
@@ -371,6 +374,53 @@ where
       device_node.id
     };
 
+    let _app_id = {
+      let q = Query::nodes(
+        NodeQuery::new(NodeType::Identity.as_str())
+          .filter(field("metadata.type").eq(IdentityType::Application.as_str())),
+      );
+      let elements = self.exec.query(q).await?;
+      if let Some(Element::Node(n)) = elements.into_iter().find(|e| matches!(e, Element::Node(_))) {
+        n.id
+      } else {
+        let tx = self.exec.transaction().await?;
+        let app_node = tx
+          .create_node(
+            NodeType::Identity.as_str().to_string(),
+            NodeMeta::Identity(IdentityMeta::Application {
+              name: "tauri".to_string(),
+              local: true,
+              oidc_client: Some(ApplicationMeta {
+                redirect_uris: Vec::from([
+                  "http://localhost:5173/authorize/callback".to_string(),
+                  "mises://authorize/callback".to_string(),
+                ]),
+                response_types: Vec::from(["code".to_string(), "id_token".to_string()]),
+                grant_types: Vec::new(),
+                scopes: Vec::from(["openid".to_string()]),
+                token_endpoint_auth_method: Some("none".to_string()),
+              }),
+            }),
+          )
+          .await?;
+
+        tx.create_edge(
+          EdgeType::Owns.as_str().to_string(),
+          owner_user_id,
+          app_node.id,
+          EdgeProps::Owns {
+            since: options.now,
+            until: options.now,
+          },
+        )
+        .await?;
+
+        tx.commit().await?;
+        log::debug!("Created application identity {}", app_node.id);
+        app_node.id
+      }
+    };
+
     Ok(BootstrapResult {
       root_group: root_group_id,
       master_key_public_key,
@@ -380,7 +430,6 @@ where
     })
   }
 
-  /// Return all Key nodes as (id, KeyMeta) pairs.
   pub async fn list_keys(&self) -> Result<Vec<(uuid::Uuid, KeyMeta)>> {
     let query = Query::nodes(NodeQuery::new(NodeType::Key.as_str()));
     let elements = self.exec.query(query).await?;

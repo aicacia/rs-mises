@@ -6,17 +6,12 @@ use serde::{Deserialize, Serialize};
 
 use mises_key::Key;
 
-/// Key metadata used to store information about a cryptographic key in a node.
-///
-/// - `public_key` is a base64url-encoded public point (uncompressed EC point expected)
-/// - `private_key` is an optional base64url-encoded seed/secret used to reconstruct the key
-/// - `derivation_path` is a BIP32 style derivation path (e.g. `m/44'`)
+/// Base64 URL-safe encoded public key bytes. Optional private key seed for reconstruction.
+/// Derivation path follows BIP32 format (e.g. `m/44'`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct KeyMeta {
   pub public_key: String,
-  /// Base64 URL-safe encoded secret/seed bytes (optional).
   pub private_key: Option<String>,
-  /// BIP32 derivation path (required). e.g. "m/44'"
   pub derivation_path: String,
 }
 
@@ -54,12 +49,9 @@ impl TryFrom<KeyMeta> for Key {
         }
       };
 
-      let base_key = Key::from(bytes);
+      let base_key = Key::try_from(bytes)?;
 
-      match base_key.child_from_derivation_path(km.derivation_path) {
-        Ok(derived) => Ok(derived),
-        Err(_) => Err(mises_key::KeyError::InvalidKey),
-      }
+      base_key.child_from_derivation_path(km.derivation_path)
     } else {
       Err(mises_key::KeyError::MissingSeed)
     }
@@ -67,36 +59,25 @@ impl TryFrom<KeyMeta> for Key {
 }
 
 impl KeyMeta {
-  /// Decode the base64url-encoded public key into raw bytes.
-  ///
-  /// Returns a `crate::Result<Vec<u8>>` so callers get `CoreError::InvalidInput` on failure.
-  pub fn to_bytes(&self) -> crate::Result<Vec<u8>> {
-    if let Ok(b) = BASE64_URL_SAFE.decode(self.public_key.as_bytes()) {
-      return Ok(b);
-    }
-
-    match base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(self.public_key.as_bytes()) {
-      Ok(b) => Ok(b),
-      Err(e) => Err(crate::CoreError::InvalidInput(crate::InvalidInput::Other(
-        format!("invalid public_key base64: {}", e),
-      ))),
-    }
+  fn decode_public_key_bytes(&self) -> Result<Vec<u8>, base64::DecodeError> {
+    BASE64_URL_SAFE
+      .decode(self.public_key.as_bytes())
+      .or_else(|_| {
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(self.public_key.as_bytes())
+      })
   }
 
-  /// If this `KeyMeta` represents an uncompressed EC public point (0x04 || X || Y),
-  /// returns `(x_b64url, y_b64url)` as base64url strings.
-  ///
-  /// Returns `None` for other formats or decoding failures.
+  pub fn to_bytes(&self) -> crate::Result<Vec<u8>> {
+    self.decode_public_key_bytes().map_err(|e| {
+      crate::CoreError::InvalidInput(crate::InvalidInput::Other(format!(
+        "invalid public_key base64: {}",
+        e
+      )))
+    })
+  }
+
   pub fn ec_coords_b64(&self) -> Option<(String, String)> {
-    let bytes = if let Ok(b) = BASE64_URL_SAFE.decode(self.public_key.as_bytes()) {
-      b
-    } else if let Ok(b) =
-      base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(self.public_key.as_bytes())
-    {
-      b
-    } else {
-      return None;
-    };
+    let bytes = self.decode_public_key_bytes().ok()?;
 
     if bytes.len() == 65 && bytes[0] == 0x04 {
       let xb = &bytes[1..33];
@@ -114,6 +95,8 @@ impl KeyMeta {
 #[cfg(test)]
 mod tests {
   use super::{BASE64_URL_SAFE, KeyMeta};
+  use alloc::string::String;
+  use alloc::vec::Vec;
   use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 
   #[test]

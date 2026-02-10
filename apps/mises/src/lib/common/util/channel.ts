@@ -1,8 +1,8 @@
 import { env } from '$env/dynamic/public';
 import { createChannel, FetchTransport } from 'nice-grpc-web';
-import { isTauri } from './isTauri';
 import { once } from './once';
 import { createTauriTransport } from './createTauriTransport';
+import { isTauri } from '@tauri-apps/api/core';
 
 function createTransport() {
 	if (isTauri()) {

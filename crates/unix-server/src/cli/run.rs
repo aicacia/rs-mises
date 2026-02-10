@@ -107,7 +107,9 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
   if fs::metadata(&bind_path).await.is_ok() {
     let _ = fs::remove_file(&bind_path).await;
   }
-  fs::create_dir_all(bind_path.parent().unwrap()).await?;
+  if let Some(parent) = bind_path.parent() {
+    fs::create_dir_all(parent).await?;
+  }
 
   let uds = UnixListener::bind(bind_path)?;
   let uds_stream = UnixListenerStream::new(uds);
@@ -128,6 +130,7 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
     .add_service(OidcServiceServer::new(OidcService::new(
       repo.clone(),
       bind_path.to_string_lossy().to_string(),
+      None,
       None,
     )))
     .add_service(reflection_service)

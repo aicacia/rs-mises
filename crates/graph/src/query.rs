@@ -4,7 +4,6 @@ use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
-/// Query options such as `limit` for pagination
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct QueryOptions {
   pub limit: Option<usize>,
@@ -22,7 +21,6 @@ impl QueryOptions {
   }
 }
 
-/// Comparison operators for predicates
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ComparisonOp {
   Eq,
@@ -36,7 +34,6 @@ pub enum ComparisonOp {
   Contains,
 }
 
-/// A simple predicate: `field op value`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Predicate {
   pub field: String,
@@ -66,7 +63,6 @@ impl Not for Predicate {
   }
 }
 
-/// Logical filter tree
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum Filter {
@@ -126,7 +122,6 @@ impl Not for Filter {
   }
 }
 
-/// Helper to build a field access
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Field(pub String);
 
@@ -218,7 +213,6 @@ impl Field {
   }
 }
 
-/// Direction for edge traversal
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum EdgeDirection {
   Out,
@@ -226,7 +220,6 @@ pub enum EdgeDirection {
   Both,
 }
 
-/// Node query AST
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct NodeQuery {
   pub node_type: Option<String>,
@@ -279,7 +272,6 @@ impl NodeQuery {
   }
 }
 
-/// Edge query AST
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EdgeQuery {
   pub edge_type: Option<String>,
@@ -358,7 +350,6 @@ impl EdgeQuery {
   }
 }
 
-/// Combined query that can carry node and/or edge sub-queries
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Query {
   pub node: Option<NodeQuery>,

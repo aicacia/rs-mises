@@ -2,10 +2,8 @@ use tonic::{Request, Response, Status};
 
 use mises_core::{service::graph::GraphService, traits::Repository};
 
-use crate::oidc_service::{authorize::authorize, constants};
+use crate::oidc_service::{authorize::authorize, constants, helpers::resolve_client_id};
 
-/// OIDC gRPC service implementation. Uses the repository/graph service directly
-/// to implement behavior (not the `mises-oidc` crate).
 pub struct OidcService<R>
 where
   R: Repository,
@@ -13,17 +11,24 @@ where
   repo: R,
   issuer: String,
   public_uri: Option<url::Url>,
+  hmac_secret: Option<String>,
 }
 
 impl<R> OidcService<R>
 where
   R: Repository,
 {
-  pub fn new(repo: R, issuer: String, public_uri: Option<url::Url>) -> Self {
+  pub fn new(
+    repo: R,
+    issuer: String,
+    public_uri: Option<url::Url>,
+    hmac_secret: Option<String>,
+  ) -> Self {
     Self {
       repo,
       issuer,
       public_uri,
+      hmac_secret,
     }
   }
 }
@@ -46,6 +51,87 @@ where
     _request: Request<mises_proto::DeviceAuthorizeRequest>,
   ) -> Result<Response<mises_proto::DeviceAuthorizeResponse>, Status> {
     Err(Status::unimplemented("device_authorize not implemented"))
+  }
+
+  async fn native_authenticate(
+    &self,
+    request: Request<mises_proto::NativeAuthenticateRequest>,
+  ) -> Result<Response<mises_proto::TokenResponse>, Status> {
+    let req = request.into_inner();
+
+    let client_id = req.client_id.as_deref().unwrap_or("");
+    if client_id.trim().is_empty() {
+      return Err(Status::invalid_argument("client_id is required"));
+    }
+
+    let client_uuid = resolve_client_id(client_id, self.repo.clone()).await?;
+
+    let identity_service = mises_core::service::identity::IdentityService::new(self.repo.clone());
+    let user_node = match req.sub {
+      Some(sub) => match identity_service.create_user(sub).await {
+        Ok(n) => n,
+        Err(e) => return Err(Status::internal(format!("identity service error: {}", e))),
+      },
+      None => match identity_service
+        .create_user("desktop-admin".to_string())
+        .await
+      {
+        Ok(n) => n,
+        Err(e) => return Err(Status::internal(format!("identity service error: {}", e))),
+      },
+    };
+
+    let secret = match &self.hmac_secret {
+      Some(s) => s.as_bytes(),
+      None => {
+        return Err(Status::unimplemented(
+          "native_authenticate not configured with signing secret",
+        ));
+      }
+    };
+
+    let now = chrono::Utc::now();
+    let exp = now + chrono::Duration::seconds(3600);
+    let jti = uuid::Uuid::new_v4().to_string();
+    #[derive(serde::Serialize)]
+    struct Claims<'a> {
+      iss: &'a str,
+      aud: &'a str,
+      sub: String,
+      exp: i64,
+      iat: i64,
+      jti: String,
+      scope: Option<String>,
+    }
+
+    let claims = Claims {
+      iss: &self.issuer,
+      aud: &client_uuid.to_string(),
+      sub: user_node.id.to_string(),
+      exp: exp.timestamp(),
+      iat: now.timestamp(),
+      jti,
+      scope: req.scope,
+    };
+
+    let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);
+    let token = jsonwebtoken::encode(
+      &header,
+      &claims,
+      &jsonwebtoken::EncodingKey::from_secret(secret),
+    )
+    .map_err(|e| Status::internal(format!("failed to encode id_token: {}", e)))?;
+
+    let resp = mises_proto::TokenResponse {
+      access_token: String::new(),
+      token_type: String::from("Bearer"),
+      expires_in: Some(3600),
+      refresh_token: None,
+      id_token: Some(token),
+      scope: None,
+    };
+
+    Ok(Response::new(resp))
   }
 
   async fn token(

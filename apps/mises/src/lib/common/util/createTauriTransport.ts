@@ -1,6 +1,7 @@
 import { Metadata, type MetadataValue } from 'nice-grpc-web';
 import type { Frame, Transport } from 'nice-grpc-web/lib/client/Transport';
-import type { Event } from '@tauri-apps/api/event';
+import { listen, type Event } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 import { err, ok, type Result } from '@aicacia/trycatch';
 
 type TransportMetadata = { [K in string]: MetadataValue<K>[] };
@@ -32,13 +33,7 @@ interface TauriTransportOptions {
 export function createTauriTransport({
 	responseTimeoutMs = 60000
 }: TauriTransportOptions = {}): Transport {
-	const event = import('@tauri-apps/api/event');
-	const core = import('@tauri-apps/api/core');
-
 	return async function* transportTransport({ body, metadata, method }) {
-		const { invoke } = await core;
-		const { listen } = await event;
-
 		console.debug('[tauri-transport] start', { path: method.path, metadata });
 
 		const chunks: Uint8Array[] = [];

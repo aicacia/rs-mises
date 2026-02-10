@@ -1,0 +1,23 @@
+[package]
+name = "native-authentication"
+version = "0.1.0"
+edition = "2024"
+authors = ["mises-team"]
+description = "Lightweight native authentication helper (Linux only; polkit)"
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "native_authentication"
+
+[dependencies]
+which = { version = "4", default-features = false }
+tokio = { version = "1", default-features = false, features = [
+  "process",
+  "macros",
+  "rt",
+] }
+
+[features]
+# this crate targets native platforms and requires std; enable by default
+default = ["std"]
+std = []

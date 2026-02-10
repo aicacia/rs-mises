@@ -16,9 +16,8 @@
 <script lang="ts">
 	import { createForm } from '@aicacia/svelte-forms';
 	import Issues from '$lib/common/components/Issues.svelte';
-	import { createClient } from 'nice-grpc-web';
-	import { BootstrapServiceDefinition } from '$lib/proto/mises';
-	import { channel } from '$lib/common/util/channel';
+	import { oidcClient } from '$lib/common/util/grpcClient';
+	import { isTauri } from '@tauri-apps/api/core';
 
 	const form = createForm(SignInSchema(), {
 		email: '',
@@ -33,38 +32,51 @@
 		if (error) {
 			return;
 		}
-
 		console.log(output.email, output.password);
+	}
 
-		const client = createClient(BootstrapServiceDefinition, channel());
-
-		const response = await client.bootstrap({});
-		console.log(response);
+	async function onNativeSignIn() {
+		if (!isTauri()) {
+			return;
+		}
+		const authorizeResponse = await oidcClient().authorize({
+			clientId: 'tauri',
+			responseType: 'id_token',
+			scope: 'openid',
+			redirectUri: 'mises://authorize/callback'
+		});
+		console.log('authorize response', authorizeResponse);
 	}
 </script>
 
-<form onsubmit={onSubmit} class="flex flex-col">
-	<label class="flex flex-col">
-		{m.signin_username_label()}
-		<input
-			type="text"
-			aria-label={m.signin_username_label()}
-			autocomplete="username"
-			placeholder={m.signin_username_placeholder()}
-			bind:value={form.fields.email.value}
-		/>
-		<Issues issues={form.fields.email.issues} />
-	</label>
-	<label class="flex flex-col">
-		{m.signin_password_label()}
-		<input
-			aria-label={m.signin_password_label()}
-			type="password"
-			autocomplete="current-password"
-			placeholder={m.signin_password_placeholder()}
-			bind:value={form.fields.password.value}
-		/>
-		<Issues issues={form.fields.password.issues} />
-	</label>
-	<input class="btn primary mt-4" type="submit" value={m.sign_in()} />
-</form>
+{#if isTauri()}
+	<button class="btn secondary mb-4" on:click={onNativeSignIn}>
+		{m.sign_in()}
+	</button>
+{:else}
+	<form on:submit={onSubmit} class="flex flex-col">
+		<label class="flex flex-col">
+			{m.signin_username_label()}
+			<input
+				type="text"
+				aria-label={m.signin_username_label()}
+				autocomplete="username"
+				placeholder={m.signin_username_placeholder()}
+				bind:value={form.fields.email.value}
+			/>
+			<Issues issues={form.fields.email.issues} />
+		</label>
+		<label class="flex flex-col">
+			{m.signin_password_label()}
+			<input
+				aria-label={m.signin_password_label()}
+				type="password"
+				autocomplete="current-password"
+				placeholder={m.signin_password_placeholder()}
+				bind:value={form.fields.password.value}
+			/>
+			<Issues issues={form.fields.password.issues} />
+		</label>
+		<input class="btn primary mt-4" type="submit" value={m.sign_in()} />
+	</form>
+{/if}

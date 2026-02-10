@@ -5,240 +5,3643 @@
 // source: mises.proto
 
 /* eslint-disable */
-import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
-import type { CallContext, CallOptions } from 'nice-grpc-common';
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import type { CallContext, CallOptions } from "nice-grpc-common";
+import { Empty } from "./google/protobuf/empty";
+import { Struct } from "./google/protobuf/struct";
 
-export const protobufPackage = 'mises';
+export const protobufPackage = "mises";
 
 export interface BootstrapRequest {
-	rootGroupName: string;
-	ownerName: string;
-	deviceName: string;
+  rootGroupName: string;
+  ownerName: string;
+  deviceName: string;
 }
 
 export interface BootstrapResponse {
-	rootGroup: string;
-	masterKeyCreated: boolean;
-	masterKeyPublicKey: string;
-	ownerUser: string;
-	device: string;
+  rootGroup: string;
+  masterKeyCreated: boolean;
+  masterKeyPublicKey: string;
+  ownerUser: string;
+  device: string;
+}
+
+export interface AuthorizeRequest {
+  clientId: string;
+  responseType: string;
+  responseMode?: string | undefined;
+  scope?: string | undefined;
+  redirectUri?: string | undefined;
+  state?: string | undefined;
+  nonce?:
+    | string
+    | undefined;
+  /** JSON object */
+  registration?: { [key: string]: any } | undefined;
+  codeChallenge?: string | undefined;
+  codeChallengeMethod?: string | undefined;
+}
+
+export interface AuthorizeResponse {
+  redirectUri?: string | undefined;
+}
+
+export interface TokenRequest {
+  authorizationCode?: AuthorizationCode | undefined;
+  refreshToken?: RefreshToken | undefined;
+  clientCredentials?: ClientCredentials | undefined;
+  deviceCode?: DeviceCode | undefined;
+}
+
+export interface AuthorizationCode {
+  code: string;
+  redirectUri?: string | undefined;
+  clientId?: string | undefined;
+  codeVerifier?: string | undefined;
+}
+
+export interface RefreshToken {
+  refreshToken: string;
+  scope?: string | undefined;
+  clientId?: string | undefined;
+}
+
+export interface ClientCredentials {
+  scope?: string | undefined;
+  clientId?: string | undefined;
+}
+
+export interface DeviceCode {
+  deviceCode: string;
+  clientId?: string | undefined;
+}
+
+export interface TokenResponse {
+  accessToken: string;
+  tokenType: string;
+  expiresIn?: number | undefined;
+  refreshToken?: string | undefined;
+  idToken?: string | undefined;
+  scope?: string | undefined;
+}
+
+export interface DeviceAuthorizeRequest {
+  clientId?: string | undefined;
+  scope?: string | undefined;
+}
+
+export interface DeviceAuthorizeResponse {
+  deviceCode: string;
+  userCode: string;
+  verificationUri: string;
+  verificationUriComplete?: string | undefined;
+  expiresIn: number;
+  interval?: number | undefined;
+}
+
+export interface IntrospectRequest {
+  token: string;
+  tokenTypeHint?: string | undefined;
+  clientId?: string | undefined;
+  clientSecret?: string | undefined;
+}
+
+export interface IntrospectResponse {
+  active: boolean;
+  scope?: string | undefined;
+  clientId?: string | undefined;
+  username?: string | undefined;
+  tokenType?: string | undefined;
+  exp?: number | undefined;
+  iat?: number | undefined;
+  nbf?: number | undefined;
+  sub?: string | undefined;
+  aud?: string | undefined;
+  iss?: string | undefined;
+  jti?:
+    | string
+    | undefined;
+  /**
+   * When an access token delegates authority to another identity this
+   * claim contains the delegated identity id (e.g., a graph Identity ID)
+   */
+  actingFor?: string | undefined;
+}
+
+export interface RevokeRequest {
+  token: string;
+  tokenTypeHint?: string | undefined;
+  clientId?: string | undefined;
+  clientSecret?: string | undefined;
+}
+
+export interface PushedAuthorizeRequest {
+  clientId: string;
+  responseType?: string | undefined;
+  responseMode?: string | undefined;
+  scope?: string | undefined;
+  redirectUri?: string | undefined;
+  state?: string | undefined;
+  nonce?: string | undefined;
+  registration?: { [key: string]: any } | undefined;
+  codeChallenge?: string | undefined;
+  codeChallengeMethod?: string | undefined;
+}
+
+export interface PushedAuthorizeResponse {
+  requestUri: string;
+  expiresIn?: number | undefined;
+}
+
+export interface BackchannelAuthRequest {
+  clientId?: string | undefined;
+  scope?: string | undefined;
+  loginHint?: string | undefined;
+}
+
+export interface BackchannelAuthResponse {
+  authReqId: string;
+  expiresIn?: number | undefined;
+  interval?: number | undefined;
+}
+
+export interface ClientRegisterRequest {
+  clientId?: string | undefined;
+  clientSecret?: string | undefined;
+  name?: string | undefined;
+  redirectUris: string[];
+  grantTypes: string[];
+  responseTypes: string[];
+  scope?: string | undefined;
+  tokenEndpointAuthMethod?: string | undefined;
+}
+
+export interface Client {
+  /** UUID string */
+  id: string;
+  clientId: string;
+  clientSecret?: string | undefined;
+  name?: string | undefined;
+  redirectUris: string[];
+  grantTypes: string[];
+  responseTypes: string[];
+  scope?: string | undefined;
+  tokenEndpointAuthMethod?: string | undefined;
+}
+
+export interface EndSessionRequest {
+  idTokenHint?: string | undefined;
+  postLogoutRedirectUri?: string | undefined;
+  state?: string | undefined;
+}
+
+export interface EndSessionResponse {
+  redirectUri?: string | undefined;
+}
+
+export interface UserInfoRequest {
+  /** access token is typically provided in Authorization header; allow explicit token here */
+  accessToken?: string | undefined;
+}
+
+export interface UserInfo {
+  sub: string;
+  name?: string | undefined;
+  givenName?: string | undefined;
+  familyName?: string | undefined;
+  preferredUsername?: string | undefined;
+  email?: string | undefined;
+  emailVerified?: boolean | undefined;
+  picture?: string | undefined;
+}
+
+export interface OpenIdConfiguration {
+  /** Core issuer & endpoints */
+  issuer: string;
+  authorizationEndpoint?: string | undefined;
+  tokenEndpoint?: string | undefined;
+  userinfoEndpoint?: string | undefined;
+  revocationEndpoint?: string | undefined;
+  introspectionEndpoint?: string | undefined;
+  jwksUri?: string | undefined;
+  registrationEndpoint?:
+    | string
+    | undefined;
+  /** Supported values */
+  scopesSupported: string[];
+  responseTypesSupported: string[];
+  responseModesSupported: string[];
+  grantTypesSupported: string[];
+  tokenEndpointAuthMethodsSupported: string[];
+  tokenEndpointAuthSigningAlgValuesSupported: string[];
+  codeChallengeMethodsSupported: string[];
+  /** Subject & ID token algorithms */
+  subjectTypesSupported: string[];
+  idTokenSigningAlgValuesSupported: string[];
+  idTokenEncryptionAlgValuesSupported: string[];
+  idTokenEncryptionEncValuesSupported: string[];
+  /** UserInfo & Request object algs */
+  userinfoSigningAlgValuesSupported: string[];
+  userinfoEncryptionAlgValuesSupported: string[];
+  requestObjectSigningAlgValuesSupported: string[];
+  requestObjectEncryptionAlgValuesSupported: string[];
+  /** RFC/OIDC metadata */
+  serviceDocumentation?: string | undefined;
+  claimsSupported: string[];
+  claimsLocalesSupported: string[];
+  uiLocalesSupported: string[];
+  acrValuesSupported: string[];
+  /** Feature / boolean flags */
+  claimsParameterSupported?: boolean | undefined;
+  requestParameterSupported?: boolean | undefined;
+  requestUriParameterSupported?: boolean | undefined;
+  requireRequestUriRegistration?:
+    | boolean
+    | undefined;
+  /** Policy & legal */
+  opPolicyUri?: string | undefined;
+  opTosUri?:
+    | string
+    | undefined;
+  /** Session & logout */
+  checkSessionIframe?: string | undefined;
+  endSessionEndpoint?: string | undefined;
+  frontchannelLogoutSupported?: boolean | undefined;
+  frontchannelLogoutSessionSupported?: boolean | undefined;
+  backchannelLogoutSupported?: boolean | undefined;
+  backchannelLogoutSessionSupported?:
+    | boolean
+    | undefined;
+  /** Extensions */
+  deviceAuthorizationEndpoint?: string | undefined;
+  pushedAuthorizationRequestEndpoint?: string | undefined;
+}
+
+export interface Jwk {
+  kid: string;
+  kty: string;
+  use: string;
+  alg: string;
+  crv: string;
+  x: string;
+  y: string;
+  /** Allowed key operations (e.g., "sign", "verify") */
+  keyOps: string[];
+}
+
+export interface Jwks {
+  keys: Jwk[];
 }
 
 function createBaseBootstrapRequest(): BootstrapRequest {
-	return { rootGroupName: '', ownerName: '', deviceName: '' };
+  return { rootGroupName: "", ownerName: "", deviceName: "" };
 }
 
 export const BootstrapRequest: MessageFns<BootstrapRequest> = {
-	encode(message: BootstrapRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.rootGroupName !== '') {
-			writer.uint32(10).string(message.rootGroupName);
-		}
-		if (message.ownerName !== '') {
-			writer.uint32(18).string(message.ownerName);
-		}
-		if (message.deviceName !== '') {
-			writer.uint32(26).string(message.deviceName);
-		}
-		return writer;
-	},
+  encode(message: BootstrapRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.rootGroupName !== "") {
+      writer.uint32(10).string(message.rootGroupName);
+    }
+    if (message.ownerName !== "") {
+      writer.uint32(18).string(message.ownerName);
+    }
+    if (message.deviceName !== "") {
+      writer.uint32(26).string(message.deviceName);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): BootstrapRequest {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-		const end = length === undefined ? reader.len : reader.pos + length;
-		const message = createBaseBootstrapRequest();
-		while (reader.pos < end) {
-			const tag = reader.uint32();
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break;
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): BootstrapRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBootstrapRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.rootGroupName = reader.string();
-					continue;
-				}
-				case 2: {
-					if (tag !== 18) {
-						break;
-					}
+          message.rootGroupName = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
 
-					message.ownerName = reader.string();
-					continue;
-				}
-				case 3: {
-					if (tag !== 26) {
-						break;
-					}
+          message.ownerName = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.deviceName = reader.string();
-					continue;
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break;
-			}
-			reader.skip(tag & 7);
-		}
-		return message;
-	},
+          message.deviceName = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	create(base?: DeepPartial<BootstrapRequest>): BootstrapRequest {
-		return BootstrapRequest.fromPartial(base ?? {});
-	},
-	fromPartial(object: DeepPartial<BootstrapRequest>): BootstrapRequest {
-		const message = createBaseBootstrapRequest();
-		message.rootGroupName = object.rootGroupName ?? '';
-		message.ownerName = object.ownerName ?? '';
-		message.deviceName = object.deviceName ?? '';
-		return message;
-	}
+  create(base?: DeepPartial<BootstrapRequest>): BootstrapRequest {
+    return BootstrapRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<BootstrapRequest>): BootstrapRequest {
+    const message = createBaseBootstrapRequest();
+    message.rootGroupName = object.rootGroupName ?? "";
+    message.ownerName = object.ownerName ?? "";
+    message.deviceName = object.deviceName ?? "";
+    return message;
+  },
 };
 
 function createBaseBootstrapResponse(): BootstrapResponse {
-	return {
-		rootGroup: '',
-		masterKeyCreated: false,
-		masterKeyPublicKey: '',
-		ownerUser: '',
-		device: ''
-	};
+  return { rootGroup: "", masterKeyCreated: false, masterKeyPublicKey: "", ownerUser: "", device: "" };
 }
 
 export const BootstrapResponse: MessageFns<BootstrapResponse> = {
-	encode(message: BootstrapResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-		if (message.rootGroup !== '') {
-			writer.uint32(10).string(message.rootGroup);
-		}
-		if (message.masterKeyCreated !== false) {
-			writer.uint32(16).bool(message.masterKeyCreated);
-		}
-		if (message.masterKeyPublicKey !== '') {
-			writer.uint32(26).string(message.masterKeyPublicKey);
-		}
-		if (message.ownerUser !== '') {
-			writer.uint32(34).string(message.ownerUser);
-		}
-		if (message.device !== '') {
-			writer.uint32(42).string(message.device);
-		}
-		return writer;
-	},
+  encode(message: BootstrapResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.rootGroup !== "") {
+      writer.uint32(10).string(message.rootGroup);
+    }
+    if (message.masterKeyCreated !== false) {
+      writer.uint32(16).bool(message.masterKeyCreated);
+    }
+    if (message.masterKeyPublicKey !== "") {
+      writer.uint32(26).string(message.masterKeyPublicKey);
+    }
+    if (message.ownerUser !== "") {
+      writer.uint32(34).string(message.ownerUser);
+    }
+    if (message.device !== "") {
+      writer.uint32(42).string(message.device);
+    }
+    return writer;
+  },
 
-	decode(input: BinaryReader | Uint8Array, length?: number): BootstrapResponse {
-		const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-		const end = length === undefined ? reader.len : reader.pos + length;
-		const message = createBaseBootstrapResponse();
-		while (reader.pos < end) {
-			const tag = reader.uint32();
-			switch (tag >>> 3) {
-				case 1: {
-					if (tag !== 10) {
-						break;
-					}
+  decode(input: BinaryReader | Uint8Array, length?: number): BootstrapResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBootstrapResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-					message.rootGroup = reader.string();
-					continue;
-				}
-				case 2: {
-					if (tag !== 16) {
-						break;
-					}
+          message.rootGroup = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
 
-					message.masterKeyCreated = reader.bool();
-					continue;
-				}
-				case 3: {
-					if (tag !== 26) {
-						break;
-					}
+          message.masterKeyCreated = reader.bool();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
 
-					message.masterKeyPublicKey = reader.string();
-					continue;
-				}
-				case 4: {
-					if (tag !== 34) {
-						break;
-					}
+          message.masterKeyPublicKey = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
 
-					message.ownerUser = reader.string();
-					continue;
-				}
-				case 5: {
-					if (tag !== 42) {
-						break;
-					}
+          message.ownerUser = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
 
-					message.device = reader.string();
-					continue;
-				}
-			}
-			if ((tag & 7) === 4 || tag === 0) {
-				break;
-			}
-			reader.skip(tag & 7);
-		}
-		return message;
-	},
+          message.device = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-	create(base?: DeepPartial<BootstrapResponse>): BootstrapResponse {
-		return BootstrapResponse.fromPartial(base ?? {});
-	},
-	fromPartial(object: DeepPartial<BootstrapResponse>): BootstrapResponse {
-		const message = createBaseBootstrapResponse();
-		message.rootGroup = object.rootGroup ?? '';
-		message.masterKeyCreated = object.masterKeyCreated ?? false;
-		message.masterKeyPublicKey = object.masterKeyPublicKey ?? '';
-		message.ownerUser = object.ownerUser ?? '';
-		message.device = object.device ?? '';
-		return message;
-	}
+  create(base?: DeepPartial<BootstrapResponse>): BootstrapResponse {
+    return BootstrapResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<BootstrapResponse>): BootstrapResponse {
+    const message = createBaseBootstrapResponse();
+    message.rootGroup = object.rootGroup ?? "";
+    message.masterKeyCreated = object.masterKeyCreated ?? false;
+    message.masterKeyPublicKey = object.masterKeyPublicKey ?? "";
+    message.ownerUser = object.ownerUser ?? "";
+    message.device = object.device ?? "";
+    return message;
+  },
+};
+
+function createBaseAuthorizeRequest(): AuthorizeRequest {
+  return {
+    clientId: "",
+    responseType: "",
+    responseMode: undefined,
+    scope: undefined,
+    redirectUri: undefined,
+    state: undefined,
+    nonce: undefined,
+    registration: undefined,
+    codeChallenge: undefined,
+    codeChallengeMethod: undefined,
+  };
+}
+
+export const AuthorizeRequest: MessageFns<AuthorizeRequest> = {
+  encode(message: AuthorizeRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.clientId !== "") {
+      writer.uint32(10).string(message.clientId);
+    }
+    if (message.responseType !== "") {
+      writer.uint32(18).string(message.responseType);
+    }
+    if (message.responseMode !== undefined) {
+      writer.uint32(26).string(message.responseMode);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(34).string(message.scope);
+    }
+    if (message.redirectUri !== undefined) {
+      writer.uint32(42).string(message.redirectUri);
+    }
+    if (message.state !== undefined) {
+      writer.uint32(50).string(message.state);
+    }
+    if (message.nonce !== undefined) {
+      writer.uint32(58).string(message.nonce);
+    }
+    if (message.registration !== undefined) {
+      Struct.encode(Struct.wrap(message.registration), writer.uint32(66).fork()).join();
+    }
+    if (message.codeChallenge !== undefined) {
+      writer.uint32(74).string(message.codeChallenge);
+    }
+    if (message.codeChallengeMethod !== undefined) {
+      writer.uint32(82).string(message.codeChallengeMethod);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AuthorizeRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAuthorizeRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.responseType = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.responseMode = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.redirectUri = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.state = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.nonce = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.registration = Struct.unwrap(Struct.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.codeChallenge = reader.string();
+          continue;
+        }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.codeChallengeMethod = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<AuthorizeRequest>): AuthorizeRequest {
+    return AuthorizeRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AuthorizeRequest>): AuthorizeRequest {
+    const message = createBaseAuthorizeRequest();
+    message.clientId = object.clientId ?? "";
+    message.responseType = object.responseType ?? "";
+    message.responseMode = object.responseMode ?? undefined;
+    message.scope = object.scope ?? undefined;
+    message.redirectUri = object.redirectUri ?? undefined;
+    message.state = object.state ?? undefined;
+    message.nonce = object.nonce ?? undefined;
+    message.registration = object.registration ?? undefined;
+    message.codeChallenge = object.codeChallenge ?? undefined;
+    message.codeChallengeMethod = object.codeChallengeMethod ?? undefined;
+    return message;
+  },
+};
+
+function createBaseAuthorizeResponse(): AuthorizeResponse {
+  return { redirectUri: undefined };
+}
+
+export const AuthorizeResponse: MessageFns<AuthorizeResponse> = {
+  encode(message: AuthorizeResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.redirectUri !== undefined) {
+      writer.uint32(10).string(message.redirectUri);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AuthorizeResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAuthorizeResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.redirectUri = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<AuthorizeResponse>): AuthorizeResponse {
+    return AuthorizeResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AuthorizeResponse>): AuthorizeResponse {
+    const message = createBaseAuthorizeResponse();
+    message.redirectUri = object.redirectUri ?? undefined;
+    return message;
+  },
+};
+
+function createBaseTokenRequest(): TokenRequest {
+  return { authorizationCode: undefined, refreshToken: undefined, clientCredentials: undefined, deviceCode: undefined };
+}
+
+export const TokenRequest: MessageFns<TokenRequest> = {
+  encode(message: TokenRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.authorizationCode !== undefined) {
+      AuthorizationCode.encode(message.authorizationCode, writer.uint32(10).fork()).join();
+    }
+    if (message.refreshToken !== undefined) {
+      RefreshToken.encode(message.refreshToken, writer.uint32(18).fork()).join();
+    }
+    if (message.clientCredentials !== undefined) {
+      ClientCredentials.encode(message.clientCredentials, writer.uint32(26).fork()).join();
+    }
+    if (message.deviceCode !== undefined) {
+      DeviceCode.encode(message.deviceCode, writer.uint32(34).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): TokenRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTokenRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.authorizationCode = AuthorizationCode.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.refreshToken = RefreshToken.decode(reader, reader.uint32());
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.clientCredentials = ClientCredentials.decode(reader, reader.uint32());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.deviceCode = DeviceCode.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<TokenRequest>): TokenRequest {
+    return TokenRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<TokenRequest>): TokenRequest {
+    const message = createBaseTokenRequest();
+    message.authorizationCode = (object.authorizationCode !== undefined && object.authorizationCode !== null)
+      ? AuthorizationCode.fromPartial(object.authorizationCode)
+      : undefined;
+    message.refreshToken = (object.refreshToken !== undefined && object.refreshToken !== null)
+      ? RefreshToken.fromPartial(object.refreshToken)
+      : undefined;
+    message.clientCredentials = (object.clientCredentials !== undefined && object.clientCredentials !== null)
+      ? ClientCredentials.fromPartial(object.clientCredentials)
+      : undefined;
+    message.deviceCode = (object.deviceCode !== undefined && object.deviceCode !== null)
+      ? DeviceCode.fromPartial(object.deviceCode)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseAuthorizationCode(): AuthorizationCode {
+  return { code: "", redirectUri: undefined, clientId: undefined, codeVerifier: undefined };
+}
+
+export const AuthorizationCode: MessageFns<AuthorizationCode> = {
+  encode(message: AuthorizationCode, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.code !== "") {
+      writer.uint32(10).string(message.code);
+    }
+    if (message.redirectUri !== undefined) {
+      writer.uint32(18).string(message.redirectUri);
+    }
+    if (message.clientId !== undefined) {
+      writer.uint32(26).string(message.clientId);
+    }
+    if (message.codeVerifier !== undefined) {
+      writer.uint32(34).string(message.codeVerifier);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AuthorizationCode {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAuthorizationCode();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.code = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.redirectUri = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.codeVerifier = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<AuthorizationCode>): AuthorizationCode {
+    return AuthorizationCode.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AuthorizationCode>): AuthorizationCode {
+    const message = createBaseAuthorizationCode();
+    message.code = object.code ?? "";
+    message.redirectUri = object.redirectUri ?? undefined;
+    message.clientId = object.clientId ?? undefined;
+    message.codeVerifier = object.codeVerifier ?? undefined;
+    return message;
+  },
+};
+
+function createBaseRefreshToken(): RefreshToken {
+  return { refreshToken: "", scope: undefined, clientId: undefined };
+}
+
+export const RefreshToken: MessageFns<RefreshToken> = {
+  encode(message: RefreshToken, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.refreshToken !== "") {
+      writer.uint32(10).string(message.refreshToken);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(18).string(message.scope);
+    }
+    if (message.clientId !== undefined) {
+      writer.uint32(26).string(message.clientId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RefreshToken {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRefreshToken();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.refreshToken = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<RefreshToken>): RefreshToken {
+    return RefreshToken.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<RefreshToken>): RefreshToken {
+    const message = createBaseRefreshToken();
+    message.refreshToken = object.refreshToken ?? "";
+    message.scope = object.scope ?? undefined;
+    message.clientId = object.clientId ?? undefined;
+    return message;
+  },
+};
+
+function createBaseClientCredentials(): ClientCredentials {
+  return { scope: undefined, clientId: undefined };
+}
+
+export const ClientCredentials: MessageFns<ClientCredentials> = {
+  encode(message: ClientCredentials, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.scope !== undefined) {
+      writer.uint32(10).string(message.scope);
+    }
+    if (message.clientId !== undefined) {
+      writer.uint32(18).string(message.clientId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ClientCredentials {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseClientCredentials();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<ClientCredentials>): ClientCredentials {
+    return ClientCredentials.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ClientCredentials>): ClientCredentials {
+    const message = createBaseClientCredentials();
+    message.scope = object.scope ?? undefined;
+    message.clientId = object.clientId ?? undefined;
+    return message;
+  },
+};
+
+function createBaseDeviceCode(): DeviceCode {
+  return { deviceCode: "", clientId: undefined };
+}
+
+export const DeviceCode: MessageFns<DeviceCode> = {
+  encode(message: DeviceCode, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.deviceCode !== "") {
+      writer.uint32(10).string(message.deviceCode);
+    }
+    if (message.clientId !== undefined) {
+      writer.uint32(18).string(message.clientId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeviceCode {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeviceCode();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.deviceCode = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<DeviceCode>): DeviceCode {
+    return DeviceCode.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DeviceCode>): DeviceCode {
+    const message = createBaseDeviceCode();
+    message.deviceCode = object.deviceCode ?? "";
+    message.clientId = object.clientId ?? undefined;
+    return message;
+  },
+};
+
+function createBaseTokenResponse(): TokenResponse {
+  return {
+    accessToken: "",
+    tokenType: "",
+    expiresIn: undefined,
+    refreshToken: undefined,
+    idToken: undefined,
+    scope: undefined,
+  };
+}
+
+export const TokenResponse: MessageFns<TokenResponse> = {
+  encode(message: TokenResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.accessToken !== "") {
+      writer.uint32(10).string(message.accessToken);
+    }
+    if (message.tokenType !== "") {
+      writer.uint32(18).string(message.tokenType);
+    }
+    if (message.expiresIn !== undefined) {
+      writer.uint32(24).uint64(message.expiresIn);
+    }
+    if (message.refreshToken !== undefined) {
+      writer.uint32(34).string(message.refreshToken);
+    }
+    if (message.idToken !== undefined) {
+      writer.uint32(42).string(message.idToken);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(50).string(message.scope);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): TokenResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTokenResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.accessToken = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.tokenType = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.expiresIn = longToNumber(reader.uint64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.refreshToken = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.idToken = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<TokenResponse>): TokenResponse {
+    return TokenResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<TokenResponse>): TokenResponse {
+    const message = createBaseTokenResponse();
+    message.accessToken = object.accessToken ?? "";
+    message.tokenType = object.tokenType ?? "";
+    message.expiresIn = object.expiresIn ?? undefined;
+    message.refreshToken = object.refreshToken ?? undefined;
+    message.idToken = object.idToken ?? undefined;
+    message.scope = object.scope ?? undefined;
+    return message;
+  },
+};
+
+function createBaseDeviceAuthorizeRequest(): DeviceAuthorizeRequest {
+  return { clientId: undefined, scope: undefined };
+}
+
+export const DeviceAuthorizeRequest: MessageFns<DeviceAuthorizeRequest> = {
+  encode(message: DeviceAuthorizeRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.clientId !== undefined) {
+      writer.uint32(10).string(message.clientId);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(18).string(message.scope);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeviceAuthorizeRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeviceAuthorizeRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<DeviceAuthorizeRequest>): DeviceAuthorizeRequest {
+    return DeviceAuthorizeRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DeviceAuthorizeRequest>): DeviceAuthorizeRequest {
+    const message = createBaseDeviceAuthorizeRequest();
+    message.clientId = object.clientId ?? undefined;
+    message.scope = object.scope ?? undefined;
+    return message;
+  },
+};
+
+function createBaseDeviceAuthorizeResponse(): DeviceAuthorizeResponse {
+  return {
+    deviceCode: "",
+    userCode: "",
+    verificationUri: "",
+    verificationUriComplete: undefined,
+    expiresIn: 0,
+    interval: undefined,
+  };
+}
+
+export const DeviceAuthorizeResponse: MessageFns<DeviceAuthorizeResponse> = {
+  encode(message: DeviceAuthorizeResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.deviceCode !== "") {
+      writer.uint32(10).string(message.deviceCode);
+    }
+    if (message.userCode !== "") {
+      writer.uint32(18).string(message.userCode);
+    }
+    if (message.verificationUri !== "") {
+      writer.uint32(26).string(message.verificationUri);
+    }
+    if (message.verificationUriComplete !== undefined) {
+      writer.uint32(34).string(message.verificationUriComplete);
+    }
+    if (message.expiresIn !== 0) {
+      writer.uint32(40).uint64(message.expiresIn);
+    }
+    if (message.interval !== undefined) {
+      writer.uint32(48).uint64(message.interval);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeviceAuthorizeResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeviceAuthorizeResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.deviceCode = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.userCode = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.verificationUri = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.verificationUriComplete = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.expiresIn = longToNumber(reader.uint64());
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.interval = longToNumber(reader.uint64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<DeviceAuthorizeResponse>): DeviceAuthorizeResponse {
+    return DeviceAuthorizeResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DeviceAuthorizeResponse>): DeviceAuthorizeResponse {
+    const message = createBaseDeviceAuthorizeResponse();
+    message.deviceCode = object.deviceCode ?? "";
+    message.userCode = object.userCode ?? "";
+    message.verificationUri = object.verificationUri ?? "";
+    message.verificationUriComplete = object.verificationUriComplete ?? undefined;
+    message.expiresIn = object.expiresIn ?? 0;
+    message.interval = object.interval ?? undefined;
+    return message;
+  },
+};
+
+function createBaseIntrospectRequest(): IntrospectRequest {
+  return { token: "", tokenTypeHint: undefined, clientId: undefined, clientSecret: undefined };
+}
+
+export const IntrospectRequest: MessageFns<IntrospectRequest> = {
+  encode(message: IntrospectRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.token !== "") {
+      writer.uint32(10).string(message.token);
+    }
+    if (message.tokenTypeHint !== undefined) {
+      writer.uint32(18).string(message.tokenTypeHint);
+    }
+    if (message.clientId !== undefined) {
+      writer.uint32(26).string(message.clientId);
+    }
+    if (message.clientSecret !== undefined) {
+      writer.uint32(34).string(message.clientSecret);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): IntrospectRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseIntrospectRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.token = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.tokenTypeHint = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.clientSecret = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<IntrospectRequest>): IntrospectRequest {
+    return IntrospectRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<IntrospectRequest>): IntrospectRequest {
+    const message = createBaseIntrospectRequest();
+    message.token = object.token ?? "";
+    message.tokenTypeHint = object.tokenTypeHint ?? undefined;
+    message.clientId = object.clientId ?? undefined;
+    message.clientSecret = object.clientSecret ?? undefined;
+    return message;
+  },
+};
+
+function createBaseIntrospectResponse(): IntrospectResponse {
+  return {
+    active: false,
+    scope: undefined,
+    clientId: undefined,
+    username: undefined,
+    tokenType: undefined,
+    exp: undefined,
+    iat: undefined,
+    nbf: undefined,
+    sub: undefined,
+    aud: undefined,
+    iss: undefined,
+    jti: undefined,
+    actingFor: undefined,
+  };
+}
+
+export const IntrospectResponse: MessageFns<IntrospectResponse> = {
+  encode(message: IntrospectResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.active !== false) {
+      writer.uint32(8).bool(message.active);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(18).string(message.scope);
+    }
+    if (message.clientId !== undefined) {
+      writer.uint32(26).string(message.clientId);
+    }
+    if (message.username !== undefined) {
+      writer.uint32(34).string(message.username);
+    }
+    if (message.tokenType !== undefined) {
+      writer.uint32(42).string(message.tokenType);
+    }
+    if (message.exp !== undefined) {
+      writer.uint32(48).uint64(message.exp);
+    }
+    if (message.iat !== undefined) {
+      writer.uint32(56).uint64(message.iat);
+    }
+    if (message.nbf !== undefined) {
+      writer.uint32(64).uint64(message.nbf);
+    }
+    if (message.sub !== undefined) {
+      writer.uint32(74).string(message.sub);
+    }
+    if (message.aud !== undefined) {
+      writer.uint32(82).string(message.aud);
+    }
+    if (message.iss !== undefined) {
+      writer.uint32(90).string(message.iss);
+    }
+    if (message.jti !== undefined) {
+      writer.uint32(98).string(message.jti);
+    }
+    if (message.actingFor !== undefined) {
+      writer.uint32(106).string(message.actingFor);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): IntrospectResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseIntrospectResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.active = reader.bool();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.username = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.tokenType = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.exp = longToNumber(reader.uint64());
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.iat = longToNumber(reader.uint64());
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.nbf = longToNumber(reader.uint64());
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.sub = reader.string();
+          continue;
+        }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.aud = reader.string();
+          continue;
+        }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.iss = reader.string();
+          continue;
+        }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.jti = reader.string();
+          continue;
+        }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.actingFor = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<IntrospectResponse>): IntrospectResponse {
+    return IntrospectResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<IntrospectResponse>): IntrospectResponse {
+    const message = createBaseIntrospectResponse();
+    message.active = object.active ?? false;
+    message.scope = object.scope ?? undefined;
+    message.clientId = object.clientId ?? undefined;
+    message.username = object.username ?? undefined;
+    message.tokenType = object.tokenType ?? undefined;
+    message.exp = object.exp ?? undefined;
+    message.iat = object.iat ?? undefined;
+    message.nbf = object.nbf ?? undefined;
+    message.sub = object.sub ?? undefined;
+    message.aud = object.aud ?? undefined;
+    message.iss = object.iss ?? undefined;
+    message.jti = object.jti ?? undefined;
+    message.actingFor = object.actingFor ?? undefined;
+    return message;
+  },
+};
+
+function createBaseRevokeRequest(): RevokeRequest {
+  return { token: "", tokenTypeHint: undefined, clientId: undefined, clientSecret: undefined };
+}
+
+export const RevokeRequest: MessageFns<RevokeRequest> = {
+  encode(message: RevokeRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.token !== "") {
+      writer.uint32(10).string(message.token);
+    }
+    if (message.tokenTypeHint !== undefined) {
+      writer.uint32(18).string(message.tokenTypeHint);
+    }
+    if (message.clientId !== undefined) {
+      writer.uint32(26).string(message.clientId);
+    }
+    if (message.clientSecret !== undefined) {
+      writer.uint32(34).string(message.clientSecret);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RevokeRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRevokeRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.token = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.tokenTypeHint = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.clientSecret = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<RevokeRequest>): RevokeRequest {
+    return RevokeRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<RevokeRequest>): RevokeRequest {
+    const message = createBaseRevokeRequest();
+    message.token = object.token ?? "";
+    message.tokenTypeHint = object.tokenTypeHint ?? undefined;
+    message.clientId = object.clientId ?? undefined;
+    message.clientSecret = object.clientSecret ?? undefined;
+    return message;
+  },
+};
+
+function createBasePushedAuthorizeRequest(): PushedAuthorizeRequest {
+  return {
+    clientId: "",
+    responseType: undefined,
+    responseMode: undefined,
+    scope: undefined,
+    redirectUri: undefined,
+    state: undefined,
+    nonce: undefined,
+    registration: undefined,
+    codeChallenge: undefined,
+    codeChallengeMethod: undefined,
+  };
+}
+
+export const PushedAuthorizeRequest: MessageFns<PushedAuthorizeRequest> = {
+  encode(message: PushedAuthorizeRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.clientId !== "") {
+      writer.uint32(10).string(message.clientId);
+    }
+    if (message.responseType !== undefined) {
+      writer.uint32(18).string(message.responseType);
+    }
+    if (message.responseMode !== undefined) {
+      writer.uint32(26).string(message.responseMode);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(34).string(message.scope);
+    }
+    if (message.redirectUri !== undefined) {
+      writer.uint32(42).string(message.redirectUri);
+    }
+    if (message.state !== undefined) {
+      writer.uint32(50).string(message.state);
+    }
+    if (message.nonce !== undefined) {
+      writer.uint32(58).string(message.nonce);
+    }
+    if (message.registration !== undefined) {
+      Struct.encode(Struct.wrap(message.registration), writer.uint32(66).fork()).join();
+    }
+    if (message.codeChallenge !== undefined) {
+      writer.uint32(74).string(message.codeChallenge);
+    }
+    if (message.codeChallengeMethod !== undefined) {
+      writer.uint32(82).string(message.codeChallengeMethod);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PushedAuthorizeRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePushedAuthorizeRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.responseType = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.responseMode = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.redirectUri = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.state = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.nonce = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.registration = Struct.unwrap(Struct.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.codeChallenge = reader.string();
+          continue;
+        }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.codeChallengeMethod = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<PushedAuthorizeRequest>): PushedAuthorizeRequest {
+    return PushedAuthorizeRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<PushedAuthorizeRequest>): PushedAuthorizeRequest {
+    const message = createBasePushedAuthorizeRequest();
+    message.clientId = object.clientId ?? "";
+    message.responseType = object.responseType ?? undefined;
+    message.responseMode = object.responseMode ?? undefined;
+    message.scope = object.scope ?? undefined;
+    message.redirectUri = object.redirectUri ?? undefined;
+    message.state = object.state ?? undefined;
+    message.nonce = object.nonce ?? undefined;
+    message.registration = object.registration ?? undefined;
+    message.codeChallenge = object.codeChallenge ?? undefined;
+    message.codeChallengeMethod = object.codeChallengeMethod ?? undefined;
+    return message;
+  },
+};
+
+function createBasePushedAuthorizeResponse(): PushedAuthorizeResponse {
+  return { requestUri: "", expiresIn: undefined };
+}
+
+export const PushedAuthorizeResponse: MessageFns<PushedAuthorizeResponse> = {
+  encode(message: PushedAuthorizeResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.requestUri !== "") {
+      writer.uint32(10).string(message.requestUri);
+    }
+    if (message.expiresIn !== undefined) {
+      writer.uint32(16).uint64(message.expiresIn);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PushedAuthorizeResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePushedAuthorizeResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.requestUri = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.expiresIn = longToNumber(reader.uint64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<PushedAuthorizeResponse>): PushedAuthorizeResponse {
+    return PushedAuthorizeResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<PushedAuthorizeResponse>): PushedAuthorizeResponse {
+    const message = createBasePushedAuthorizeResponse();
+    message.requestUri = object.requestUri ?? "";
+    message.expiresIn = object.expiresIn ?? undefined;
+    return message;
+  },
+};
+
+function createBaseBackchannelAuthRequest(): BackchannelAuthRequest {
+  return { clientId: undefined, scope: undefined, loginHint: undefined };
+}
+
+export const BackchannelAuthRequest: MessageFns<BackchannelAuthRequest> = {
+  encode(message: BackchannelAuthRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.clientId !== undefined) {
+      writer.uint32(10).string(message.clientId);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(18).string(message.scope);
+    }
+    if (message.loginHint !== undefined) {
+      writer.uint32(26).string(message.loginHint);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): BackchannelAuthRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBackchannelAuthRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.loginHint = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<BackchannelAuthRequest>): BackchannelAuthRequest {
+    return BackchannelAuthRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<BackchannelAuthRequest>): BackchannelAuthRequest {
+    const message = createBaseBackchannelAuthRequest();
+    message.clientId = object.clientId ?? undefined;
+    message.scope = object.scope ?? undefined;
+    message.loginHint = object.loginHint ?? undefined;
+    return message;
+  },
+};
+
+function createBaseBackchannelAuthResponse(): BackchannelAuthResponse {
+  return { authReqId: "", expiresIn: undefined, interval: undefined };
+}
+
+export const BackchannelAuthResponse: MessageFns<BackchannelAuthResponse> = {
+  encode(message: BackchannelAuthResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.authReqId !== "") {
+      writer.uint32(10).string(message.authReqId);
+    }
+    if (message.expiresIn !== undefined) {
+      writer.uint32(16).uint64(message.expiresIn);
+    }
+    if (message.interval !== undefined) {
+      writer.uint32(24).uint64(message.interval);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): BackchannelAuthResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBackchannelAuthResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.authReqId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.expiresIn = longToNumber(reader.uint64());
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.interval = longToNumber(reader.uint64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<BackchannelAuthResponse>): BackchannelAuthResponse {
+    return BackchannelAuthResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<BackchannelAuthResponse>): BackchannelAuthResponse {
+    const message = createBaseBackchannelAuthResponse();
+    message.authReqId = object.authReqId ?? "";
+    message.expiresIn = object.expiresIn ?? undefined;
+    message.interval = object.interval ?? undefined;
+    return message;
+  },
+};
+
+function createBaseClientRegisterRequest(): ClientRegisterRequest {
+  return {
+    clientId: undefined,
+    clientSecret: undefined,
+    name: undefined,
+    redirectUris: [],
+    grantTypes: [],
+    responseTypes: [],
+    scope: undefined,
+    tokenEndpointAuthMethod: undefined,
+  };
+}
+
+export const ClientRegisterRequest: MessageFns<ClientRegisterRequest> = {
+  encode(message: ClientRegisterRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.clientId !== undefined) {
+      writer.uint32(10).string(message.clientId);
+    }
+    if (message.clientSecret !== undefined) {
+      writer.uint32(18).string(message.clientSecret);
+    }
+    if (message.name !== undefined) {
+      writer.uint32(26).string(message.name);
+    }
+    for (const v of message.redirectUris) {
+      writer.uint32(34).string(v!);
+    }
+    for (const v of message.grantTypes) {
+      writer.uint32(42).string(v!);
+    }
+    for (const v of message.responseTypes) {
+      writer.uint32(50).string(v!);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(58).string(message.scope);
+    }
+    if (message.tokenEndpointAuthMethod !== undefined) {
+      writer.uint32(66).string(message.tokenEndpointAuthMethod);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ClientRegisterRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseClientRegisterRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.clientSecret = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.redirectUris.push(reader.string());
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.grantTypes.push(reader.string());
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.responseTypes.push(reader.string());
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.tokenEndpointAuthMethod = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<ClientRegisterRequest>): ClientRegisterRequest {
+    return ClientRegisterRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ClientRegisterRequest>): ClientRegisterRequest {
+    const message = createBaseClientRegisterRequest();
+    message.clientId = object.clientId ?? undefined;
+    message.clientSecret = object.clientSecret ?? undefined;
+    message.name = object.name ?? undefined;
+    message.redirectUris = object.redirectUris?.map((e) => e) || [];
+    message.grantTypes = object.grantTypes?.map((e) => e) || [];
+    message.responseTypes = object.responseTypes?.map((e) => e) || [];
+    message.scope = object.scope ?? undefined;
+    message.tokenEndpointAuthMethod = object.tokenEndpointAuthMethod ?? undefined;
+    return message;
+  },
+};
+
+function createBaseClient(): Client {
+  return {
+    id: "",
+    clientId: "",
+    clientSecret: undefined,
+    name: undefined,
+    redirectUris: [],
+    grantTypes: [],
+    responseTypes: [],
+    scope: undefined,
+    tokenEndpointAuthMethod: undefined,
+  };
+}
+
+export const Client: MessageFns<Client> = {
+  encode(message: Client, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.clientId !== "") {
+      writer.uint32(18).string(message.clientId);
+    }
+    if (message.clientSecret !== undefined) {
+      writer.uint32(26).string(message.clientSecret);
+    }
+    if (message.name !== undefined) {
+      writer.uint32(34).string(message.name);
+    }
+    for (const v of message.redirectUris) {
+      writer.uint32(42).string(v!);
+    }
+    for (const v of message.grantTypes) {
+      writer.uint32(50).string(v!);
+    }
+    for (const v of message.responseTypes) {
+      writer.uint32(58).string(v!);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(66).string(message.scope);
+    }
+    if (message.tokenEndpointAuthMethod !== undefined) {
+      writer.uint32(74).string(message.tokenEndpointAuthMethod);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Client {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseClient();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.clientSecret = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.redirectUris.push(reader.string());
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.grantTypes.push(reader.string());
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.responseTypes.push(reader.string());
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.tokenEndpointAuthMethod = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<Client>): Client {
+    return Client.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<Client>): Client {
+    const message = createBaseClient();
+    message.id = object.id ?? "";
+    message.clientId = object.clientId ?? "";
+    message.clientSecret = object.clientSecret ?? undefined;
+    message.name = object.name ?? undefined;
+    message.redirectUris = object.redirectUris?.map((e) => e) || [];
+    message.grantTypes = object.grantTypes?.map((e) => e) || [];
+    message.responseTypes = object.responseTypes?.map((e) => e) || [];
+    message.scope = object.scope ?? undefined;
+    message.tokenEndpointAuthMethod = object.tokenEndpointAuthMethod ?? undefined;
+    return message;
+  },
+};
+
+function createBaseEndSessionRequest(): EndSessionRequest {
+  return { idTokenHint: undefined, postLogoutRedirectUri: undefined, state: undefined };
+}
+
+export const EndSessionRequest: MessageFns<EndSessionRequest> = {
+  encode(message: EndSessionRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.idTokenHint !== undefined) {
+      writer.uint32(10).string(message.idTokenHint);
+    }
+    if (message.postLogoutRedirectUri !== undefined) {
+      writer.uint32(18).string(message.postLogoutRedirectUri);
+    }
+    if (message.state !== undefined) {
+      writer.uint32(26).string(message.state);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): EndSessionRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEndSessionRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.idTokenHint = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.postLogoutRedirectUri = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.state = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<EndSessionRequest>): EndSessionRequest {
+    return EndSessionRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<EndSessionRequest>): EndSessionRequest {
+    const message = createBaseEndSessionRequest();
+    message.idTokenHint = object.idTokenHint ?? undefined;
+    message.postLogoutRedirectUri = object.postLogoutRedirectUri ?? undefined;
+    message.state = object.state ?? undefined;
+    return message;
+  },
+};
+
+function createBaseEndSessionResponse(): EndSessionResponse {
+  return { redirectUri: undefined };
+}
+
+export const EndSessionResponse: MessageFns<EndSessionResponse> = {
+  encode(message: EndSessionResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.redirectUri !== undefined) {
+      writer.uint32(10).string(message.redirectUri);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): EndSessionResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEndSessionResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.redirectUri = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<EndSessionResponse>): EndSessionResponse {
+    return EndSessionResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<EndSessionResponse>): EndSessionResponse {
+    const message = createBaseEndSessionResponse();
+    message.redirectUri = object.redirectUri ?? undefined;
+    return message;
+  },
+};
+
+function createBaseUserInfoRequest(): UserInfoRequest {
+  return { accessToken: undefined };
+}
+
+export const UserInfoRequest: MessageFns<UserInfoRequest> = {
+  encode(message: UserInfoRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.accessToken !== undefined) {
+      writer.uint32(10).string(message.accessToken);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): UserInfoRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUserInfoRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.accessToken = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<UserInfoRequest>): UserInfoRequest {
+    return UserInfoRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<UserInfoRequest>): UserInfoRequest {
+    const message = createBaseUserInfoRequest();
+    message.accessToken = object.accessToken ?? undefined;
+    return message;
+  },
+};
+
+function createBaseUserInfo(): UserInfo {
+  return {
+    sub: "",
+    name: undefined,
+    givenName: undefined,
+    familyName: undefined,
+    preferredUsername: undefined,
+    email: undefined,
+    emailVerified: undefined,
+    picture: undefined,
+  };
+}
+
+export const UserInfo: MessageFns<UserInfo> = {
+  encode(message: UserInfo, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.sub !== "") {
+      writer.uint32(10).string(message.sub);
+    }
+    if (message.name !== undefined) {
+      writer.uint32(18).string(message.name);
+    }
+    if (message.givenName !== undefined) {
+      writer.uint32(26).string(message.givenName);
+    }
+    if (message.familyName !== undefined) {
+      writer.uint32(34).string(message.familyName);
+    }
+    if (message.preferredUsername !== undefined) {
+      writer.uint32(42).string(message.preferredUsername);
+    }
+    if (message.email !== undefined) {
+      writer.uint32(50).string(message.email);
+    }
+    if (message.emailVerified !== undefined) {
+      writer.uint32(56).bool(message.emailVerified);
+    }
+    if (message.picture !== undefined) {
+      writer.uint32(66).string(message.picture);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): UserInfo {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUserInfo();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.sub = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.givenName = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.familyName = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.preferredUsername = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.email = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.emailVerified = reader.bool();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.picture = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<UserInfo>): UserInfo {
+    return UserInfo.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<UserInfo>): UserInfo {
+    const message = createBaseUserInfo();
+    message.sub = object.sub ?? "";
+    message.name = object.name ?? undefined;
+    message.givenName = object.givenName ?? undefined;
+    message.familyName = object.familyName ?? undefined;
+    message.preferredUsername = object.preferredUsername ?? undefined;
+    message.email = object.email ?? undefined;
+    message.emailVerified = object.emailVerified ?? undefined;
+    message.picture = object.picture ?? undefined;
+    return message;
+  },
+};
+
+function createBaseOpenIdConfiguration(): OpenIdConfiguration {
+  return {
+    issuer: "",
+    authorizationEndpoint: undefined,
+    tokenEndpoint: undefined,
+    userinfoEndpoint: undefined,
+    revocationEndpoint: undefined,
+    introspectionEndpoint: undefined,
+    jwksUri: undefined,
+    registrationEndpoint: undefined,
+    scopesSupported: [],
+    responseTypesSupported: [],
+    responseModesSupported: [],
+    grantTypesSupported: [],
+    tokenEndpointAuthMethodsSupported: [],
+    tokenEndpointAuthSigningAlgValuesSupported: [],
+    codeChallengeMethodsSupported: [],
+    subjectTypesSupported: [],
+    idTokenSigningAlgValuesSupported: [],
+    idTokenEncryptionAlgValuesSupported: [],
+    idTokenEncryptionEncValuesSupported: [],
+    userinfoSigningAlgValuesSupported: [],
+    userinfoEncryptionAlgValuesSupported: [],
+    requestObjectSigningAlgValuesSupported: [],
+    requestObjectEncryptionAlgValuesSupported: [],
+    serviceDocumentation: undefined,
+    claimsSupported: [],
+    claimsLocalesSupported: [],
+    uiLocalesSupported: [],
+    acrValuesSupported: [],
+    claimsParameterSupported: undefined,
+    requestParameterSupported: undefined,
+    requestUriParameterSupported: undefined,
+    requireRequestUriRegistration: undefined,
+    opPolicyUri: undefined,
+    opTosUri: undefined,
+    checkSessionIframe: undefined,
+    endSessionEndpoint: undefined,
+    frontchannelLogoutSupported: undefined,
+    frontchannelLogoutSessionSupported: undefined,
+    backchannelLogoutSupported: undefined,
+    backchannelLogoutSessionSupported: undefined,
+    deviceAuthorizationEndpoint: undefined,
+    pushedAuthorizationRequestEndpoint: undefined,
+  };
+}
+
+export const OpenIdConfiguration: MessageFns<OpenIdConfiguration> = {
+  encode(message: OpenIdConfiguration, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.issuer !== "") {
+      writer.uint32(10).string(message.issuer);
+    }
+    if (message.authorizationEndpoint !== undefined) {
+      writer.uint32(18).string(message.authorizationEndpoint);
+    }
+    if (message.tokenEndpoint !== undefined) {
+      writer.uint32(26).string(message.tokenEndpoint);
+    }
+    if (message.userinfoEndpoint !== undefined) {
+      writer.uint32(34).string(message.userinfoEndpoint);
+    }
+    if (message.revocationEndpoint !== undefined) {
+      writer.uint32(42).string(message.revocationEndpoint);
+    }
+    if (message.introspectionEndpoint !== undefined) {
+      writer.uint32(50).string(message.introspectionEndpoint);
+    }
+    if (message.jwksUri !== undefined) {
+      writer.uint32(58).string(message.jwksUri);
+    }
+    if (message.registrationEndpoint !== undefined) {
+      writer.uint32(66).string(message.registrationEndpoint);
+    }
+    for (const v of message.scopesSupported) {
+      writer.uint32(74).string(v!);
+    }
+    for (const v of message.responseTypesSupported) {
+      writer.uint32(82).string(v!);
+    }
+    for (const v of message.responseModesSupported) {
+      writer.uint32(90).string(v!);
+    }
+    for (const v of message.grantTypesSupported) {
+      writer.uint32(98).string(v!);
+    }
+    for (const v of message.tokenEndpointAuthMethodsSupported) {
+      writer.uint32(106).string(v!);
+    }
+    for (const v of message.tokenEndpointAuthSigningAlgValuesSupported) {
+      writer.uint32(114).string(v!);
+    }
+    for (const v of message.codeChallengeMethodsSupported) {
+      writer.uint32(122).string(v!);
+    }
+    for (const v of message.subjectTypesSupported) {
+      writer.uint32(130).string(v!);
+    }
+    for (const v of message.idTokenSigningAlgValuesSupported) {
+      writer.uint32(138).string(v!);
+    }
+    for (const v of message.idTokenEncryptionAlgValuesSupported) {
+      writer.uint32(146).string(v!);
+    }
+    for (const v of message.idTokenEncryptionEncValuesSupported) {
+      writer.uint32(154).string(v!);
+    }
+    for (const v of message.userinfoSigningAlgValuesSupported) {
+      writer.uint32(162).string(v!);
+    }
+    for (const v of message.userinfoEncryptionAlgValuesSupported) {
+      writer.uint32(170).string(v!);
+    }
+    for (const v of message.requestObjectSigningAlgValuesSupported) {
+      writer.uint32(178).string(v!);
+    }
+    for (const v of message.requestObjectEncryptionAlgValuesSupported) {
+      writer.uint32(186).string(v!);
+    }
+    if (message.serviceDocumentation !== undefined) {
+      writer.uint32(194).string(message.serviceDocumentation);
+    }
+    for (const v of message.claimsSupported) {
+      writer.uint32(202).string(v!);
+    }
+    for (const v of message.claimsLocalesSupported) {
+      writer.uint32(210).string(v!);
+    }
+    for (const v of message.uiLocalesSupported) {
+      writer.uint32(218).string(v!);
+    }
+    for (const v of message.acrValuesSupported) {
+      writer.uint32(226).string(v!);
+    }
+    if (message.claimsParameterSupported !== undefined) {
+      writer.uint32(232).bool(message.claimsParameterSupported);
+    }
+    if (message.requestParameterSupported !== undefined) {
+      writer.uint32(240).bool(message.requestParameterSupported);
+    }
+    if (message.requestUriParameterSupported !== undefined) {
+      writer.uint32(248).bool(message.requestUriParameterSupported);
+    }
+    if (message.requireRequestUriRegistration !== undefined) {
+      writer.uint32(256).bool(message.requireRequestUriRegistration);
+    }
+    if (message.opPolicyUri !== undefined) {
+      writer.uint32(266).string(message.opPolicyUri);
+    }
+    if (message.opTosUri !== undefined) {
+      writer.uint32(274).string(message.opTosUri);
+    }
+    if (message.checkSessionIframe !== undefined) {
+      writer.uint32(282).string(message.checkSessionIframe);
+    }
+    if (message.endSessionEndpoint !== undefined) {
+      writer.uint32(290).string(message.endSessionEndpoint);
+    }
+    if (message.frontchannelLogoutSupported !== undefined) {
+      writer.uint32(296).bool(message.frontchannelLogoutSupported);
+    }
+    if (message.frontchannelLogoutSessionSupported !== undefined) {
+      writer.uint32(304).bool(message.frontchannelLogoutSessionSupported);
+    }
+    if (message.backchannelLogoutSupported !== undefined) {
+      writer.uint32(312).bool(message.backchannelLogoutSupported);
+    }
+    if (message.backchannelLogoutSessionSupported !== undefined) {
+      writer.uint32(320).bool(message.backchannelLogoutSessionSupported);
+    }
+    if (message.deviceAuthorizationEndpoint !== undefined) {
+      writer.uint32(330).string(message.deviceAuthorizationEndpoint);
+    }
+    if (message.pushedAuthorizationRequestEndpoint !== undefined) {
+      writer.uint32(338).string(message.pushedAuthorizationRequestEndpoint);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): OpenIdConfiguration {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseOpenIdConfiguration();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.issuer = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.authorizationEndpoint = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.tokenEndpoint = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.userinfoEndpoint = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.revocationEndpoint = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.introspectionEndpoint = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.jwksUri = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.registrationEndpoint = reader.string();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.scopesSupported.push(reader.string());
+          continue;
+        }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.responseTypesSupported.push(reader.string());
+          continue;
+        }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.responseModesSupported.push(reader.string());
+          continue;
+        }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.grantTypesSupported.push(reader.string());
+          continue;
+        }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.tokenEndpointAuthMethodsSupported.push(reader.string());
+          continue;
+        }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.tokenEndpointAuthSigningAlgValuesSupported.push(reader.string());
+          continue;
+        }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.codeChallengeMethodsSupported.push(reader.string());
+          continue;
+        }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.subjectTypesSupported.push(reader.string());
+          continue;
+        }
+        case 17: {
+          if (tag !== 138) {
+            break;
+          }
+
+          message.idTokenSigningAlgValuesSupported.push(reader.string());
+          continue;
+        }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
+
+          message.idTokenEncryptionAlgValuesSupported.push(reader.string());
+          continue;
+        }
+        case 19: {
+          if (tag !== 154) {
+            break;
+          }
+
+          message.idTokenEncryptionEncValuesSupported.push(reader.string());
+          continue;
+        }
+        case 20: {
+          if (tag !== 162) {
+            break;
+          }
+
+          message.userinfoSigningAlgValuesSupported.push(reader.string());
+          continue;
+        }
+        case 21: {
+          if (tag !== 170) {
+            break;
+          }
+
+          message.userinfoEncryptionAlgValuesSupported.push(reader.string());
+          continue;
+        }
+        case 22: {
+          if (tag !== 178) {
+            break;
+          }
+
+          message.requestObjectSigningAlgValuesSupported.push(reader.string());
+          continue;
+        }
+        case 23: {
+          if (tag !== 186) {
+            break;
+          }
+
+          message.requestObjectEncryptionAlgValuesSupported.push(reader.string());
+          continue;
+        }
+        case 24: {
+          if (tag !== 194) {
+            break;
+          }
+
+          message.serviceDocumentation = reader.string();
+          continue;
+        }
+        case 25: {
+          if (tag !== 202) {
+            break;
+          }
+
+          message.claimsSupported.push(reader.string());
+          continue;
+        }
+        case 26: {
+          if (tag !== 210) {
+            break;
+          }
+
+          message.claimsLocalesSupported.push(reader.string());
+          continue;
+        }
+        case 27: {
+          if (tag !== 218) {
+            break;
+          }
+
+          message.uiLocalesSupported.push(reader.string());
+          continue;
+        }
+        case 28: {
+          if (tag !== 226) {
+            break;
+          }
+
+          message.acrValuesSupported.push(reader.string());
+          continue;
+        }
+        case 29: {
+          if (tag !== 232) {
+            break;
+          }
+
+          message.claimsParameterSupported = reader.bool();
+          continue;
+        }
+        case 30: {
+          if (tag !== 240) {
+            break;
+          }
+
+          message.requestParameterSupported = reader.bool();
+          continue;
+        }
+        case 31: {
+          if (tag !== 248) {
+            break;
+          }
+
+          message.requestUriParameterSupported = reader.bool();
+          continue;
+        }
+        case 32: {
+          if (tag !== 256) {
+            break;
+          }
+
+          message.requireRequestUriRegistration = reader.bool();
+          continue;
+        }
+        case 33: {
+          if (tag !== 266) {
+            break;
+          }
+
+          message.opPolicyUri = reader.string();
+          continue;
+        }
+        case 34: {
+          if (tag !== 274) {
+            break;
+          }
+
+          message.opTosUri = reader.string();
+          continue;
+        }
+        case 35: {
+          if (tag !== 282) {
+            break;
+          }
+
+          message.checkSessionIframe = reader.string();
+          continue;
+        }
+        case 36: {
+          if (tag !== 290) {
+            break;
+          }
+
+          message.endSessionEndpoint = reader.string();
+          continue;
+        }
+        case 37: {
+          if (tag !== 296) {
+            break;
+          }
+
+          message.frontchannelLogoutSupported = reader.bool();
+          continue;
+        }
+        case 38: {
+          if (tag !== 304) {
+            break;
+          }
+
+          message.frontchannelLogoutSessionSupported = reader.bool();
+          continue;
+        }
+        case 39: {
+          if (tag !== 312) {
+            break;
+          }
+
+          message.backchannelLogoutSupported = reader.bool();
+          continue;
+        }
+        case 40: {
+          if (tag !== 320) {
+            break;
+          }
+
+          message.backchannelLogoutSessionSupported = reader.bool();
+          continue;
+        }
+        case 41: {
+          if (tag !== 330) {
+            break;
+          }
+
+          message.deviceAuthorizationEndpoint = reader.string();
+          continue;
+        }
+        case 42: {
+          if (tag !== 338) {
+            break;
+          }
+
+          message.pushedAuthorizationRequestEndpoint = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<OpenIdConfiguration>): OpenIdConfiguration {
+    return OpenIdConfiguration.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<OpenIdConfiguration>): OpenIdConfiguration {
+    const message = createBaseOpenIdConfiguration();
+    message.issuer = object.issuer ?? "";
+    message.authorizationEndpoint = object.authorizationEndpoint ?? undefined;
+    message.tokenEndpoint = object.tokenEndpoint ?? undefined;
+    message.userinfoEndpoint = object.userinfoEndpoint ?? undefined;
+    message.revocationEndpoint = object.revocationEndpoint ?? undefined;
+    message.introspectionEndpoint = object.introspectionEndpoint ?? undefined;
+    message.jwksUri = object.jwksUri ?? undefined;
+    message.registrationEndpoint = object.registrationEndpoint ?? undefined;
+    message.scopesSupported = object.scopesSupported?.map((e) => e) || [];
+    message.responseTypesSupported = object.responseTypesSupported?.map((e) => e) || [];
+    message.responseModesSupported = object.responseModesSupported?.map((e) => e) || [];
+    message.grantTypesSupported = object.grantTypesSupported?.map((e) => e) || [];
+    message.tokenEndpointAuthMethodsSupported = object.tokenEndpointAuthMethodsSupported?.map((e) => e) || [];
+    message.tokenEndpointAuthSigningAlgValuesSupported =
+      object.tokenEndpointAuthSigningAlgValuesSupported?.map((e) => e) || [];
+    message.codeChallengeMethodsSupported = object.codeChallengeMethodsSupported?.map((e) => e) || [];
+    message.subjectTypesSupported = object.subjectTypesSupported?.map((e) => e) || [];
+    message.idTokenSigningAlgValuesSupported = object.idTokenSigningAlgValuesSupported?.map((e) => e) || [];
+    message.idTokenEncryptionAlgValuesSupported = object.idTokenEncryptionAlgValuesSupported?.map((e) => e) || [];
+    message.idTokenEncryptionEncValuesSupported = object.idTokenEncryptionEncValuesSupported?.map((e) => e) || [];
+    message.userinfoSigningAlgValuesSupported = object.userinfoSigningAlgValuesSupported?.map((e) => e) || [];
+    message.userinfoEncryptionAlgValuesSupported = object.userinfoEncryptionAlgValuesSupported?.map((e) => e) || [];
+    message.requestObjectSigningAlgValuesSupported = object.requestObjectSigningAlgValuesSupported?.map((e) => e) || [];
+    message.requestObjectEncryptionAlgValuesSupported =
+      object.requestObjectEncryptionAlgValuesSupported?.map((e) => e) || [];
+    message.serviceDocumentation = object.serviceDocumentation ?? undefined;
+    message.claimsSupported = object.claimsSupported?.map((e) => e) || [];
+    message.claimsLocalesSupported = object.claimsLocalesSupported?.map((e) => e) || [];
+    message.uiLocalesSupported = object.uiLocalesSupported?.map((e) => e) || [];
+    message.acrValuesSupported = object.acrValuesSupported?.map((e) => e) || [];
+    message.claimsParameterSupported = object.claimsParameterSupported ?? undefined;
+    message.requestParameterSupported = object.requestParameterSupported ?? undefined;
+    message.requestUriParameterSupported = object.requestUriParameterSupported ?? undefined;
+    message.requireRequestUriRegistration = object.requireRequestUriRegistration ?? undefined;
+    message.opPolicyUri = object.opPolicyUri ?? undefined;
+    message.opTosUri = object.opTosUri ?? undefined;
+    message.checkSessionIframe = object.checkSessionIframe ?? undefined;
+    message.endSessionEndpoint = object.endSessionEndpoint ?? undefined;
+    message.frontchannelLogoutSupported = object.frontchannelLogoutSupported ?? undefined;
+    message.frontchannelLogoutSessionSupported = object.frontchannelLogoutSessionSupported ?? undefined;
+    message.backchannelLogoutSupported = object.backchannelLogoutSupported ?? undefined;
+    message.backchannelLogoutSessionSupported = object.backchannelLogoutSessionSupported ?? undefined;
+    message.deviceAuthorizationEndpoint = object.deviceAuthorizationEndpoint ?? undefined;
+    message.pushedAuthorizationRequestEndpoint = object.pushedAuthorizationRequestEndpoint ?? undefined;
+    return message;
+  },
+};
+
+function createBaseJwk(): Jwk {
+  return { kid: "", kty: "", use: "", alg: "", crv: "", x: "", y: "", keyOps: [] };
+}
+
+export const Jwk: MessageFns<Jwk> = {
+  encode(message: Jwk, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.kid !== "") {
+      writer.uint32(10).string(message.kid);
+    }
+    if (message.kty !== "") {
+      writer.uint32(18).string(message.kty);
+    }
+    if (message.use !== "") {
+      writer.uint32(26).string(message.use);
+    }
+    if (message.alg !== "") {
+      writer.uint32(34).string(message.alg);
+    }
+    if (message.crv !== "") {
+      writer.uint32(42).string(message.crv);
+    }
+    if (message.x !== "") {
+      writer.uint32(50).string(message.x);
+    }
+    if (message.y !== "") {
+      writer.uint32(58).string(message.y);
+    }
+    for (const v of message.keyOps) {
+      writer.uint32(66).string(v!);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Jwk {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseJwk();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.kid = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.kty = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.use = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.alg = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.crv = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.x = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.y = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.keyOps.push(reader.string());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<Jwk>): Jwk {
+    return Jwk.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<Jwk>): Jwk {
+    const message = createBaseJwk();
+    message.kid = object.kid ?? "";
+    message.kty = object.kty ?? "";
+    message.use = object.use ?? "";
+    message.alg = object.alg ?? "";
+    message.crv = object.crv ?? "";
+    message.x = object.x ?? "";
+    message.y = object.y ?? "";
+    message.keyOps = object.keyOps?.map((e) => e) || [];
+    return message;
+  },
+};
+
+function createBaseJwks(): Jwks {
+  return { keys: [] };
+}
+
+export const Jwks: MessageFns<Jwks> = {
+  encode(message: Jwks, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.keys) {
+      Jwk.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Jwks {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseJwks();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.keys.push(Jwk.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<Jwks>): Jwks {
+    return Jwks.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<Jwks>): Jwks {
+    const message = createBaseJwks();
+    message.keys = object.keys?.map((e) => Jwk.fromPartial(e)) || [];
+    return message;
+  },
 };
 
 export type BootstrapServiceDefinition = typeof BootstrapServiceDefinition;
 export const BootstrapServiceDefinition = {
-	name: 'BootstrapService',
-	fullName: 'mises.BootstrapService',
-	methods: {
-		bootstrap: {
-			name: 'Bootstrap',
-			requestType: BootstrapRequest,
-			requestStream: false,
-			responseType: BootstrapResponse,
-			responseStream: false,
-			options: {}
-		}
-	}
+  name: "BootstrapService",
+  fullName: "mises.BootstrapService",
+  methods: {
+    bootstrap: {
+      name: "Bootstrap",
+      requestType: BootstrapRequest,
+      requestStream: false,
+      responseType: BootstrapResponse,
+      responseStream: false,
+      options: {},
+    },
+  },
 } as const;
 
 export interface BootstrapServiceImplementation<CallContextExt = {}> {
-	bootstrap(
-		request: BootstrapRequest,
-		context: CallContext & CallContextExt
-	): Promise<DeepPartial<BootstrapResponse>>;
+  bootstrap(request: BootstrapRequest, context: CallContext & CallContextExt): Promise<DeepPartial<BootstrapResponse>>;
 }
 
 export interface BootstrapServiceClient<CallOptionsExt = {}> {
-	bootstrap(
-		request: DeepPartial<BootstrapRequest>,
-		options?: CallOptions & CallOptionsExt
-	): Promise<BootstrapResponse>;
+  bootstrap(request: DeepPartial<BootstrapRequest>, options?: CallOptions & CallOptionsExt): Promise<BootstrapResponse>;
+}
+
+/** ---- OIDC service and messages ---- */
+export type OidcServiceDefinition = typeof OidcServiceDefinition;
+export const OidcServiceDefinition = {
+  name: "OidcService",
+  fullName: "mises.OidcService",
+  methods: {
+    /** Authorization (browser-style) - returns a redirect URI if applicable */
+    authorize: {
+      name: "Authorize",
+      requestType: AuthorizeRequest,
+      requestStream: false,
+      responseType: AuthorizeResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** Token endpoint supporting multiple grant types */
+    token: {
+      name: "Token",
+      requestType: TokenRequest,
+      requestStream: false,
+      responseType: TokenResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** Device Authorization endpoint */
+    deviceAuthorize: {
+      name: "DeviceAuthorize",
+      requestType: DeviceAuthorizeRequest,
+      requestStream: false,
+      responseType: DeviceAuthorizeResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** Introspection */
+    introspect: {
+      name: "Introspect",
+      requestType: IntrospectRequest,
+      requestStream: false,
+      responseType: IntrospectResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** Revocation (returns empty on success) */
+    revoke: {
+      name: "Revoke",
+      requestType: RevokeRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+    /** Pushed Authorization Request */
+    pushedAuthorize: {
+      name: "PushedAuthorize",
+      requestType: PushedAuthorizeRequest,
+      requestStream: false,
+      responseType: PushedAuthorizeResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** Backchannel (CIBA) */
+    backchannelAuth: {
+      name: "BackchannelAuth",
+      requestType: BackchannelAuthRequest,
+      requestStream: false,
+      responseType: BackchannelAuthResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** Dynamic client registration */
+    clientRegister: {
+      name: "ClientRegister",
+      requestType: ClientRegisterRequest,
+      requestStream: false,
+      responseType: Client,
+      responseStream: false,
+      options: {},
+    },
+    /** RP-initiated logout */
+    endSession: {
+      name: "EndSession",
+      requestType: EndSessionRequest,
+      requestStream: false,
+      responseType: EndSessionResponse,
+      responseStream: false,
+      options: {},
+    },
+    /** UserInfo */
+    getUserInfo: {
+      name: "GetUserInfo",
+      requestType: UserInfoRequest,
+      requestStream: false,
+      responseType: UserInfo,
+      responseStream: false,
+      options: {},
+    },
+    /** Provider metadata and keys */
+    getOpenIdConfiguration: {
+      name: "GetOpenIdConfiguration",
+      requestType: Empty,
+      requestStream: false,
+      responseType: OpenIdConfiguration,
+      responseStream: false,
+      options: {},
+    },
+    getJwks: {
+      name: "GetJwks",
+      requestType: Empty,
+      requestStream: false,
+      responseType: Jwks,
+      responseStream: false,
+      options: {},
+    },
+  },
+} as const;
+
+export interface OidcServiceImplementation<CallContextExt = {}> {
+  /** Authorization (browser-style) - returns a redirect URI if applicable */
+  authorize(request: AuthorizeRequest, context: CallContext & CallContextExt): Promise<DeepPartial<AuthorizeResponse>>;
+  /** Token endpoint supporting multiple grant types */
+  token(request: TokenRequest, context: CallContext & CallContextExt): Promise<DeepPartial<TokenResponse>>;
+  /** Device Authorization endpoint */
+  deviceAuthorize(
+    request: DeviceAuthorizeRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<DeviceAuthorizeResponse>>;
+  /** Introspection */
+  introspect(
+    request: IntrospectRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<IntrospectResponse>>;
+  /** Revocation (returns empty on success) */
+  revoke(request: RevokeRequest, context: CallContext & CallContextExt): Promise<DeepPartial<Empty>>;
+  /** Pushed Authorization Request */
+  pushedAuthorize(
+    request: PushedAuthorizeRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<PushedAuthorizeResponse>>;
+  /** Backchannel (CIBA) */
+  backchannelAuth(
+    request: BackchannelAuthRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<BackchannelAuthResponse>>;
+  /** Dynamic client registration */
+  clientRegister(request: ClientRegisterRequest, context: CallContext & CallContextExt): Promise<DeepPartial<Client>>;
+  /** RP-initiated logout */
+  endSession(
+    request: EndSessionRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<EndSessionResponse>>;
+  /** UserInfo */
+  getUserInfo(request: UserInfoRequest, context: CallContext & CallContextExt): Promise<DeepPartial<UserInfo>>;
+  /** Provider metadata and keys */
+  getOpenIdConfiguration(
+    request: Empty,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<OpenIdConfiguration>>;
+  getJwks(request: Empty, context: CallContext & CallContextExt): Promise<DeepPartial<Jwks>>;
+}
+
+export interface OidcServiceClient<CallOptionsExt = {}> {
+  /** Authorization (browser-style) - returns a redirect URI if applicable */
+  authorize(request: DeepPartial<AuthorizeRequest>, options?: CallOptions & CallOptionsExt): Promise<AuthorizeResponse>;
+  /** Token endpoint supporting multiple grant types */
+  token(request: DeepPartial<TokenRequest>, options?: CallOptions & CallOptionsExt): Promise<TokenResponse>;
+  /** Device Authorization endpoint */
+  deviceAuthorize(
+    request: DeepPartial<DeviceAuthorizeRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<DeviceAuthorizeResponse>;
+  /** Introspection */
+  introspect(
+    request: DeepPartial<IntrospectRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<IntrospectResponse>;
+  /** Revocation (returns empty on success) */
+  revoke(request: DeepPartial<RevokeRequest>, options?: CallOptions & CallOptionsExt): Promise<Empty>;
+  /** Pushed Authorization Request */
+  pushedAuthorize(
+    request: DeepPartial<PushedAuthorizeRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<PushedAuthorizeResponse>;
+  /** Backchannel (CIBA) */
+  backchannelAuth(
+    request: DeepPartial<BackchannelAuthRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<BackchannelAuthResponse>;
+  /** Dynamic client registration */
+  clientRegister(request: DeepPartial<ClientRegisterRequest>, options?: CallOptions & CallOptionsExt): Promise<Client>;
+  /** RP-initiated logout */
+  endSession(
+    request: DeepPartial<EndSessionRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<EndSessionResponse>;
+  /** UserInfo */
+  getUserInfo(request: DeepPartial<UserInfoRequest>, options?: CallOptions & CallOptionsExt): Promise<UserInfo>;
+  /** Provider metadata and keys */
+  getOpenIdConfiguration(
+    request: DeepPartial<Empty>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<OpenIdConfiguration>;
+  getJwks(request: DeepPartial<Empty>, options?: CallOptions & CallOptionsExt): Promise<Jwks>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
-export type DeepPartial<T> = T extends Builtin
-	? T
-	: T extends globalThis.Array<infer U>
-		? globalThis.Array<DeepPartial<U>>
-		: T extends ReadonlyArray<infer U>
-			? ReadonlyArray<DeepPartial<U>>
-			: T extends {}
-				? { [K in keyof T]?: DeepPartial<T[K]> }
-				: Partial<T>;
+export type DeepPartial<T> = T extends Builtin ? T
+  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
+  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
+  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
+  : Partial<T>;
+
+function longToNumber(int64: { toString(): string }): number {
+  const num = globalThis.Number(int64.toString());
+  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
+  }
+  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is smaller than Number.MIN_SAFE_INTEGER");
+  }
+  return num;
+}
 
 export interface MessageFns<T> {
-	encode(message: T, writer?: BinaryWriter): BinaryWriter;
-	decode(input: BinaryReader | Uint8Array, length?: number): T;
-	create(base?: DeepPartial<T>): T;
-	fromPartial(object: DeepPartial<T>): T;
+  encode(message: T, writer?: BinaryWriter): BinaryWriter;
+  decode(input: BinaryReader | Uint8Array, length?: number): T;
+  create(base?: DeepPartial<T>): T;
+  fromPartial(object: DeepPartial<T>): T;
 }

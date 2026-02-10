@@ -23,59 +23,38 @@ tauri = { version = "2", default-features = false, features = [
 ] }
 
 # async
-tokio = { version = "1", default-features = false, features = [] }
-tokio-util = { version = "0", default-features = false, features = [] }
-futures-core = { version = "0.3", default-features = false, features = ["std"] }
-tonic = { version = "0.14", default-features = false, features = [
-  "server",
-  "router",
-  "channel",
+tokio = { version = "1", default-features = false, features = [
+  "rt",
+  "net",
+  "io-util",
+  "fs",
+  "process",
+  "time",
 ] }
+tokio-util = { version = "0", default-features = false, features = [] }
+tonic = { version = "0.14", default-features = false, features = ["transport"] }
 
 # networking
-hyper = { version = "0.14", default-features = false, features = [
-  "client",
-  "runtime",
-  "http2",
-] }
-http = { version = "0.2", default-features = false }
 tower = { version = "0.5", default-features = false }
-hyper-util = { version = "0.1", default-features = false }
-
-tonic-reflection = { version = "0.14", default-features = false, features = [
-  "server",
-] }
-
-# protobuf helpers
-prost = { version = "0.14", default-features = false, features = [] }
-prost-types = { version = "0.14", default-features = false, features = [] }
-bytes = { version = "1", default-features = false, features = [] }
-
-# time
-chrono = { version = "0.4", default-features = false, features = ["serde"] }
+hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
 
 # utils
-base64 = { version = "0.21", default-features = false }
 log = { version = "*" }
 uuid = { version = "1", default-features = false, features = ["v7", "std"] }
+prost = { version = "0.14", default-features = false }
+config = { version = "0.15", default-features = false, features = ["json"] }
 
 # serialization
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false, features = [] }
-tauri-plugin-log = "2"
+tauri-plugin-log = { version = "2", default-features = false, features = [] }
+tauri-plugin-deep-link = { version = "2", default-features = false, features = [
+] }
+tauri-plugin-cli = { version = "2", default-features = false, features = [] }
+native-authentication = { path = "../../../crates/native-authentication", default-features = false }
 
 # workspace
-mises-core = { path = "../../../crates/core", default-features = false, features = [
-  "std",
-] }
-mises-graph = { path = "../../../crates/graph", default-features = false, features = [
-  "std",
-  "uuid",
-  "in-memory",
-] }
-
-mises-grpc-server = { path = "../../../crates/grpc-server", default-features = false, features = [
-  "file-descriptor-set",
-] }
-
 mises-proto = { path = "../../../crates/proto", default-features = false }
+
+[target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }

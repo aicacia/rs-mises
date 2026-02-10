@@ -61,6 +61,5 @@ pub const CLAIMS_SUPPORTED: &[&str] = &[
   "picture",
 ];
 
-// common error messages
 pub const ERR_REDIRECT_URI_EMPTY: &str = "redirect_uri provided is empty";
 pub const ERR_SCOPE_MUST_INCLUDE_OPENID: &str = "invalid_request: scope must include 'openid'";

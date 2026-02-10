@@ -29,7 +29,6 @@ enum PolicyDecision {
   NotApplicable,
 }
 
-/// Request lifecycle operations for graph-backed requests.
 #[derive(Clone)]
 pub struct RequestService<R>
 where
@@ -46,12 +45,10 @@ where
     Self { repo }
   }
 
-  /// Return a reference to the underlying repository (useful for tests)
   pub fn repo(&self) -> &R {
     &self.repo
   }
 
-  /// Create a new request and return its id.
   pub async fn create_request(&self, requested_for: Uuid, input: RequestInput) -> Result<Uuid> {
     self.ensure_identity_exists(requested_for).await?;
     self.ensure_identity_exists(input.requestor).await?;
@@ -383,10 +380,7 @@ where
       EdgeType::DeniedBy.as_str().to_string(),
       denial_node.id,
       approver_id,
-      EdgeProps::DeniedBy {
-        at: now,
-        reason: reason.clone(),
-      },
+      EdgeProps::DeniedBy { at: now, reason },
     )
     .await?;
 

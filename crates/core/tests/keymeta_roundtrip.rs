@@ -5,7 +5,7 @@ use mises_key::{Key, KeyError};
 #[test]
 fn keymeta_roundtrip_master() {
   let seed = vec![0u8; 32];
-  let key = Key::from(seed.clone());
+  let key = Key::try_from(seed).expect("create key");
 
   let km = KeyMeta::try_from(key.clone()).expect("create keymeta");
   let k2 = Key::try_from(km).expect("convert back to key");
@@ -18,7 +18,7 @@ fn keymeta_roundtrip_master() {
 #[test]
 fn keymeta_roundtrip_derived() {
   let seed = vec![1u8; 32];
-  let key = Key::from(seed.clone());
+  let key = Key::try_from(seed).expect("create key");
   let derived = key.child_from_derivation_path("m/44'/0'").expect("derive");
 
   let km = KeyMeta::try_from(derived.clone()).expect("create keymeta");

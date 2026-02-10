@@ -75,7 +75,6 @@ where
     }
   }
 
-  /// Find the owner identity of the given node id
   pub async fn find_owner(&self, id: Uuid) -> Result<Option<E::Node>> {
     let query = Query::edges(
       EdgeQuery::incoming(EdgeType::Owns.as_str())
@@ -97,7 +96,6 @@ where
     Ok(None)
   }
 
-  /// Create a new user identity with the given name. Returns the created user's id.
   pub async fn create_user(&self, name: String) -> Result<E::Node> {
     let user_node = self
       .exec
@@ -150,6 +148,23 @@ where
     }
 
     Ok(devices)
+  }
+
+  pub async fn find_any_application(&self) -> Result<Option<E::Node>> {
+    let query = Query::nodes(
+      NodeQuery::new(NodeType::Identity.as_str())
+        .filter(field("metadata.type").eq(IdentityType::Application.as_str())),
+    );
+
+    let elements = self.exec.query(query).await?;
+
+    for el in elements {
+      if let Element::Node(node) = el {
+        return Ok(Some(node));
+      }
+    }
+
+    Ok(None)
   }
 
   /// Create a device node. Optionally set `root` in metadata (does not create any edges).

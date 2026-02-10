@@ -1,6 +1,9 @@
-# GitHub Agent Instructions
+---
+applyTo: "**/*.rs, **/*.toml"
+description: This file describes the project guidelines for the all agents and contributors.
+---
 
-## Purpose
+# Project guidelines
 
 Short, exact rules for the GitHub agent and contributors.
 

@@ -1,7 +1,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{format, string::String, vec, vec::Vec};
 
-use core::str::FromStr;
+use core::{convert::TryFrom, str::FromStr};
 
 use crate::KeyError;
 use bip32::{ChildNumber, DerivationPath, XPrv};
@@ -17,54 +17,50 @@ use slip10::{
 
 use zeroize::Zeroizing;
 
-/// A hierarchical deterministic (HD) key wrapper.
-///
-/// - Stores the XPrv node at a given derivation path (the crate initializes keys
-///   to include the BIP44 purpose child: `m/44'`).
-/// - Optionally retains the normalized seed bytes used to construct the master
-///   key. Seed bytes are stored in a `Zeroizing<Vec<u8>>` to ensure they are
-///   zeroed on drop.
+/// HD key using BIP44 purpose (`m/44'`) with optional seed retention for reconstruction.
 #[derive(Debug, Clone)]
 pub struct Key {
   xprv: XPrv,
-  /// Derivation path from the root (must include purpose', e.g. 44')
   children: Vec<ChildNumber>,
-  /// Optional normalized seed bytes used to construct this key (if available).
-  /// Stored in a `Zeroizing` wrapper to ensure memory is cleared on drop.
   seed: Option<Zeroizing<Vec<u8>>>,
 }
 
+const MASTER_PURPOSE: u32 = 44;
+
 fn default_master_purpose_child() -> ChildNumber {
-  ChildNumber::new(44, true).expect("create master purpose child")
+  ChildNumber::new(MASTER_PURPOSE, true).unwrap()
 }
 
-impl From<Mnemonic> for Key {
-  fn from(mnemonic: Mnemonic) -> Self {
+impl TryFrom<Mnemonic> for Key {
+  type Error = KeyError;
+
+  fn try_from(mnemonic: Mnemonic) -> Result<Self, Self::Error> {
     let seed = mnemonic.to_seed_normalized("").to_vec();
-    let mut xprv = XPrv::new(seed.as_slice()).expect("create xprv");
-
+    let mut xprv = XPrv::new(seed.as_slice())?;
     let purpose = default_master_purpose_child();
-    xprv = xprv.derive_child(purpose).expect("derive purpose");
+    xprv = xprv.derive_child(purpose)?;
 
-    Self {
+    Ok(Self {
       xprv,
       children: vec![purpose],
       seed: Some(Zeroizing::new(seed)),
-    }
+    })
   }
 }
 
-impl From<Vec<u8>> for Key {
-  fn from(bytes: Vec<u8>) -> Self {
-    let mut xprv = XPrv::new(bytes.as_slice()).expect("create xprv");
-    let purpose = default_master_purpose_child();
-    xprv = xprv.derive_child(purpose).expect("derive purpose");
+impl TryFrom<Vec<u8>> for Key {
+  type Error = KeyError;
 
-    Self {
+  fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+    let mut xprv = XPrv::new(bytes.as_slice())?;
+    let purpose = default_master_purpose_child();
+    xprv = xprv.derive_child(purpose)?;
+
+    Ok(Self {
       xprv,
       children: vec![purpose],
       seed: Some(Zeroizing::new(bytes)),
-    }
+    })
   }
 }
 
@@ -78,7 +74,7 @@ impl Key {
 
   pub fn from_entropy(entropy: &[u8]) -> Result<Self, KeyError> {
     let mnemonic = Mnemonic::from_entropy(entropy)?;
-    Ok(Self::from(mnemonic))
+    Self::try_from(mnemonic)
   }
 
   pub fn child_number(&self, child: ChildNumber) -> Result<Self, KeyError> {
@@ -131,16 +127,11 @@ impl Key {
     Ok(self.xprv.clone())
   }
 
-  /// Return a copy of the normalized seed bytes if available.
-  ///
-  /// The returned `Vec<u8>` is a clone of the stored seed. The internal storage
-  /// uses `Zeroizing<Vec<u8>>` so the original bytes will be zeroed on drop.
   pub fn seed_bytes(&self) -> Option<Vec<u8>> {
     use core::ops::Deref;
     self.seed.as_ref().map(|z| z.deref().clone())
   }
 
-  /// Return a derivation path string (e.g. "m/44'/0'") if this key has children.
   pub fn derivation_path(&self) -> String {
     let parts: Vec<String> = self.children.iter().map(|cn| format!("{}", cn)).collect();
     format!("m/{}", parts.join("/"))
@@ -173,13 +164,6 @@ impl Key {
   }
 }
 
-/// Parse a human-friendly child identifier into a `ChildNumber`.
-///
-/// Supported forms:
-/// - numeric index (e.g. `0`, `1`)
-/// - hardened suffix with `'` or `h`/`H` (e.g. `0'` or `0h`)
-/// - non-numeric names are CRC32 hashed to produce a stable index
-///   (the index is masked to fit the allowed range for `ChildNumber`).
 fn parse_child_number<S: AsRef<str>>(s: S) -> Result<ChildNumber, KeyError> {
   let s = s.as_ref().trim();
   if s.is_empty() {
@@ -329,7 +313,7 @@ mod tests {
       .expect("derive 44'");
     let expected = xprv.private_key().to_bytes().to_vec();
 
-    let key = Key::from(mnemonic.clone());
+    let key = Key::try_from(mnemonic).expect("key from mnemonic");
 
     assert_eq!(key.secp256k1_secret_bytes().unwrap(), expected);
   }

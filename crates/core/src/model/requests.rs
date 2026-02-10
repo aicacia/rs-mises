@@ -47,7 +47,6 @@ impl core::fmt::Display for RequestStatus {
 }
 
 impl RequestStatus {
-  /// Return the lowercase string representation of the status (matches serialization)
   pub fn as_str(&self) -> &'static str {
     match self {
       RequestStatus::Pending => "pending",

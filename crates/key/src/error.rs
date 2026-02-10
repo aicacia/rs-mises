@@ -13,11 +13,8 @@ pub enum KeyError {
   Bip39(bip39::Error),
   EmptyChild,
   InvalidPrivateKeyLength,
-  /// Seed present but failed to decode (only used for master keys)
   InvalidSeed,
-  /// Seed missing when required for conversion
   MissingSeed,
-  /// Invalid combination of seed + derivation path or invalid derived key
   InvalidKey,
 }
 

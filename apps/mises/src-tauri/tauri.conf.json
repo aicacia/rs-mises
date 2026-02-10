@@ -31,5 +31,25 @@
 			"icons/icon.icns",
 			"icons/icon.ico"
 		]
+	},
+	"plugins": {
+		"deep-link": {
+			"desktop": {
+				"schemes": [
+					"mises"
+				]
+			}
+		},
+		"cli": {
+			"description": "A Tauri app with CLI arguments",
+			"args": [
+				{
+					"name": "config",
+					"short": "c",
+					"takesValue": true,
+					"description": "The config path to use"
+				}
+			]
+		}
 	}
 }

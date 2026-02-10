@@ -1,20 +1,15 @@
 use tonic::Status;
 
 use mises_core::{
-  CoreError,
-  model::{
-    identity::{IdentityMeta, IdentityType},
-    node::NodeMeta,
-  },
-  service::identity::IdentityService,
+  model::{identity::IdentityMeta, node::NodeMeta},
   traits::Repository,
 };
-use uuid::Uuid;
 
-use crate::oidc_service::constants::{self, CODE_CHALLENGE_METHODS_SUPPORTED};
+use crate::oidc_service::{
+  constants::{self, CODE_CHALLENGE_METHODS_SUPPORTED},
+  helpers::{ensure_application_identity, resolve_client_id},
+};
 
-/// Perform authorize request validation and resolution. Returns an
-/// `AuthorizeResponse` suitable for returning from the gRPC service.
 pub async fn authorize<R>(
   repo: R,
   req: mises_proto::AuthorizeRequest,
@@ -42,44 +37,14 @@ where
     }
   }
 
-  let client_uuid = match Uuid::parse_str(req.client_id.trim()) {
-    Ok(u) => u,
-    Err(_) => {
-      return Err(Status::invalid_argument(format!(
-        "invalid client_id: {}",
-        req.client_id
-      )));
-    }
-  };
+  let client_uuid = resolve_client_id(&req.client_id, repo.clone()).await?;
+  let node = ensure_application_identity(client_uuid, repo.clone()).await?;
 
-  let identity_service = IdentityService::new(repo.clone());
-
-  let node = match identity_service
-    .get_node_by_id_and_identity_type(client_uuid, IdentityType::Application)
-    .await
-  {
-    Ok(n) => n,
-    Err(e) => {
-      return match e {
-        CoreError::NotFound => Err(Status::invalid_argument(format!(
-          "invalid_request: client_id not found: {}",
-          req.client_id
-        ))),
-        CoreError::InvalidInput(_) => Err(Status::invalid_argument(
-          "invalid_request: client_id does not refer to an application",
-        )),
-        _ => Err(Status::internal(format!("identity service error: {}", e))),
-      };
-    }
-  };
-
-  // get OIDC client registration metadata
   let oidc_meta = match &node.metadata {
     NodeMeta::Identity(IdentityMeta::Application { oidc_client, .. }) => oidc_client.as_ref(),
     _ => None,
   };
 
-  // require openid scope
   if let Some(ref scope) = req.scope
     && !scope
       .split_whitespace()
@@ -90,16 +55,13 @@ where
     ));
   }
 
-  // resolve and validate redirect_uri against the application's oidc metadata
   let resolved_redirect = if let Some(client) = oidc_meta {
-    // reject registration when client_id is provided
     if req.registration.is_some() {
       return Err(Status::invalid_argument(
         "invalid_request: registration parameter not allowed when client_id is provided",
       ));
     }
 
-    // validate response_mode
     if let Some(ref mode) = req.response_mode
       && constants::RESPONSE_MODES.iter().all(|&m| m != mode)
     {
@@ -108,12 +70,10 @@ where
       ));
     }
 
-    // PKCE: require for public clients on code flow
     let code_requested = req
       .response_type
       .split_whitespace()
       .any(|s| s == constants::RESPONSE_TYPE_CODE);
-    // public client when token_endpoint_auth_method == "none" or missing
     let client_is_public = client
       .token_endpoint_auth_method
       .as_deref()
@@ -121,7 +81,6 @@ where
       .unwrap_or(false);
 
     if code_requested {
-      // if client is public, require a code_challenge
       if client_is_public
         && req
           .code_challenge
@@ -134,7 +93,6 @@ where
         ));
       }
 
-      // if a code_challenge is present, validate it and require S256 explicitly
       if let Some(ref cc) = req.code_challenge {
         if cc.trim().is_empty() {
           return Err(Status::invalid_argument(
@@ -150,22 +108,18 @@ where
             ));
           }
           None => {
-            // require S256 for code_challenge_method
             return Err(Status::invalid_argument(
               "invalid_request: code_challenge_method required and must be 'S256'",
             ));
           }
         }
       }
-    }
-    // code_challenge disallowed when not code flow
-    else if req.code_challenge.is_some() {
+    } else if req.code_challenge.is_some() {
       return Err(Status::invalid_argument(
         "invalid_request: code_challenge only allowed with response_type including 'code'",
       ));
     }
 
-    // nonce required when id_token requested
     if req
       .response_type
       .split_whitespace()
@@ -181,7 +135,6 @@ where
       ));
     }
 
-    // validate scopes against client metadata
     if let Some(ref scope) = req.scope
       && !client.scopes.is_empty()
     {
@@ -212,13 +165,11 @@ where
       ));
     }
   } else {
-    // require `oidc_client` metadata
     return Err(Status::invalid_argument(
       "invalid_request: oidc_client metadata missing",
     ));
   };
 
-  // ensure redirect is a valid URL
   if url::Url::parse(&resolved_redirect).is_err() {
     return Err(Status::invalid_argument(format!(
       "invalid redirect_uri: {}",
@@ -226,7 +177,6 @@ where
     )));
   }
 
-  // ensure client has registered allowed response_types
   if let Some(client) = oidc_meta {
     if client.response_types.is_empty() {
       return Err(Status::invalid_argument(
@@ -242,7 +192,6 @@ where
       }
     }
   } else {
-    // client must register allowed response_types
     return Err(Status::invalid_argument(
       "invalid_request: oidc_client metadata missing",
     ));
@@ -263,6 +212,7 @@ mod tests {
   use mises_core::model::identity::IdentityMeta;
   use mises_core::model::node::NodeMeta;
   use mises_graph::{Executor, IdGenerator, InMemoryKeyValueStore, KeyValueRepository};
+  use mises_proto::oidc_service_server::OidcService;
   use uuid::Uuid;
 
   #[derive(Clone)]
@@ -282,7 +232,6 @@ mod tests {
   async fn authorize_redirect_uri_mismatch() {
     let repo = make_repo();
 
-    // create application identity with registered redirect
     let app_id = repo
       .create_node(
         "identity".to_string(),
@@ -366,8 +315,6 @@ mod tests {
     );
   }
 
-  // Remaining tests copied and adapted from the service tests
-
   #[tokio::test]
   async fn authorize_scope_requires_openid() {
     let repo = make_repo();
@@ -408,5 +355,67 @@ mod tests {
     assert!(res.is_err());
     let e = res.err().unwrap();
     assert!(e.message().contains("scope must include 'openid'"));
+  }
+
+  #[tokio::test]
+  async fn native_authenticate_issues_valid_id_token() {
+    let repo = make_repo();
+
+    let app_id = repo
+      .create_node(
+        "identity".to_string(),
+        NodeMeta::Identity(IdentityMeta::Application {
+          name: "app".to_string(),
+          local: true,
+          oidc_client: None,
+        }),
+      )
+      .await
+      .unwrap()
+      .id;
+
+    let issuer = "https://example.com".to_string();
+    let hmac = "test-secret".to_string();
+
+    let svc = crate::oidc_service::service::OidcService::new(
+      repo.clone(),
+      issuer.clone(),
+      None,
+      Some(hmac.clone()),
+    );
+
+    let req = mises_proto::NativeAuthenticateRequest {
+      client_id: Some(app_id.to_string()),
+      sub: None,
+      scope: Some(constants::SCOPE_OPENID.to_string()),
+    };
+
+    let res = svc
+      .native_authenticate(tonic::Request::new(req))
+      .await
+      .unwrap()
+      .into_inner();
+    assert!(res.id_token.is_some());
+    let tok = res.id_token.unwrap();
+
+    let validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS256);
+    let token_data: jsonwebtoken::TokenData<serde_json::Value> = jsonwebtoken::decode(
+      &tok,
+      &jsonwebtoken::DecodingKey::from_secret(hmac.as_bytes()),
+      &validation,
+    )
+    .expect("token decode");
+
+    let claims = token_data.claims;
+    assert_eq!(
+      claims.get("iss").and_then(|v| v.as_str()),
+      Some(issuer.as_str())
+    );
+    assert_eq!(
+      claims.get("aud").and_then(|v| v.as_str()),
+      Some(app_id.to_string().as_str())
+    );
+    assert!(claims.get("sub").and_then(|v| v.as_str()).is_some());
+    assert!(claims.get("exp").and_then(|v| v.as_i64()).is_some());
   }
 }

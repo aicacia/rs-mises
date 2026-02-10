@@ -5,6 +5,7 @@ service BootstrapService {
     rpc Bootstrap (BootstrapRequest) returns (BootstrapResponse);
 }
 
+
 message BootstrapRequest {
    string root_group_name = 1;
     string owner_name = 2;
@@ -17,6 +18,7 @@ message BootstrapResponse {
     string master_key_public_key = 3;
     string owner_user = 4;
     string device = 5;
+
 }
 
 import "google/protobuf/empty.proto";
@@ -29,6 +31,8 @@ service OidcService {
 
     // Token endpoint supporting multiple grant types
     rpc Token (TokenRequest) returns (TokenResponse);
+    // Native desktop authentication: authenticate a native desktop client and return an id_token.
+    rpc NativeAuthenticate (NativeAuthenticateRequest) returns (TokenResponse);
 
     // Device Authorization endpoint
     rpc DeviceAuthorize (DeviceAuthorizeRequest) returns (DeviceAuthorizeResponse);
@@ -202,6 +206,14 @@ message ClientRegisterRequest {
     repeated string response_types = 6;
     optional string scope = 7;
     optional string token_endpoint_auth_method = 8;
+}
+
+message NativeAuthenticateRequest {
+    // client id (UUID string) or development shortcut 'tauri'
+    optional string client_id = 1;
+    // optional hint about the subject to act as (server may ignore and create its own)
+    optional string sub = 2;
+    optional string scope = 3;
 }
 
 message Client {
