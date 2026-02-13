@@ -13,6 +13,7 @@ name = "mises"
 
 [workspace]
 members = [
+  "crates/async-kv-bytes",
   "crates/core",
   "crates/key",
   "crates/graph",

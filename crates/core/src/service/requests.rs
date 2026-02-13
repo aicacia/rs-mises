@@ -184,7 +184,6 @@ where
     Ok(node.id)
   }
 
-  /// Fetch a request by id.
   pub async fn get_request(&self, id: Uuid) -> Result<Request> {
     let node = self
       .repo
@@ -198,7 +197,6 @@ where
     }
   }
 
-  /// Return all pending requests.
   pub async fn get_pending_requests(&self) -> Result<Vec<Request>> {
     let query = Query::nodes(
       NodeQuery::new(NodeType::Request.as_str())
@@ -219,7 +217,6 @@ where
     Ok(results)
   }
 
-  /// Record an approval and advance status if quorum is met.
   pub async fn approve_request(&self, id: Uuid, approver_id: Uuid) -> Result<()> {
     self.ensure_identity_exists(approver_id).await?;
 
@@ -322,7 +319,6 @@ where
     Ok(())
   }
 
-  /// Record a denial and mark the request denied.
   pub async fn deny_request(
     &self,
     id: Uuid,
@@ -394,7 +390,6 @@ where
     Ok(())
   }
 
-  /// Apply an approved request and mark it applied.
   pub async fn apply_request(&self, id: Uuid) -> Result<()> {
     let mut node = self
       .repo

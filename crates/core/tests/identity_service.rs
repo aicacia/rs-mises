@@ -4,20 +4,12 @@ use mises_core::model::edge::EdgeProps;
 use mises_core::model::identity::{IdentityMeta, IdentityType};
 use mises_core::model::node::NodeMeta;
 use mises_core::service::identity::IdentityService;
-use mises_graph::{Executor, IdGenerator, InMemoryKeyValueStore, KeyValueRepository};
+use mises_graph::{Executor, InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
 use uuid::Uuid; // to get create_node
-
-#[derive(Clone)]
-struct UuidGenerator;
-impl IdGenerator<Uuid> for UuidGenerator {
-  fn next(&self) -> Uuid {
-    Uuid::new_v4()
-  }
-}
 
 fn make_repo() -> KeyValueRepository<Uuid, NodeMeta, EdgeProps, UuidGenerator, InMemoryKeyValueStore>
 {
-  KeyValueRepository::new(InMemoryKeyValueStore::new(), UuidGenerator)
+  KeyValueRepository::new(InMemoryKeyValueStore::new(), UuidGenerator::new())
 }
 
 async fn create_identity(
@@ -40,8 +32,7 @@ async fn get_node_by_id_and_identity_type_happy_path() {
     &repo,
     IdentityMeta::Application {
       name: "app".to_string(),
-      local: true,
-      oidc_client: None,
+      oidc: None,
     },
   )
   .await;
@@ -63,7 +54,6 @@ async fn get_node_by_id_and_identity_type_mismatch_and_not_found() {
     &repo,
     IdentityMeta::User {
       name: "user".to_string(),
-      local: true,
     },
   )
   .await;

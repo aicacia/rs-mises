@@ -12,6 +12,9 @@ rust-version = "1.93"
 name = "mises_graph"
 
 [dependencies]
+# internal
+mises-async-kv-bytes = { path = "../async-kv-bytes", default-features = false }
+
 # utils
 uuid = { version = "1", optional = true, default-features = false, features = [
   "v4",
@@ -50,6 +53,12 @@ chrono = { version = "0.4", default-features = false, features = [
 # default to no_std; enable std opt-in
 default = ["in-memory"]
 uuid = ["dep:uuid"]
-std = ["chrono/std", "serde/std", "serde_json/std", "uuid/std"]
+std = [
+  "mises-async-kv-bytes/std",
+  "chrono/std",
+  "serde/std",
+  "serde_json/std",
+  "uuid/std",
+]
 # in-memory repository feature
-in-memory = ["dep:spin"]
+in-memory = ["dep:spin", "mises-async-kv-bytes/in-memory"]

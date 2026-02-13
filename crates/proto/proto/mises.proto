@@ -31,8 +31,6 @@ service OidcService {
 
     // Token endpoint supporting multiple grant types
     rpc Token (TokenRequest) returns (TokenResponse);
-    // Native desktop authentication: authenticate a native desktop client and return an id_token.
-    rpc NativeAuthenticate (NativeAuthenticateRequest) returns (TokenResponse);
 
     // Device Authorization endpoint
     rpc DeviceAuthorize (DeviceAuthorizeRequest) returns (DeviceAuthorizeResponse);
@@ -86,6 +84,7 @@ message TokenRequest {
         RefreshToken refresh_token = 2;
         ClientCredentials client_credentials = 3;
         DeviceCode device_code = 4;
+        Password password = 5;
     }
 }
 
@@ -110,6 +109,13 @@ message ClientCredentials {
 message DeviceCode {
     string device_code = 1;
     optional string client_id = 2;
+}
+
+message Password {
+    string username = 1;
+    string password = 2;
+    optional string scope = 3;
+    optional string client_id = 4;
 }
 
 message TokenResponse {

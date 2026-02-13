@@ -1,9 +1,10 @@
 use alloc::string::String;
-use alloc::vec::Vec;
 
 use uuid::Uuid;
 
 use serde::{Deserialize, Serialize};
+
+use crate::model::oidc::OidcClientMeta;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
@@ -43,44 +44,27 @@ impl IdentityType {
 pub enum IdentityMeta {
   User {
     name: String,
-    local: bool,
+    encrypted_password: String,
+    force_password_reset: Option<bool>,
   },
   Persona {
     name: String,
-    local: bool,
   },
   Group {
     name: String,
-    local: bool,
   },
   Device {
     name: String,
-    local: bool,
     root: Option<Uuid>,
   },
   Service {
     name: String,
-    local: bool,
   },
   Application {
     name: String,
-    local: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    oidc_client: Option<ApplicationMeta>,
+    oidc: Option<OidcClientMeta>,
   },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct ApplicationMeta {
-  #[serde(default)]
-  pub redirect_uris: Vec<String>,
-  #[serde(default)]
-  pub response_types: Vec<String>,
-  #[serde(default)]
-  pub grant_types: Vec<String>,
-  #[serde(default)]
-  pub scopes: Vec<String>,
-  pub token_endpoint_auth_method: Option<String>,
 }
 
 impl IdentityMeta {

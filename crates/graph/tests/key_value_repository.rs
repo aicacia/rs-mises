@@ -3,8 +3,8 @@
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 use mises_graph::{
-  EdgeQuery, Element, Executor, IdGenerator, KeyValueRepository, NodeQuery, Query, Repository,
-  Transaction, field, in_memory_key_value_store::InMemoryKeyValueStore,
+  EdgeQuery, Element, Executor, IdGenerator, InMemoryKeyValueStore, KeyValueRepository, NodeQuery,
+  Query, Repository, Transaction, field,
 };
 
 struct UsizeIdGenerator {
@@ -251,7 +251,6 @@ async fn in_memory_get_batch_returns_correct_order() {
 #[tokio::test]
 async fn create_edge_cleanup_on_partial_failure() {
   use core::sync::atomic::{AtomicUsize, Ordering};
-  use mises_graph::{KeyValueStore, KeyValueStoreExecutor};
 
   struct FailingStore {
     inner: InMemoryKeyValueStore,
@@ -270,15 +269,17 @@ async fn create_edge_cleanup_on_partial_failure() {
   }
 
   #[async_trait::async_trait]
-  impl KeyValueStoreExecutor for FailingStore {
-    async fn get<K>(&self, key: K) -> Result<Option<Vec<u8>>, mises_graph::GraphError>
+  impl mises_async_kv_bytes::KeyValueStoreExecutor for FailingStore {
+    type Error = mises_graph::GraphError;
+
+    async fn get<K>(&self, key: K) -> Result<Option<Vec<u8>>, Self::Error>
     where
       K: AsRef<[u8]> + Send,
     {
       self.inner.get(key).await
     }
 
-    async fn put<K>(&self, key: K, value: Vec<u8>) -> Result<(), mises_graph::GraphError>
+    async fn put<K>(&self, key: K, value: Vec<u8>) -> Result<(), Self::Error>
     where
       K: AsRef<[u8]> + Send,
     {
@@ -291,29 +292,25 @@ async fn create_edge_cleanup_on_partial_failure() {
       self.inner.put(key, value).await
     }
 
-    async fn delete<K>(&self, key: K) -> Result<(), mises_graph::GraphError>
+    async fn delete<K>(&self, key: K) -> Result<(), Self::Error>
     where
       K: AsRef<[u8]> + Send,
     {
       self.inner.delete(key).await
     }
 
-    async fn scan<R, F>(
-      &self,
-      range: R,
-      predicate: F,
-    ) -> Result<Vec<(Vec<u8>, Vec<u8>)>, mises_graph::GraphError>
+    async fn scan<R, F>(&self, range: R, f: F) -> Result<(), Self::Error>
     where
       R: std::ops::RangeBounds<Vec<u8>> + Send,
-      F: FnMut(&Vec<u8>, &Vec<u8>) -> Option<bool> + Send,
+      F: FnMut(&Vec<u8>, &Vec<u8>) -> bool + Send,
     {
-      self.inner.scan(range, predicate).await
+      self.inner.scan(range, f).await
     }
   }
 
   #[async_trait::async_trait]
-  impl KeyValueStore for FailingStore {
-    type Transaction = <InMemoryKeyValueStore as KeyValueStore>::Transaction;
+  impl mises_async_kv_bytes::KeyValueStore for FailingStore {
+    type Transaction = <InMemoryKeyValueStore as mises_async_kv_bytes::KeyValueStore>::Transaction;
 
     async fn transaction(&self) -> Result<Self::Transaction, mises_graph::GraphError> {
       self.inner.transaction().await
@@ -483,7 +480,14 @@ async fn delete_node_handles_missing_main_edge_cleanup() {
   let mut from_prefix = b"edge_from:".to_vec();
   from_prefix.extend_from_slice(&serde_json::to_vec(&a.id).unwrap());
   from_prefix.push(0);
-  let matches = store.scan(from_prefix.., |_, _| Some(true)).await.unwrap();
+  let mut matches = Vec::new();
+  store
+    .scan(from_prefix.., |k, v| {
+      matches.push((k.clone(), v.clone()));
+      true
+    })
+    .await
+    .unwrap();
   assert!(
     matches
       .iter()
@@ -492,8 +496,12 @@ async fn delete_node_handles_missing_main_edge_cleanup() {
 
   repo.delete_node(a.id).await.unwrap();
 
-  let all_from_entries = store
-    .scan(b"edge_from:".to_vec().., |_, _| Some(true))
+  let mut all_from_entries = Vec::new();
+  store
+    .scan(b"edge_from:".to_vec().., |k, v| {
+      all_from_entries.push((k.clone(), v.clone()));
+      true
+    })
     .await
     .unwrap();
   assert!(

@@ -1,49 +1,79 @@
 use tonic::{Request, Response, Status};
 
 use mises_core::{service::graph::GraphService, traits::Repository};
+use mises_graph::KeyValueStoreExecutor;
 
-use crate::oidc_service::{authorize::authorize, constants, helpers::resolve_client_id};
+use crate::{
+  jwt::extract_and_parse_jwt_claims,
+  oidc_service::{authorize::authorize, constants, token::token},
+};
 
-pub struct OidcService<R>
+pub struct OidcService<R, S>
 where
   R: Repository,
+  S: KeyValueStoreExecutor,
 {
   repo: R,
+  store: S,
   issuer: String,
   public_uri: Option<url::Url>,
-  hmac_secret: Option<String>,
+  sign_in_url: Option<String>,
 }
 
-impl<R> OidcService<R>
+impl<R, S> OidcService<R, S>
 where
   R: Repository,
+  S: KeyValueStoreExecutor,
 {
   pub fn new(
     repo: R,
+    store: S,
     issuer: String,
     public_uri: Option<url::Url>,
-    hmac_secret: Option<String>,
+    sign_in_url: Option<String>,
   ) -> Self {
     Self {
       repo,
+      store,
       issuer,
       public_uri,
-      hmac_secret,
+      sign_in_url,
     }
   }
 }
 
 #[tonic::async_trait]
-impl<R> mises_proto::oidc_service_server::OidcService for OidcService<R>
+impl<R, S> mises_proto::oidc_service_server::OidcService for OidcService<R, S>
 where
   R: Repository + Clone + Send + Sync + 'static,
+  S: KeyValueStoreExecutor + Clone + Send + Sync + 'static,
 {
   async fn authorize(
     &self,
     request: Request<mises_proto::AuthorizeRequest>,
   ) -> Result<Response<mises_proto::AuthorizeResponse>, Status> {
-    let req = request.into_inner();
-    authorize(self.repo.clone(), req).await.map(Response::new)
+    let claims = if let Some(auth_header) = request
+      .metadata()
+      .get("authorization")
+      .and_then(|v| v.to_str().ok())
+    {
+      Some(
+        extract_and_parse_jwt_claims(auth_header)
+          .map_err(|_| Status::unauthenticated("invalid bearer token"))?,
+      )
+    } else {
+      None
+    };
+
+    authorize(
+      &self.repo,
+      &self.store,
+      request.into_inner(),
+      claims,
+      &self.sign_in_url,
+    )
+    .await
+    .map(Response::new)
   }
 
   async fn device_authorize(
@@ -53,92 +83,26 @@ where
     Err(Status::unimplemented("device_authorize not implemented"))
   }
 
-  async fn native_authenticate(
-    &self,
-    request: Request<mises_proto::NativeAuthenticateRequest>,
-  ) -> Result<Response<mises_proto::TokenResponse>, Status> {
-    let req = request.into_inner();
-
-    let client_id = req.client_id.as_deref().unwrap_or("");
-    if client_id.trim().is_empty() {
-      return Err(Status::invalid_argument("client_id is required"));
-    }
-
-    let client_uuid = resolve_client_id(client_id, self.repo.clone()).await?;
-
-    let identity_service = mises_core::service::identity::IdentityService::new(self.repo.clone());
-    let user_node = match req.sub {
-      Some(sub) => match identity_service.create_user(sub).await {
-        Ok(n) => n,
-        Err(e) => return Err(Status::internal(format!("identity service error: {}", e))),
-      },
-      None => match identity_service
-        .create_user("desktop-admin".to_string())
-        .await
-      {
-        Ok(n) => n,
-        Err(e) => return Err(Status::internal(format!("identity service error: {}", e))),
-      },
-    };
-
-    let secret = match &self.hmac_secret {
-      Some(s) => s.as_bytes(),
-      None => {
-        return Err(Status::unimplemented(
-          "native_authenticate not configured with signing secret",
-        ));
-      }
-    };
-
-    let now = chrono::Utc::now();
-    let exp = now + chrono::Duration::seconds(3600);
-    let jti = uuid::Uuid::new_v4().to_string();
-    #[derive(serde::Serialize)]
-    struct Claims<'a> {
-      iss: &'a str,
-      aud: &'a str,
-      sub: String,
-      exp: i64,
-      iat: i64,
-      jti: String,
-      scope: Option<String>,
-    }
-
-    let claims = Claims {
-      iss: &self.issuer,
-      aud: &client_uuid.to_string(),
-      sub: user_node.id.to_string(),
-      exp: exp.timestamp(),
-      iat: now.timestamp(),
-      jti,
-      scope: req.scope,
-    };
-
-    let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);
-    let token = jsonwebtoken::encode(
-      &header,
-      &claims,
-      &jsonwebtoken::EncodingKey::from_secret(secret),
-    )
-    .map_err(|e| Status::internal(format!("failed to encode id_token: {}", e)))?;
-
-    let resp = mises_proto::TokenResponse {
-      access_token: String::new(),
-      token_type: String::from("Bearer"),
-      expires_in: Some(3600),
-      refresh_token: None,
-      id_token: Some(token),
-      scope: None,
-    };
-
-    Ok(Response::new(resp))
-  }
-
   async fn token(
     &self,
-    _request: Request<mises_proto::TokenRequest>,
+    request: Request<mises_proto::TokenRequest>,
   ) -> Result<Response<mises_proto::TokenResponse>, Status> {
-    Err(Status::unimplemented("token not implemented"))
+    let claims = if let Some(auth_header) = request
+      .metadata()
+      .get("authorization")
+      .and_then(|v| v.to_str().ok())
+    {
+      Some(
+        extract_and_parse_jwt_claims(auth_header)
+          .map_err(|_| Status::unauthenticated("invalid bearer token"))?,
+      )
+    } else {
+      None
+    };
+
+    token(&self.repo, &self.store, request.into_inner(), claims)
+      .await
+      .map(Response::new)
   }
 
   async fn introspect(
@@ -360,15 +324,15 @@ where
     let mut keys: Vec<mises_proto::Jwk> = Vec::new();
 
     for (id, km) in entries {
-      if let Some((x, y)) = km.ec_coords_b64() {
+      if let Some(x) = km.ec_coords_b64() {
         keys.push(mises_proto::Jwk {
           kid: id.to_string(),
-          kty: String::from("EC"),
+          kty: String::from("OKP"),
           r#use: String::from("sig"),
-          alg: String::from("ES256K"),
-          crv: String::from("secp256k1"),
+          alg: String::from("EdDSA"),
+          crv: String::from("Ed25519"),
           x,
-          y,
+          y: String::new(),
           key_ops: vec![String::from("verify")],
         })
       }

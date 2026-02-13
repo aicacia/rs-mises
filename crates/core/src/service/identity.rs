@@ -96,19 +96,22 @@ where
     Ok(None)
   }
 
-  pub async fn create_user(&self, name: String) -> Result<E::Node> {
+  pub async fn create_user(&self, name: String, encrypted_password: String) -> Result<E::Node> {
     let user_node = self
       .exec
       .create_node(
         NodeType::Identity.as_str().to_string(),
-        NodeMeta::Identity(IdentityMeta::User { name, local: true }),
+        NodeMeta::Identity(IdentityMeta::User {
+          name,
+          encrypted_password,
+          force_password_reset: None,
+        }),
       )
       .await?;
 
     Ok(user_node)
   }
 
-  /// Create a member `OWNS` edge.
   pub async fn set_owner(&self, owner_id: Uuid, target_id: Uuid) -> Result<()> {
     self
       .exec
@@ -126,8 +129,6 @@ where
     Ok(())
   }
 
-  /// Convenience: start a transaction, set the owner, commit. Only available
-  /// when the underlying executor is a full `Repository`.
   pub async fn find_root_devices(&self, root_group_id: Uuid) -> Result<Vec<E::Node>> {
     let query = Query::nodes(
       NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
@@ -167,7 +168,6 @@ where
     Ok(None)
   }
 
-  /// Create a device node. Optionally set `root` in metadata (does not create any edges).
   pub async fn create_device(&self, device_name: String, root: Uuid) -> Result<E::Node> {
     let device_node = self
       .exec
@@ -175,7 +175,6 @@ where
         NodeType::Identity.as_str().to_string(),
         NodeMeta::Identity(IdentityMeta::Device {
           name: device_name,
-          local: true,
           root: Some(root),
         }),
       )
@@ -184,7 +183,6 @@ where
     Ok(device_node)
   }
 
-  /// Add a `MEMBER_OF` edge attaching `member_id` to `group_id`.
   pub async fn add_member_of(
     &self,
     member_id: Uuid,

@@ -13,27 +13,37 @@ name = "mises_grpc_server"
 
 [dependencies]
 mises-core = { path = "../core", default-features = false, features = [] }
+mises-graph = { path = "../graph", default-features = false, features = [] }
 mises-proto = { path = "../proto", default-features = false, features = [] }
+mises-async-kv-bytes = { path = "../async-kv-bytes", default-features = false, features = [
+] }
 
-# utils
-chrono = { version = "0.4", default-features = false, features = ["std"] }
-url = { version = "2.5", default-features = false, features = ["std"] }
-uuid = { version = "1.20", default-features = false, features = [] }
-# helper deps for admin_authorize
+# Crypto
+jsonwebtoken = { version = "10.3.0", default-features = false, features = [
+  "rust_crypto",
+] }
+sha2 = { version = "0.10", default-features = false, features = ["std"] }
+
+# Serialization
 base64 = { version = "0.21", default-features = false }
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false, features = ["alloc"] }
-# JWT issuance for native authenticate (HS256)
-jsonwebtoken = { version = "10.3.0", default-features = true }
 
-# grpc
-tonic = { version = "0.14", default-features = false, features = [] }
+# Utils
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+getrandom = { version = "0.2", default-features = false, features = ["std"] }
+url = { version = "2.5", default-features = false, features = ["std"] }
+uuid = { version = "1.20", default-features = false, features = [] }
+
+# gRPC
 prost-types = { version = "0.14", default-features = false, features = [] }
+tonic = { version = "0.14", default-features = false, features = [] }
 
 
 [dev-dependencies]
 mises-graph = { path = "../graph", default-features = false, features = [
   "in-memory",
+  "std",
 ] }
 tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
 

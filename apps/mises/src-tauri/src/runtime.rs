@@ -46,8 +46,10 @@ pub fn start() {
       let mut config_path = None;
       match app.cli().matches() {
         Ok(matches) => {
-          if let Some(config) = matches.args.get("config") {
-            if let Some(path) = config.value.as_str() { config_path = Some(PathBuf::from(path)) }
+          if let Some(config) = matches.args.get("config")
+            && let Some(path) = config.value.as_str()
+          {
+            config_path = Some(PathBuf::from(path))
           }
         }
         Err(e) => {

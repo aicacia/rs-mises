@@ -114,7 +114,8 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
   let uds = UnixListener::bind(bind_path)?;
   let uds_stream = UnixListenerStream::new(uds);
 
-  let repo = KeyValueRepository::new(InMemoryKeyValueStore::default(), UuidGenerator::new());
+  let store = InMemoryKeyValueStore::new();
+  let repo = KeyValueRepository::new(store.clone(), UuidGenerator::new());
 
   let _graph_service = GraphService::new(repo.clone());
 
@@ -129,9 +130,10 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
     )))
     .add_service(OidcServiceServer::new(OidcService::new(
       repo.clone(),
+      store.clone(),
       bind_path.to_string_lossy().to_string(),
       None,
-      None,
+      config.sign_in_url.clone(),
     )))
     .add_service(reflection_service)
     .serve_with_incoming_shutdown(uds_stream, cancellation_token.cancelled())

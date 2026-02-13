@@ -1,13 +1,10 @@
-use alloc::string::String;
-use alloc::{format, vec::Vec};
+use alloc::{format, string::String, vec::Vec};
 
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use serde::{Deserialize, Serialize};
 
 use mises_key::Key;
 
-/// Base64 URL-safe encoded public key bytes. Optional private key seed for reconstruction.
-/// Derivation path follows BIP32 format (e.g. `m/44'`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct KeyMeta {
   pub public_key: String,
@@ -19,9 +16,8 @@ impl TryFrom<Key> for KeyMeta {
   type Error = mises_key::KeyError;
 
   fn try_from(key: Key) -> Result<Self, Self::Error> {
-    let (_sk, vk) = key.secp256k1_keypair()?;
-    let encoded_point = vk.to_encoded_point(false);
-    let public_key = BASE64_URL_SAFE.encode(encoded_point.as_bytes());
+    let kp = key.ed25519_keypair()?;
+    let public_key = BASE64_URL_SAFE.encode(kp.public.as_bytes());
 
     let private_key = key
       .seed_bytes()
@@ -49,7 +45,7 @@ impl TryFrom<KeyMeta> for Key {
         }
       };
 
-      let base_key = Key::try_from(bytes)?;
+      let base_key = Key::from_master_seed_bytes(bytes)?;
 
       base_key.child_from_derivation_path(km.derivation_path)
     } else {
@@ -76,16 +72,11 @@ impl KeyMeta {
     })
   }
 
-  pub fn ec_coords_b64(&self) -> Option<(String, String)> {
+  pub fn ec_coords_b64(&self) -> Option<String> {
     let bytes = self.decode_public_key_bytes().ok()?;
 
-    if bytes.len() == 65 && bytes[0] == 0x04 {
-      let xb = &bytes[1..33];
-      let yb = &bytes[33..65];
-      Some((
-        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(xb),
-        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(yb),
-      ))
+    if bytes.len() == 32 {
+      Some(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&bytes))
     } else {
       None
     }
@@ -94,17 +85,15 @@ impl KeyMeta {
 
 #[cfg(test)]
 mod tests {
-  use super::{BASE64_URL_SAFE, KeyMeta};
   use alloc::string::String;
-  use alloc::vec::Vec;
-  use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+
+  use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD, prelude::BASE64_URL_SAFE};
+
+  use super::KeyMeta;
 
   #[test]
   fn keymeta_to_bytes_and_coords() {
-    let mut bytes = Vec::with_capacity(65);
-    bytes.push(0x04);
-    bytes.extend([1u8; 32]);
-    bytes.extend([2u8; 32]);
+    let bytes = [1u8; 32];
     let pub_b64 = BASE64_URL_SAFE.encode(bytes.as_slice());
 
     let km = KeyMeta {
@@ -116,9 +105,8 @@ mod tests {
     let decoded = km.to_bytes().expect("should decode");
     assert_eq!(decoded, bytes);
 
-    let coords = km.ec_coords_b64().expect("coords should exist");
-    assert_eq!(coords.0, URL_SAFE_NO_PAD.encode([1u8; 32]));
-    assert_eq!(coords.1, URL_SAFE_NO_PAD.encode([2u8; 32]));
+    let coord = km.ec_coords_b64().expect("coords should exist");
+    assert_eq!(coord, URL_SAFE_NO_PAD.encode([1u8; 32]));
   }
 
   #[test]

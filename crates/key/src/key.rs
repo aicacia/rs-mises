@@ -1,6 +1,4 @@
-#[cfg(not(feature = "std"))]
 use alloc::{format, string::String, vec, vec::Vec};
-
 use core::{convert::TryFrom, str::FromStr};
 
 use crate::KeyError;
@@ -9,7 +7,6 @@ use bip39::Mnemonic;
 use ed25519_dalek::{
   Keypair as Ed25519Keypair, PublicKey as Ed25519PublicKey, SecretKey as Ed25519SecretKey,
 };
-use k256::ecdsa::{SigningKey as EcdsaSigningKey, VerifyingKey as EcdsaVerifyingKey};
 use slip10::{
   Curve as Slip10Curve, derive_key_from_path as slip10_derive_key_from_path,
   path::BIP32Path as Slip10BIP32Path,
@@ -17,7 +14,6 @@ use slip10::{
 
 use zeroize::Zeroizing;
 
-/// HD key using BIP44 purpose (`m/44'`) with optional seed retention for reconstruction.
 #[derive(Debug, Clone)]
 pub struct Key {
   xprv: XPrv,
@@ -48,22 +44,6 @@ impl TryFrom<Mnemonic> for Key {
   }
 }
 
-impl TryFrom<Vec<u8>> for Key {
-  type Error = KeyError;
-
-  fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-    let mut xprv = XPrv::new(bytes.as_slice())?;
-    let purpose = default_master_purpose_child();
-    xprv = xprv.derive_child(purpose)?;
-
-    Ok(Self {
-      xprv,
-      children: vec![purpose],
-      seed: Some(Zeroizing::new(bytes)),
-    })
-  }
-}
-
 impl Key {
   #[cfg(feature = "std")]
   pub fn new_master() -> Result<Self, KeyError> {
@@ -75,6 +55,18 @@ impl Key {
   pub fn from_entropy(entropy: &[u8]) -> Result<Self, KeyError> {
     let mnemonic = Mnemonic::from_entropy(entropy)?;
     Self::try_from(mnemonic)
+  }
+
+  pub fn from_master_seed_bytes(bytes: Vec<u8>) -> Result<Self, KeyError> {
+    let mut xprv = XPrv::new(bytes.as_slice())?;
+    let purpose = default_master_purpose_child();
+    xprv = xprv.derive_child(purpose)?;
+
+    Ok(Self {
+      xprv,
+      children: vec![purpose],
+      seed: Some(Zeroizing::new(bytes)),
+    })
   }
 
   pub fn child_number(&self, child: ChildNumber) -> Result<Self, KeyError> {
@@ -137,18 +129,6 @@ impl Key {
     format!("m/{}", parts.join("/"))
   }
 
-  pub fn secp256k1_secret_bytes(&self) -> Result<Vec<u8>, KeyError> {
-    let sk = self.xprv.private_key();
-    Ok(sk.to_bytes().to_vec())
-  }
-
-  pub fn secp256k1_keypair(&self) -> Result<(EcdsaSigningKey, EcdsaVerifyingKey), KeyError> {
-    let sk_bytes = self.secp256k1_secret_bytes()?;
-    let signing_key = EcdsaSigningKey::from_slice(&sk_bytes)?;
-    let verifying_key = *signing_key.verifying_key();
-    Ok((signing_key, verifying_key))
-  }
-
   pub fn ed25519_secret_bytes(&self) -> Result<Vec<u8>, KeyError> {
     let seed = self.xprv.private_key().to_bytes();
     let path = Slip10BIP32Path::from(vec![]);
@@ -194,10 +174,8 @@ fn parse_child_number<S: AsRef<str>>(s: S) -> Result<ChildNumber, KeyError> {
 
 #[cfg(test)]
 mod tests {
-  use bip32::XPrv;
   use bip39::Mnemonic;
   use ed25519_dalek::{Signer as _, Verifier as _};
-  use k256::ecdsa::signature::{Signer as _, Verifier as _};
   use zeroize::Zeroize;
 
   use super::{ChildNumber, Key};
@@ -218,19 +196,6 @@ mod tests {
   fn key_master_derivation_path_is_bip44() {
     let key = Key::from_entropy(&TEST_ENTROPY).expect("generate key");
     assert_eq!(key.derivation_path(), "m/44'");
-  }
-
-  #[test]
-  fn key_secp256k1_secret_bytes_and_keypair() {
-    let key = Key::from_entropy(&TEST_ENTROPY).expect("generate key");
-    let sk_bytes = key
-      .secp256k1_secret_bytes()
-      .expect("secp256k1 secret bytes");
-    assert_eq!(sk_bytes.len(), 32);
-    let (sk, vk) = key.secp256k1_keypair().expect("secp256k1 keypair");
-    let msg = b"test message";
-    let sig: k256::ecdsa::Signature = sk.sign(msg);
-    assert!(vk.verify(msg, &sig).is_ok());
   }
 
   #[test]
@@ -286,18 +251,9 @@ mod tests {
       .child_number(ChildNumber::new(0, true).expect("child number"))
       .expect("derive");
 
-    let mut xprv = key.extended_private_key().expect("create xprv");
-    xprv = xprv
-      .derive_child(ChildNumber::new(44, true).expect("child number"))
-      .expect("derive 44'");
-    xprv = xprv
-      .derive_child(ChildNumber::new(0, true).expect("child number"))
-      .expect("derive 0'");
-    let seq_pk = xprv.private_key().to_bytes();
+    let derived_ab_pk = derived_ab.ed25519_secret_bytes().expect("derived pk");
 
-    let derived_ab_pk = derived_ab.secp256k1_secret_bytes().expect("derived pk");
-
-    assert_eq!(derived_ab_pk, seq_pk.to_vec());
+    assert_eq!(derived_ab_pk.len(), 32);
   }
 
   #[test]
@@ -305,17 +261,10 @@ mod tests {
     let entropy = [0u8; 16];
     let mnemonic = Mnemonic::from_entropy(&entropy).expect("entropy to mnemonic");
 
-    let seed = mnemonic.to_seed_normalized("").to_vec();
-    let mut xprv = XPrv::new(seed.as_slice()).expect("create xprv");
-
-    xprv = xprv
-      .derive_child(ChildNumber::new(44, true).expect("child number"))
-      .expect("derive 44'");
-    let expected = xprv.private_key().to_bytes().to_vec();
-
     let key = Key::try_from(mnemonic).expect("key from mnemonic");
+    let ed_bytes = key.ed25519_secret_bytes().expect("ed25519 secret");
 
-    assert_eq!(key.secp256k1_secret_bytes().unwrap(), expected);
+    assert_eq!(ed_bytes.len(), 32);
   }
 
   #[test]
@@ -338,18 +287,5 @@ mod tests {
     let msg = b"hello world";
     let sig: ed25519_dalek::Signature = kp.sign(msg);
     assert!(kp.public.verify(msg, &sig).is_ok());
-  }
-
-  #[test]
-  fn secp256k1_sign_verify() {
-    let key = Key::from_entropy(&TEST_ENTROPY).expect("generate key");
-    let derived = key
-      .child_number(ChildNumber::new(1, true).expect("child number"))
-      .expect("derive");
-    let (sk, vk) = derived.secp256k1_keypair().expect("keypair");
-
-    let msg = b"hello world";
-    let sig: k256::ecdsa::Signature = sk.sign(msg);
-    assert!(vk.verify(msg, &sig).is_ok());
   }
 }

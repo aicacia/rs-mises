@@ -6,7 +6,7 @@ use std::sync::RwLock;
 #[cfg(not(feature = "std"))]
 use spin::RwLock;
 
-use crate::{GraphError, KeyValueStore, KeyValueStoreExecutor, KeyValueStoreTransaction};
+use crate::{KeyValueStore, KeyValueStoreExecutor, KeyValueStoreTransaction};
 
 #[derive(Clone, Debug)]
 pub struct InMemoryKeyValueStore {
@@ -38,9 +38,37 @@ impl InMemoryKeyValueStore {
   }
 }
 
+#[derive(Debug)]
+pub enum InMemoryError {
+  #[cfg(feature = "std")]
+  PoisonedLock,
+}
+
+impl core::fmt::Display for InMemoryError {
+  fn fmt(&self, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    match self {
+      #[cfg(feature = "std")]
+      InMemoryError::PoisonedLock => write!(_f, "poisoned lock"),
+      #[cfg(not(feature = "std"))]
+      _ => unreachable!(),
+    }
+  }
+}
+
+impl core::error::Error for InMemoryError {}
+
+#[cfg(feature = "std")]
+impl<T> From<std::sync::PoisonError<T>> for InMemoryError {
+  fn from(_e: std::sync::PoisonError<T>) -> Self {
+    Self::PoisonedLock
+  }
+}
+
 #[async_trait::async_trait]
 impl KeyValueStoreExecutor for InMemoryKeyValueStore {
-  async fn get<K>(&self, key: K) -> Result<Option<Vec<u8>>, GraphError>
+  type Error = InMemoryError;
+
+  async fn get<K>(&self, key: K) -> Result<Option<Vec<u8>>, Self::Error>
   where
     K: AsRef<[u8]> + Send,
   {
@@ -52,7 +80,7 @@ impl KeyValueStoreExecutor for InMemoryKeyValueStore {
     Ok(guard.get(key.as_ref()).cloned())
   }
 
-  async fn put<K>(&self, key: K, value: Vec<u8>) -> Result<(), GraphError>
+  async fn put<K>(&self, key: K, value: Vec<u8>) -> Result<(), Self::Error>
   where
     K: AsRef<[u8]> + Send,
   {
@@ -65,7 +93,7 @@ impl KeyValueStoreExecutor for InMemoryKeyValueStore {
     Ok(())
   }
 
-  async fn delete<K>(&self, key: K) -> Result<(), GraphError>
+  async fn delete<K>(&self, key: K) -> Result<(), Self::Error>
   where
     K: AsRef<[u8]> + Send,
   {
@@ -78,34 +106,26 @@ impl KeyValueStoreExecutor for InMemoryKeyValueStore {
     Ok(())
   }
 
-  async fn scan<R, F>(
-    &self,
-    range: R,
-    mut predicate: F,
-  ) -> Result<Vec<(Vec<u8>, Vec<u8>)>, GraphError>
+  async fn scan<R, F>(&self, range: R, mut f: F) -> Result<(), Self::Error>
   where
     R: RangeBounds<Vec<u8>> + Send,
-    F: FnMut(&Vec<u8>, &Vec<u8>) -> Option<bool> + Send,
+    F: FnMut(&Vec<u8>, &Vec<u8>) -> bool + Send,
   {
     #[cfg(feature = "std")]
     let guard = self.inner.read()?;
     #[cfg(not(feature = "std"))]
     let guard = self.inner.read();
 
-    let mut results = Vec::new();
-
     for (key, value) in guard.range(range) {
-      match predicate(key, value) {
-        Some(true) => results.push((key.clone(), value.clone())),
-        Some(false) => {}
-        None => break,
+      if !f(key, value) {
+        break;
       }
     }
 
-    Ok(results)
+    Ok(())
   }
 
-  async fn get_batch<K>(&self, keys: Vec<K>) -> Result<Vec<Option<Vec<u8>>>, GraphError>
+  async fn get_batch<K>(&self, keys: Vec<K>) -> Result<Vec<Option<Vec<u8>>>, Self::Error>
   where
     K: AsRef<[u8]> + Send,
   {
@@ -128,7 +148,7 @@ impl KeyValueStoreExecutor for InMemoryKeyValueStore {
 impl KeyValueStore for InMemoryKeyValueStore {
   type Transaction = InMemoryTransaction;
 
-  async fn transaction(&self) -> Result<Self::Transaction, GraphError> {
+  async fn transaction(&self) -> Result<Self::Transaction, Self::Error> {
     #[cfg(feature = "std")]
     let guard = self.inner.read()?;
     #[cfg(not(feature = "std"))]
@@ -143,7 +163,9 @@ impl KeyValueStore for InMemoryKeyValueStore {
 
 #[async_trait::async_trait]
 impl KeyValueStoreExecutor for InMemoryTransaction {
-  async fn get<K>(&self, key: K) -> Result<Option<Vec<u8>>, GraphError>
+  type Error = InMemoryError;
+
+  async fn get<K>(&self, key: K) -> Result<Option<Vec<u8>>, Self::Error>
   where
     K: AsRef<[u8]> + Send,
   {
@@ -155,7 +177,7 @@ impl KeyValueStoreExecutor for InMemoryTransaction {
     Ok(guard.get(key.as_ref()).cloned())
   }
 
-  async fn put<K>(&self, key: K, value: Vec<u8>) -> Result<(), GraphError>
+  async fn put<K>(&self, key: K, value: Vec<u8>) -> Result<(), Self::Error>
   where
     K: AsRef<[u8]> + Send,
   {
@@ -168,7 +190,7 @@ impl KeyValueStoreExecutor for InMemoryTransaction {
     Ok(())
   }
 
-  async fn delete<K>(&self, key: K) -> Result<(), GraphError>
+  async fn delete<K>(&self, key: K) -> Result<(), Self::Error>
   where
     K: AsRef<[u8]> + Send,
   {
@@ -181,37 +203,29 @@ impl KeyValueStoreExecutor for InMemoryTransaction {
     Ok(())
   }
 
-  async fn scan<R, F>(
-    &self,
-    range: R,
-    mut predicate: F,
-  ) -> Result<Vec<(Vec<u8>, Vec<u8>)>, GraphError>
+  async fn scan<R, F>(&self, range: R, mut predicate: F) -> Result<(), Self::Error>
   where
     R: RangeBounds<Vec<u8>> + Send,
-    F: FnMut(&Vec<u8>, &Vec<u8>) -> Option<bool> + Send,
+    F: FnMut(&Vec<u8>, &Vec<u8>) -> bool + Send,
   {
     #[cfg(feature = "std")]
     let guard = self.snapshot.read()?;
     #[cfg(not(feature = "std"))]
     let guard = self.snapshot.read();
 
-    let mut results = Vec::new();
-
     for (key, value) in guard.range(range) {
-      match predicate(key, value) {
-        Some(true) => results.push((key.clone(), value.clone())),
-        Some(false) => {}
-        None => break,
+      if !predicate(key, value) {
+        break;
       }
     }
 
-    Ok(results)
+    Ok(())
   }
 }
 
 #[async_trait::async_trait]
 impl KeyValueStoreTransaction for InMemoryTransaction {
-  async fn commit(self) -> Result<(), GraphError> {
+  async fn commit(self) -> Result<(), Self::Error> {
     #[cfg(feature = "std")]
     let mut original = self.original.write()?;
     #[cfg(not(feature = "std"))]
@@ -226,7 +240,7 @@ impl KeyValueStoreTransaction for InMemoryTransaction {
     Ok(())
   }
 
-  async fn rollback(self) -> Result<(), GraphError> {
+  async fn rollback(self) -> Result<(), Self::Error> {
     Ok(())
   }
 }
@@ -235,7 +249,7 @@ impl KeyValueStoreTransaction for InMemoryTransaction {
 impl KeyValueStore for InMemoryTransaction {
   type Transaction = Self;
 
-  async fn transaction(&self) -> Result<Self::Transaction, GraphError> {
+  async fn transaction(&self) -> Result<Self::Transaction, Self::Error> {
     #[cfg(feature = "std")]
     let guard = self.snapshot.read()?;
     #[cfg(not(feature = "std"))]

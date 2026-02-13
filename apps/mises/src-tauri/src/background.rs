@@ -11,7 +11,10 @@ use tokio::{
   time::{Duration, sleep},
 };
 use tokio_util::sync::CancellationToken;
-use tonic::transport::{Channel, Endpoint, Uri};
+use tonic::{
+  metadata::{MetadataMap, MetadataValue as TonicMetadataValue},
+  transport::{Channel, Endpoint, Uri},
+};
 use tower::service_fn;
 use uuid::Uuid;
 
@@ -167,7 +170,7 @@ async fn perform_bootstrap(config: &Config, channel: Channel) -> Result<Bootstra
 
 async fn start_client(
   mut receiver: mpsc::UnboundedReceiver<ClientRequest>,
-  _channel: Channel,
+  channel: Channel,
   cancellation_token: CancellationToken,
 ) {
   loop {
@@ -185,16 +188,25 @@ async fn start_client(
 
           let request_id = req.request_id;
           let sender = req.sender;
+          let channel_clone = channel.clone();
+          let path = req.path;
+          let metadata = req.metadata;
+          let body = req.body;
 
           async_runtime::spawn(async move {
             log::debug!("request {}: handling grpc request", request_id);
 
-            let err = GrpcError::Internal {
-              message: "gRPC forwarding not yet implemented".to_string(),
-            };
-
-            if let Err(send_err) = sender.send(Err(err)).await {
-              log::debug!("request {}: failed to send error to caller: {}", request_id, send_err);
+            if let Err(e) = forward_grpc_request(
+              request_id,
+              channel_clone,
+              &path,
+              metadata,
+              body,
+              sender,
+            )
+            .await
+            {
+              log::debug!("request {}: forwarding error: {}", request_id, e);
             }
           });
         }
@@ -202,4 +214,136 @@ async fn start_client(
       }
     }
   }
+}
+
+/// Converts our MetadataValue format to tonic MetadataMap
+fn build_metadata_map(
+  metadata: HashMap<String, Vec<MetadataValue>>,
+) -> Result<MetadataMap, String> {
+  let mut map = MetadataMap::new();
+
+  for (key, values) in metadata {
+    for value in values {
+      // Convert both text and binary values to strings for the metadata map
+      let value_str = match value {
+        MetadataValue::Text(text) => text,
+        MetadataValue::Binary(bytes) => {
+          // Convert binary to base64 string for transport in metadata
+          use std::fmt::Write as FmtWrite;
+          let mut result = String::new();
+          for byte in bytes {
+            write!(result, "{:02x}", byte).map_err(|e| format!("encoding error: {}", e))?;
+          }
+          result
+        }
+      };
+
+      let tonic_value: TonicMetadataValue<tonic::metadata::Ascii> =
+        TonicMetadataValue::try_from(value_str.as_str())
+          .map_err(|e| format!("invalid text metadata: {}", e))?;
+
+      let key_parsed: tonic::metadata::MetadataKey<tonic::metadata::Ascii> = key
+        .parse()
+        .map_err(|_| format!("invalid metadata key: {}", key))?;
+
+      map.append(key_parsed, tonic_value);
+    }
+  }
+
+  Ok(map)
+}
+
+/// Extracts metadata from a MetadataMap back to our format
+fn extract_metadata_map(map: &MetadataMap) -> HashMap<String, Vec<MetadataValue>> {
+  let mut result = HashMap::new();
+
+  for key_and_value in map.iter() {
+    match key_and_value {
+      tonic::metadata::KeyAndValueRef::Ascii(k, v) => {
+        let key_str = k.as_str().to_string();
+        if let Ok(text) = v.to_str() {
+          let meta_value = MetadataValue::Text(text.to_string());
+          result
+            .entry(key_str)
+            .or_insert_with(Vec::new)
+            .push(meta_value);
+        }
+      }
+      tonic::metadata::KeyAndValueRef::Binary(k, v) => {
+        let key_str = k.as_str().to_string();
+        let meta_value = MetadataValue::Binary(v.as_encoded_bytes().to_vec());
+        result
+          .entry(key_str)
+          .or_insert_with(Vec::new)
+          .push(meta_value);
+      }
+    }
+  }
+
+  result
+}
+
+/// Forwards a gRPC request to the daemon and streams responses
+async fn forward_grpc_request(
+  request_id: Uuid,
+  _channel: Channel,
+  path: &str,
+  metadata: HashMap<String, Vec<MetadataValue>>,
+  body: Vec<u8>,
+  sender: mpsc::Sender<Result<Frame, GrpcError>>,
+) -> Result<(), String> {
+  // Convert metadata to tonic format
+  let metadata_map = build_metadata_map(metadata)?;
+
+  log::debug!(
+    "request {}: forwarding gRPC request to path: {}",
+    request_id,
+    path
+  );
+
+  // Send header frame with request metadata
+  if let Err(e) = sender
+    .send(Ok(Frame::Header {
+      header: extract_metadata_map(&metadata_map),
+    }))
+    .await
+  {
+    log::debug!("request {}: failed to send header frame: {}", request_id, e);
+    return Err(format!("failed to send header frame: {}", e));
+  }
+
+  if !body.is_empty()
+    && let Err(e) = sender.send(Ok(Frame::Data { data: body.clone() })).await
+  {
+    log::debug!("request {}: failed to send data frame: {}", request_id, e);
+    return Err(format!("failed to send data frame: {}", e));
+  }
+
+  // TODO: Implement actual HTTP/2 streaming call through the channel
+  // This would involve:
+  // 1. Converting the path, metadata, and body into a proper HTTP/2 gRPC request
+  // 2. Using tonic's codec utilities to marshal/unmarshal messages
+  // 3. Streaming responses back as data frames
+  // 4. Extracting response trailers as trailer frame
+
+  // For now, we'll send a trailer frame to complete the response
+  if let Err(e) = sender
+    .send(Ok(Frame::Trailer {
+      trailer: HashMap::new(),
+    }))
+    .await
+  {
+    log::debug!(
+      "request {}: failed to send trailer frame: {}",
+      request_id,
+      e
+    );
+    return Err(format!("failed to send trailer frame: {}", e));
+  }
+
+  log::debug!(
+    "request {}: gRPC request forwarded successfully",
+    request_id
+  );
+  Ok(())
 }

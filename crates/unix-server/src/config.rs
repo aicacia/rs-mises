@@ -8,6 +8,7 @@ pub struct Config {
   pub log_level: String,
   pub socket_path: PathBuf,
   pub master_key_path: PathBuf,
+  pub sign_in_url: Option<String>,
 }
 
 impl Default for Config {
@@ -16,6 +17,7 @@ impl Default for Config {
       log_level: "DEBUG".to_owned(),
       socket_path: PathBuf::from("./mises.sock"),
       master_key_path: PathBuf::from("./master.key"),
+      sign_in_url: None,
     }
   }
 }

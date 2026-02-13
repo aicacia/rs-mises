@@ -5,20 +5,20 @@ use mises_key::{Key, KeyError};
 #[test]
 fn keymeta_roundtrip_master() {
   let seed = vec![0u8; 32];
-  let key = Key::try_from(seed).expect("create key");
+  let key = Key::from_master_seed_bytes(seed).expect("create key");
 
   let km = KeyMeta::try_from(key.clone()).expect("create keymeta");
   let k2 = Key::try_from(km).expect("convert back to key");
 
-  let a = key.secp256k1_secret_bytes().expect("orig secret");
-  let b = k2.secp256k1_secret_bytes().expect("restored secret");
+  let a = key.ed25519_secret_bytes().expect("orig secret");
+  let b = k2.ed25519_secret_bytes().expect("restored secret");
   assert_eq!(a, b);
 }
 
 #[test]
 fn keymeta_roundtrip_derived() {
   let seed = vec![1u8; 32];
-  let key = Key::try_from(seed).expect("create key");
+  let key = Key::from_master_seed_bytes(seed).expect("create key");
   let derived = key.child_from_derivation_path("m/44'/0'").expect("derive");
 
   let km = KeyMeta::try_from(derived.clone()).expect("create keymeta");
@@ -26,12 +26,8 @@ fn keymeta_roundtrip_derived() {
 
   let k2 = Key::try_from(km).expect("convert back to derived key");
 
-  let a = derived
-    .secp256k1_secret_bytes()
-    .expect("orig derived secret");
-  let b = k2
-    .secp256k1_secret_bytes()
-    .expect("restored derived secret");
+  let a = derived.ed25519_secret_bytes().expect("orig derived secret");
+  let b = k2.ed25519_secret_bytes().expect("restored derived secret");
   assert_eq!(a, b);
 }
 

@@ -3,11 +3,9 @@
 
 extern crate alloc;
 
-use alloc::format;
-use alloc::string::String;
-#[cfg(not(feature = "std"))]
-use core::error::Error;
+use alloc::{format, string::String};
 use core::fmt;
+
 use tokio::process::Command;
 
 #[derive(Debug, Clone, Copy)]
@@ -98,7 +96,7 @@ impl fmt::Display for PolicyError {
 }
 
 #[cfg(not(feature = "std"))]
-impl Error for PolicyError {}
+impl core::error::Error for PolicyError {}
 
 #[cfg(feature = "std")]
 impl std::error::Error for PolicyError {}
@@ -121,7 +119,7 @@ impl fmt::Display for AuthError {
 }
 
 #[cfg(not(feature = "std"))]
-impl Error for AuthError {}
+impl core::error::Error for AuthError {}
 
 #[cfg(feature = "std")]
 impl std::error::Error for AuthError {}

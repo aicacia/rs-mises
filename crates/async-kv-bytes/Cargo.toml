@@ -1,0 +1,30 @@
+[package]
+name = "mises-async-kv-bytes"
+edition = "2024"
+version = "0.1.0"
+authors = ["nathanfaucett@gmail.com"]
+description = "Mises Key-Value Store"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/aicacia/rs-mises"
+rust-version = "1.93"
+
+[lib]
+name = "mises_async_kv_bytes"
+
+[dependencies]
+# Async
+async-trait = { version = "0.1", default-features = false, features = [] }
+
+# Utils
+spin = { version = "0.10", optional = true, default-features = false, features = [
+  "rwlock",
+] }
+
+[dev-dependencies]
+
+[features]
+# default to no_std; enable std opt-in
+default = ["in-memory", "std"]
+std = []
+# in-memory repository feature
+in-memory = ["dep:spin"]

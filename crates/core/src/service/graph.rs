@@ -1,34 +1,30 @@
-use crate::CoreError;
-use crate::service::identity::IdentityService;
-use alloc::format;
 use alloc::{
   borrow::ToOwned,
+  format,
   string::{String, ToString},
   vec::Vec,
 };
+
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use chrono::{DateTime, Utc};
 use mises_graph::{
   EdgeQuery, Element, Executor as MisesGraphExecutor, NodeQuery, Query, Transaction, field,
 };
-
 use mises_key::Key;
 use uuid::Uuid;
 
 use crate::{
-  Result,
+  CoreError, InvalidInput, Result,
   model::{
     edge::{EdgeProps, EdgeType},
-    identity::ApplicationMeta,
-    identity::IdentityMeta,
+    identity::{IdentityMeta, IdentityType},
     keys::KeyMeta,
-    node::NodeMeta,
+    node::{NodeMeta, NodeType},
+    oidc::{OidcClientMeta, ResponseType, TokenEndpointAuthMethod},
   },
-  model::{identity::IdentityType, node::NodeType},
+  service::identity::IdentityService,
   traits::{Executor, Repository},
 };
-
-use crate::InvalidInput;
 
 #[derive(Clone)]
 pub struct BootstrapOptions {
@@ -150,7 +146,7 @@ where
         let bytes = BASE64_URL_SAFE.decode(b64.as_bytes()).map_err(|e| {
           CoreError::other(InvalidInput::Other(format!("base64 decode error: {}", e)))
         })?;
-        let key = Key::try_from(bytes.clone()).map_err(|e| {
+        let key = Key::from_master_seed_bytes(bytes.clone()).map_err(|e| {
           CoreError::other(InvalidInput::Other(format!("invalid key bytes: {}", e)))
         })?;
         return Ok((key, bytes, false));
@@ -233,9 +229,8 @@ where
       None => {
         let (master_key, seed_bytes, master_key_created): (Key, Vec<u8>, bool) =
           self.get_or_create_master_key(&options).await?;
-        let (_signing_key, verify_key) = master_key.secp256k1_keypair()?;
-        let encoded_point = verify_key.to_encoded_point(false);
-        let public_key = BASE64_URL_SAFE.encode(encoded_point.as_bytes());
+        let kp = master_key.ed25519_keypair()?;
+        let public_key = BASE64_URL_SAFE.encode(kp.public.as_bytes());
 
         let secret_b64 = BASE64_URL_SAFE.encode(seed_bytes.as_slice());
 
@@ -263,7 +258,6 @@ where
               name: options
                 .root_group_name
                 .unwrap_or_else(|| "Everything".to_string()),
-              local: true,
             }),
           )
           .await?;
@@ -306,7 +300,9 @@ where
                 .owner_name
                 .clone()
                 .unwrap_or_else(|| "admin".to_owned()),
-              local: true,
+              // Force the user to reset password on first login
+              encrypted_password: "$argon2id$v=19$m=19,t=2,p=1$cmc5ZXVXT1N0RmxjZFR1NQ$/0nLLEJDUFjP/lO6UhUHlzvL6Zlz1NO8BW+XdMNTG3c".to_string(),
+              force_password_reset: Some(true),
             }),
           )
           .await?;
@@ -350,7 +346,6 @@ where
           NodeType::Identity.as_str().to_string(),
           NodeMeta::Identity(IdentityMeta::Device {
             name: options.device_name.unwrap_or_else(|| "device".to_string()),
-            local: true,
             root: Some(root_group_id),
           }),
         )
@@ -389,16 +384,16 @@ where
             NodeType::Identity.as_str().to_string(),
             NodeMeta::Identity(IdentityMeta::Application {
               name: "tauri".to_string(),
-              local: true,
-              oidc_client: Some(ApplicationMeta {
+              oidc: Some(OidcClientMeta {
                 redirect_uris: Vec::from([
                   "http://localhost:5173/authorize/callback".to_string(),
                   "mises://authorize/callback".to_string(),
                 ]),
-                response_types: Vec::from(["code".to_string(), "id_token".to_string()]),
+                response_types: Vec::from([ResponseType::Code, ResponseType::IdToken]),
                 grant_types: Vec::new(),
-                scopes: Vec::from(["openid".to_string()]),
-                token_endpoint_auth_method: Some("none".to_string()),
+                scope: Some("openid".to_string()),
+                token_endpoint_auth_method: Some(TokenEndpointAuthMethod::None),
+                ..Default::default()
               }),
             }),
           )

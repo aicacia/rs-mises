@@ -2,27 +2,18 @@
 
 use mises_core::model::{keys::KeyMeta, node::NodeMeta, node::NodeType};
 use mises_core::service::graph::GraphService;
-use mises_graph::{Executor, IdGenerator, InMemoryKeyValueStore, KeyValueRepository};
+use mises_graph::{Executor, InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
 use mises_key::Key;
 use uuid::Uuid;
-
-#[derive(Clone)]
-struct TestUuidGenerator;
-
-impl IdGenerator<Uuid> for TestUuidGenerator {
-  fn next(&self) -> Uuid {
-    Uuid::new_v4()
-  }
-}
 
 fn make_repo() -> KeyValueRepository<
   Uuid,
   NodeMeta,
   mises_core::model::edge::EdgeProps,
-  TestUuidGenerator,
+  UuidGenerator,
   InMemoryKeyValueStore,
 > {
-  KeyValueRepository::new(InMemoryKeyValueStore::new(), TestUuidGenerator)
+  KeyValueRepository::new(InMemoryKeyValueStore::new(), UuidGenerator::new())
 }
 
 #[tokio::test]

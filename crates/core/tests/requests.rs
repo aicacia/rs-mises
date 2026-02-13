@@ -11,22 +11,14 @@ use mises_core::{
   service::requests::RequestService,
 };
 use mises_graph::{
-  EdgeQuery, Element, Executor, IdGenerator, InMemoryKeyValueStore, KeyValueRepository, NodeQuery,
-  Query, Repository, Transaction, field,
+  EdgeQuery, Element, Executor, InMemoryKeyValueStore, KeyValueRepository, NodeQuery, Query,
+  Repository, Transaction, UuidGenerator, field,
 };
 use uuid::Uuid;
 
-struct UuidGenerator;
-
-impl IdGenerator<Uuid> for UuidGenerator {
-  fn next(&self) -> Uuid {
-    Uuid::new_v4()
-  }
-}
-
 fn make_repo() -> KeyValueRepository<Uuid, NodeMeta, EdgeProps, UuidGenerator, InMemoryKeyValueStore>
 {
-  KeyValueRepository::new(InMemoryKeyValueStore::new(), UuidGenerator)
+  KeyValueRepository::new(InMemoryKeyValueStore::new(), UuidGenerator::new())
 }
 
 async fn create_identity(
@@ -69,7 +61,6 @@ async fn request_lifecycle_happy_path() {
     service.repo(),
     IdentityMeta::User {
       name: "owner".to_string(),
-      local: true,
     },
   )
   .await;
@@ -77,7 +68,6 @@ async fn request_lifecycle_happy_path() {
     service.repo(),
     IdentityMeta::User {
       name: "requestor".to_string(),
-      local: true,
     },
   )
   .await;
@@ -140,7 +130,6 @@ async fn deny_wins_over_partial_quorum() {
     service.repo(),
     IdentityMeta::User {
       name: "owner-a".to_string(),
-      local: true,
     },
   )
   .await;
@@ -148,7 +137,6 @@ async fn deny_wins_over_partial_quorum() {
     service.repo(),
     IdentityMeta::User {
       name: "owner-b".to_string(),
-      local: true,
     },
   )
   .await;
@@ -156,7 +144,6 @@ async fn deny_wins_over_partial_quorum() {
     service.repo(),
     IdentityMeta::User {
       name: "requestor".to_string(),
-      local: true,
     },
   )
   .await;
@@ -203,7 +190,6 @@ async fn quorum_requires_multiple_approvals() {
     service.repo(),
     IdentityMeta::User {
       name: "owner-a".to_string(),
-      local: true,
     },
   )
   .await;
@@ -211,7 +197,6 @@ async fn quorum_requires_multiple_approvals() {
     service.repo(),
     IdentityMeta::User {
       name: "owner-b".to_string(),
-      local: true,
     },
   )
   .await;
@@ -219,7 +204,6 @@ async fn quorum_requires_multiple_approvals() {
     service.repo(),
     IdentityMeta::User {
       name: "requestor".to_string(),
-      local: true,
     },
   )
   .await;
@@ -263,7 +247,6 @@ async fn approval_nodes_and_edges_created() {
     service.repo(),
     IdentityMeta::User {
       name: "owner".to_string(),
-      local: true,
     },
   )
   .await;
@@ -271,7 +254,6 @@ async fn approval_nodes_and_edges_created() {
     service.repo(),
     IdentityMeta::User {
       name: "requestor".to_string(),
-      local: true,
     },
   )
   .await;
@@ -397,7 +379,6 @@ async fn denial_nodes_and_edges_created() {
     service.repo(),
     IdentityMeta::User {
       name: "owner-a".to_string(),
-      local: true,
     },
   )
   .await;
@@ -405,7 +386,6 @@ async fn denial_nodes_and_edges_created() {
     service.repo(),
     IdentityMeta::User {
       name: "owner-b".to_string(),
-      local: true,
     },
   )
   .await;
@@ -413,7 +393,6 @@ async fn denial_nodes_and_edges_created() {
     service.repo(),
     IdentityMeta::User {
       name: "requestor".to_string(),
-      local: true,
     },
   )
   .await;
@@ -493,7 +472,6 @@ async fn policy_custom_action_case_insensitive() {
     service.repo(),
     IdentityMeta::User {
       name: "alice".to_string(),
-      local: true,
     },
   )
   .await;
@@ -502,7 +480,6 @@ async fn policy_custom_action_case_insensitive() {
     service.repo(),
     IdentityMeta::User {
       name: "requestor".to_string(),
-      local: true,
     },
   )
   .await;

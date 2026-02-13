@@ -30,7 +30,10 @@ async fn edge_query_filters_by_node_id() {
     serde_json::Value,
     U64Generator,
     InMemoryKeyValueStore,
-  > = KeyValueRepository::new(InMemoryKeyValueStore::new(), U64Generator::new());
+  > = KeyValueRepository::new(
+    mises_graph::InMemoryKeyValueStore::new(),
+    U64Generator::new(),
+  );
 
   let n1 = repo
     .create_node("identity".to_string(), json!({ "name": "n1" }))

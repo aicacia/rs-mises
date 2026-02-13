@@ -5,7 +5,6 @@ use core::fmt;
 #[derive(Debug)]
 pub enum KeyError {
   Bip32(bip32::Error),
-  K256(k256::ecdsa::Error),
   Slip10(slip10::Error),
   Ed25519(ed25519_dalek::SignatureError),
   #[cfg(feature = "std")]
@@ -22,7 +21,6 @@ impl fmt::Display for KeyError {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
       KeyError::Bip32(err) => write!(f, "BIP32 error: {}", err),
-      KeyError::K256(err) => write!(f, "K256 error: {}", err),
       KeyError::Slip10(err) => write!(f, "SLIP10 error: {}", err),
       KeyError::Ed25519(err) => write!(f, "Ed25519 error: {}", err),
       #[cfg(feature = "std")]
@@ -43,12 +41,6 @@ impl fmt::Display for KeyError {
 impl From<bip32::Error> for KeyError {
   fn from(err: bip32::Error) -> Self {
     KeyError::Bip32(err)
-  }
-}
-
-impl From<k256::ecdsa::Error> for KeyError {
-  fn from(err: k256::ecdsa::Error) -> Self {
-    KeyError::K256(err)
   }
 }
 

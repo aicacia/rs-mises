@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod bootstrap_service;
+mod jwt;
 mod oidc_service;
 
 pub use mises_proto as proto;
