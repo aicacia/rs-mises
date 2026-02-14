@@ -198,7 +198,7 @@ where
     .any(|s| s == constants::RESPONSE_TYPE_CODE);
   let client_is_public = matches!(
     client.token_endpoint_auth_method,
-    Some(mises_core::model::oidc::TokenEndpointAuthMethod::None)
+    mises_core::model::oidc::TokenEndpointAuthMethod::None
   );
 
   if code_requested {
@@ -275,11 +275,10 @@ where
   }
 
   if let Some(ref scope) = req.scope
-    && let Some(ref allowed) = client.scope
-    && !allowed.trim().is_empty()
+    && !client.scope.trim().is_empty()
   {
     for s in scope.split_whitespace() {
-      if !allowed.split_whitespace().any(|cs| cs == s) {
+      if !client.scope.split_whitespace().any(|cs| cs == s) {
         let err = AuthorizeError::new(
           "invalid_request",
           "scope contains values not allowed for client",

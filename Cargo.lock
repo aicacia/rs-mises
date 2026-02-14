@@ -126,6 +126,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 
 [[package]]
+name = "arrayref"
+version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb"
+
+[[package]]
 name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -424,6 +430,17 @@ dependencies = [
  "radium",
  "tap",
  "wyz",
+]
+
+[[package]]
+name = "blake2b_simd"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b79834656f71332577234b50bfc009996f7449e0c056884e6a02492ded0ca2f3"
+dependencies = [
+ "arrayref",
+ "arrayvec",
+ "constant_time_eq",
 ]
 
 [[package]]
@@ -819,6 +836,12 @@ dependencies = [
  "once_cell",
  "tiny-keccak",
 ]
+
+[[package]]
+name = "constant_time_eq"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
 
 [[package]]
 name = "convert_case"
@@ -2549,7 +2572,7 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 dependencies = [
- "spin 0.9.8",
+ "spin",
 ]
 
 [[package]]
@@ -2747,7 +2770,8 @@ name = "mises-async-kv-bytes"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "spin 0.10.0",
+ "parking_lot",
+ "tokio",
 ]
 
 [[package]]
@@ -2761,6 +2785,7 @@ dependencies = [
  "log",
  "mises-graph",
  "mises-key",
+ "rust-argon2",
  "serde",
  "serde_json",
  "tokio",
@@ -2775,9 +2800,9 @@ dependencies = [
  "chrono",
  "hashbrown 0.16.1",
  "mises-async-kv-bytes",
+ "parking_lot",
  "serde",
  "serde_json",
- "spin 0.10.0",
  "tokio",
  "uuid",
 ]
@@ -2790,6 +2815,7 @@ dependencies = [
  "chrono",
  "getrandom 0.2.17",
  "jsonwebtoken",
+ "log",
  "mises-async-kv-bytes",
  "mises-core",
  "mises-graph",
@@ -2834,7 +2860,10 @@ dependencies = [
 name = "mises-tauri"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "config",
+ "http",
+ "http-body-util",
  "hyper-util",
  "log",
  "mises-proto",
@@ -2859,6 +2888,7 @@ dependencies = [
 name = "mises-unix-server"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clap",
  "clap_complete",
  "config",
@@ -4142,6 +4172,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rust-argon2"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ae76b7506744d254fd0eb2c0ff5c5d108201ccbb083111ac04a44eeda105680"
+dependencies = [
+ "base64 0.22.1",
+ "blake2b_simd",
+ "constant_time_eq",
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "rust-ini"
 version = "0.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4673,12 +4715,6 @@ name = "spin"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
-
-[[package]]
-name = "spin"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5fe4ccb98d9c292d56fec89a5e07da7fc4cf0dc11e156b41793132775d3e591"
 
 [[package]]
 name = "spki"

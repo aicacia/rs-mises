@@ -1,8 +1,8 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, convert::Infallible, io, path::Path};
 
-use mises_proto::{
-  BootstrapRequest, BootstrapResponse, bootstrap_service_client::BootstrapServiceClient,
-};
+use bytes::Bytes;
+use http::{Method, Request, Version};
+use http_body_util::{BodyExt, Full, combinators::UnsyncBoxBody};
 use tauri::async_runtime;
 use tokio::{
   fs,
@@ -12,25 +12,17 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tonic::{
-  metadata::{MetadataMap, MetadataValue as TonicMetadataValue},
+  body::Body,
+  metadata::{Ascii, MetadataKey, MetadataMap, MetadataValue as TonicMetadataValue},
   transport::{Channel, Endpoint, Uri},
 };
-use tower::service_fn;
+use tower::{Service, ServiceExt, service_fn};
 use uuid::Uuid;
 
 use crate::{
   command::{Frame, GrpcError, MetadataValue},
   config::Config,
 };
-
-#[derive(Debug, Clone)]
-pub struct BootstrapState {
-  pub root_group: String,
-  pub master_key_created: bool,
-  pub master_key_public_key: String,
-  pub owner_user: String,
-  pub device: String,
-}
 
 pub struct ClientRequest {
   pub request_id: Uuid,
@@ -58,24 +50,14 @@ pub async fn start_background(
     }
   };
 
-  match perform_bootstrap(&config, channel.clone()).await {
-    Ok(response) => {
-      log::info!(
-        "bootstrap complete: root_group={}, device={}",
-        response.root_group,
-        response.device
-      );
-    }
-    Err(e) => {
-      log::error!("bootstrap failed: {}", e);
-      return;
+  match init_client_identity(channel.clone()).await {
+    Ok(()) => {}
+    Err(join_err) => {
+      log::error!("Client task panicked: {}", join_err);
     }
   }
 
-  let client_handle =
-    async_runtime::spawn(start_client(receiver, channel, cancellation_token.clone()));
-
-  match client_handle.await {
+  match async_runtime::spawn(start_client(receiver, channel, cancellation_token.clone())).await {
     Ok(()) => {}
     Err(join_err) => {
       log::error!("Client task panicked: {}", join_err);
@@ -151,21 +133,8 @@ async fn connect_unix_socket(socket_path: &Path) -> Result<Channel, String> {
   Ok(channel)
 }
 
-async fn perform_bootstrap(config: &Config, channel: Channel) -> Result<BootstrapResponse, String> {
-  let mut client = BootstrapServiceClient::new(channel);
-
-  let request = BootstrapRequest {
-    root_group_name: config.root_group_name.clone(),
-    owner_name: config.owner_name.clone(),
-    device_name: config.device_name.clone(),
-  };
-
-  let response = client
-    .bootstrap(request)
-    .await
-    .map_err(|e| format!("bootstrap rpc failed: {}", e))?;
-
-  Ok(response.into_inner())
+async fn init_client_identity(_channel: Channel) -> io::Result<()> {
+  Ok(())
 }
 
 async fn start_client(
@@ -238,11 +207,10 @@ fn build_metadata_map(
         }
       };
 
-      let tonic_value: TonicMetadataValue<tonic::metadata::Ascii> =
-        TonicMetadataValue::try_from(value_str.as_str())
-          .map_err(|e| format!("invalid text metadata: {}", e))?;
+      let tonic_value: TonicMetadataValue<Ascii> = TonicMetadataValue::try_from(value_str.as_str())
+        .map_err(|e| format!("invalid text metadata: {}", e))?;
 
-      let key_parsed: tonic::metadata::MetadataKey<tonic::metadata::Ascii> = key
+      let key_parsed: MetadataKey<Ascii> = key
         .parse()
         .map_err(|_| format!("invalid metadata key: {}", key))?;
 
@@ -253,40 +221,10 @@ fn build_metadata_map(
   Ok(map)
 }
 
-/// Extracts metadata from a MetadataMap back to our format
-fn extract_metadata_map(map: &MetadataMap) -> HashMap<String, Vec<MetadataValue>> {
-  let mut result = HashMap::new();
-
-  for key_and_value in map.iter() {
-    match key_and_value {
-      tonic::metadata::KeyAndValueRef::Ascii(k, v) => {
-        let key_str = k.as_str().to_string();
-        if let Ok(text) = v.to_str() {
-          let meta_value = MetadataValue::Text(text.to_string());
-          result
-            .entry(key_str)
-            .or_insert_with(Vec::new)
-            .push(meta_value);
-        }
-      }
-      tonic::metadata::KeyAndValueRef::Binary(k, v) => {
-        let key_str = k.as_str().to_string();
-        let meta_value = MetadataValue::Binary(v.as_encoded_bytes().to_vec());
-        result
-          .entry(key_str)
-          .or_insert_with(Vec::new)
-          .push(meta_value);
-      }
-    }
-  }
-
-  result
-}
-
 /// Forwards a gRPC request to the daemon and streams responses
 async fn forward_grpc_request(
   request_id: Uuid,
-  _channel: Channel,
+  mut channel: Channel,
   path: &str,
   metadata: HashMap<String, Vec<MetadataValue>>,
   body: Vec<u8>,
@@ -301,10 +239,81 @@ async fn forward_grpc_request(
     path
   );
 
-  // Send header frame with request metadata
+  // Build HTTP/2 gRPC request
+  let uri = Uri::builder()
+    .scheme("http")
+    .authority("[::]:50051")
+    .path_and_query(path)
+    .build()
+    .map_err(|e| format!("invalid URI: {}", e))?;
+
+  let mut request = Request::builder()
+    .method(Method::POST)
+    .uri(uri)
+    .version(Version::HTTP_2)
+    .header("content-type", "application/grpc")
+    .header("te", "trailers");
+
+  // Add metadata as HTTP headers
+  for key_and_value in metadata_map.iter() {
+    match key_and_value {
+      tonic::metadata::KeyAndValueRef::Ascii(key, value) => {
+        if let Ok(header_value) = value.to_str() {
+          request = request.header(key.as_str(), header_value);
+        }
+      }
+      tonic::metadata::KeyAndValueRef::Binary(key, value) => {
+        request = request.header(key.as_str(), value.as_encoded_bytes());
+      }
+    }
+  }
+
+  // Create a tonic Body from bytes
+  let body_bytes = Bytes::from(body);
+
+  // Use Empty body for now as a workaround - we'll need to encode the request properly
+  let tonic_body = Full::new(body_bytes);
+
+  let http_request: http::Request<_> = request
+    .body(tonic_body)
+    .map_err(|e| format!("failed to build request: {}", e))?;
+
+  // Make the gRPC call through the channel
+  // We need to convert the request body to the type expected by Channel
+  let mut response = channel
+    .ready()
+    .await
+    .map_err(|e| format!("channel not ready: {}", e))?
+    .call(http_request.map(|body| {
+      let boxed: UnsyncBoxBody<bytes::Bytes, Infallible> =
+        body.map_err(|never| match never {}).boxed_unsync();
+      Body::new(boxed)
+    }))
+    .await
+    .map_err(|e| format!("gRPC call failed: {}", e))?;
+
+  // Extract response headers and send as header frame
+  let response_headers = response.headers();
+  let mut header_metadata = HashMap::new();
+
+  for (key, value) in response_headers.iter() {
+    let key_str = key.as_str().to_string();
+    if let Ok(text) = value.to_str() {
+      header_metadata
+        .entry(key_str)
+        .or_insert_with(Vec::new)
+        .push(MetadataValue::Text(text.to_string()));
+    } else {
+      header_metadata
+        .entry(key_str)
+        .or_insert_with(Vec::new)
+        .push(MetadataValue::Binary(value.as_bytes().to_vec()));
+    }
+  }
+
   if let Err(e) = sender
     .send(Ok(Frame::Header {
-      header: extract_metadata_map(&metadata_map),
+      header: header_metadata,
     }))
     .await
   {
@@ -312,24 +321,72 @@ async fn forward_grpc_request(
     return Err(format!("failed to send header frame: {}", e));
   }
 
-  if !body.is_empty()
-    && let Err(e) = sender.send(Ok(Frame::Data { data: body.clone() })).await
-  {
-    log::debug!("request {}: failed to send data frame: {}", request_id, e);
-    return Err(format!("failed to send data frame: {}", e));
+  // Stream response body as data frames
+  let body = response.body_mut();
+  while let Some(chunk) = body.frame().await {
+    match chunk {
+      Ok(frame) => match frame.into_data() {
+        Ok(data) => {
+          if let Err(e) = sender
+            .send(Ok(Frame::Data {
+              data: data.to_vec(),
+            }))
+            .await
+          {
+            log::debug!("request {}: failed to send data frame: {}", request_id, e);
+            return Err(format!("failed to send data frame: {}", e));
+          }
+        }
+        Err(frame) => {
+          log::debug!(
+            "request {}: received non-data frame: {:?}",
+            request_id,
+            frame
+          );
+          // We can choose to ignore non-data frames or handle them as needed
+        }
+      },
+      Err(e) => {
+        log::debug!("request {}: error reading response body: {}", request_id, e);
+        if let Err(send_err) = sender
+          .send(Err(GrpcError::Internal {
+            message: format!("stream error: {}", e),
+          }))
+          .await
+        {
+          log::debug!(
+            "request {}: failed to send error event: {}",
+            request_id,
+            send_err
+          );
+        }
+        return Err(format!("stream error: {}", e));
+      }
+    }
   }
 
-  // TODO: Implement actual HTTP/2 streaming call through the channel
-  // This would involve:
-  // 1. Converting the path, metadata, and body into a proper HTTP/2 gRPC request
-  // 2. Using tonic's codec utilities to marshal/unmarshal messages
-  // 3. Streaming responses back as data frames
-  // 4. Extracting response trailers as trailer frame
+  // Extract trailers from response (gRPC trailers are in the response headers)
+  let trailers = response.headers();
+  let mut trailer_metadata = HashMap::new();
 
-  // For now, we'll send a trailer frame to complete the response
+  for (key, value) in trailers.iter() {
+    let key_str = key.as_str().to_string();
+    if let Ok(text) = value.to_str() {
+      trailer_metadata
+        .entry(key_str)
+        .or_insert_with(Vec::new)
+        .push(MetadataValue::Text(text.to_string()));
+    } else {
+      trailer_metadata
+        .entry(key_str)
+        .or_insert_with(Vec::new)
+        .push(MetadataValue::Binary(value.as_bytes().to_vec()));
+    }
+  }
+
   if let Err(e) = sender
     .send(Ok(Frame::Trailer {
-      trailer: HashMap::new(),
+      trailer: trailer_metadata,
     }))
     .await
   {
@@ -345,5 +402,6 @@ async fn forward_grpc_request(
     "request {}: gRPC request forwarded successfully",
     request_id
   );
+
   Ok(())
 }

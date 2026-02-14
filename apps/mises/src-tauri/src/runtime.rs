@@ -80,10 +80,7 @@ pub fn start() {
 
       Ok(())
     })
-    .invoke_handler(tauri::generate_handler![
-      command::grpc,
-      command::get_bootstrap_state
-    ])
+    .invoke_handler(tauri::generate_handler![command::grpc])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }

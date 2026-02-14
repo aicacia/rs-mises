@@ -9,6 +9,9 @@ pub struct Config {
   pub socket_path: PathBuf,
   pub master_key_path: PathBuf,
   pub sign_in_url: Option<String>,
+  pub root_group_name: String,
+  pub owner_name: String,
+  pub device_name: String,
 }
 
 impl Default for Config {
@@ -18,6 +21,9 @@ impl Default for Config {
       socket_path: PathBuf::from("./mises.sock"),
       master_key_path: PathBuf::from("./master.key"),
       sign_in_url: None,
+      root_group_name: "root".to_string(),
+      owner_name: "admin".to_string(),
+      device_name: "device".to_string(),
     }
   }
 }

@@ -16,7 +16,9 @@ impl core::fmt::Display for ParseOidcEnumError {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum ApplicationType {
+  #[default]
   Web,
   Native,
 }
@@ -44,7 +46,9 @@ impl FromStr for ApplicationType {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum SubjectType {
+  #[default]
   Public,
   Pairwise,
 }
@@ -154,7 +158,9 @@ impl FromStr for GrantType {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum TokenEndpointAuthMethod {
+  #[default]
   ClientSecretBasic,
   ClientSecretPost,
   ClientSecretJwt,
@@ -194,10 +200,12 @@ impl FromStr for TokenEndpointAuthMethod {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "UPPERCASE")]
+#[derive(Default)]
 pub enum JwsAlg {
   Hs256,
   Hs384,
   Hs512,
+  #[default]
   Rs256,
   Rs384,
   Rs512,
@@ -376,40 +384,84 @@ pub struct OidcClientMeta {
   pub response_types: Vec<ResponseType>,
   #[serde(default)]
   pub grant_types: Vec<GrantType>,
-  pub scope: Option<String>,
-  pub require_pkce: Option<bool>,
-  pub application_type: Option<ApplicationType>,
-  pub contacts: Option<Vec<String>>,
-  pub client_name: Option<String>,
-  pub client_uri: Option<String>,
-  pub logo_uri: Option<String>,
-  pub policy_uri: Option<String>,
-  pub tos_uri: Option<String>,
-  pub jwks_uri: Option<String>,
+  #[serde(default)]
+  pub scope: String,
+  #[serde(default)]
+  pub require_pkce: bool,
+  #[serde(default)]
+  pub application_type: ApplicationType,
+  #[serde(default)]
+  pub contacts: Vec<String>,
+  #[serde(default)]
+  pub client_name: String,
+  #[serde(default)]
+  pub client_uri: String,
+  #[serde(default)]
+  pub logo_uri: String,
+  #[serde(default)]
+  pub policy_uri: String,
+  #[serde(default)]
+  pub tos_uri: String,
+  #[serde(default)]
+  pub jwks_uri: String,
+  #[serde(default)]
   pub jwks: Option<JsonValue>,
-  pub sector_identifier_uri: Option<String>,
-  pub subject_type: Option<SubjectType>,
-  pub id_token_signed_response_alg: Option<JwsAlg>,
+  #[serde(default)]
+  pub sector_identifier_uri: String,
+  #[serde(default)]
+  pub subject_type: SubjectType,
+  #[serde(default)]
+  pub id_token_signed_response_alg: JwsAlg,
+  #[serde(default)]
   pub id_token_encrypted_response_alg: Option<JweAlg>,
+  #[serde(default)]
   pub id_token_encrypted_response_enc: Option<JweEnc>,
-  pub userinfo_signed_response_alg: Option<JwsAlg>,
+  #[serde(default)]
+  pub userinfo_signed_response_alg: JwsAlg,
+  #[serde(default)]
   pub userinfo_encrypted_response_alg: Option<JweAlg>,
+  #[serde(default)]
   pub userinfo_encrypted_response_enc: Option<JweEnc>,
-  pub request_object_signing_alg: Option<JwsAlg>,
+  #[serde(default)]
+  pub request_object_signing_alg: JwsAlg,
+  #[serde(default)]
   pub request_object_encryption_alg: Option<JweAlg>,
+  #[serde(default)]
   pub request_object_encryption_enc: Option<JweEnc>,
-  pub token_endpoint_auth_method: Option<TokenEndpointAuthMethod>,
-  pub token_endpoint_auth_signing_alg: Option<JwsAlg>,
-  pub default_max_age: Option<u64>,
-  pub require_auth_time: Option<bool>,
-  pub default_acr_values: Option<Vec<String>>,
-  pub initiate_login_uri: Option<String>,
+  #[serde(default)]
+  pub token_endpoint_auth_method: TokenEndpointAuthMethod,
+  #[serde(default)]
+  pub token_endpoint_auth_signing_alg: JwsAlg,
+  #[serde(default)]
+  pub default_max_age: u64,
+  #[serde(default)]
+  pub require_auth_time: bool,
+  #[serde(default)]
+  pub default_acr_values: Vec<String>,
+  #[serde(default)]
+  pub initiate_login_uri: String,
   #[serde(default)]
   pub request_uris: Vec<String>,
   #[serde(default)]
   pub post_logout_redirect_uris: Vec<String>,
-  pub frontchannel_logout_uri: Option<String>,
-  pub frontchannel_logout_session_required: Option<bool>,
-  pub backchannel_logout_uri: Option<String>,
-  pub backchannel_logout_session_required: Option<bool>,
+  #[serde(default)]
+  pub frontchannel_logout_uri: String,
+  #[serde(default)]
+  pub frontchannel_logout_session_required: bool,
+  #[serde(default)]
+  pub backchannel_logout_uri: String,
+  #[serde(default)]
+  pub backchannel_logout_session_required: bool,
+  #[serde(default = "default_access_token_expiry")]
+  pub access_token_expiry: u64,
+  #[serde(default = "default_refresh_token_expiry")]
+  pub refresh_token_expiry: u64,
+}
+
+fn default_access_token_expiry() -> u64 {
+  3600
+}
+
+fn default_refresh_token_expiry() -> u64 {
+  86400 * 30
 }

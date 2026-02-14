@@ -20,9 +20,11 @@ use crate::{
     identity::{IdentityMeta, IdentityType},
     keys::KeyMeta,
     node::{NodeMeta, NodeType},
-    oidc::{OidcClientMeta, ResponseType, TokenEndpointAuthMethod},
   },
-  service::identity::IdentityService,
+  service::{
+    identity::IdentityService,
+    password::hash_password,
+  },
   traits::{Executor, Repository},
 };
 
@@ -32,7 +34,6 @@ pub struct BootstrapOptions {
   pub owner_name: Option<String>,
   pub device_name: Option<String>,
   pub now: Option<DateTime<Utc>>,
-  pub test_seed: Option<Vec<u8>>,
 }
 
 impl BootstrapOptions {
@@ -42,7 +43,6 @@ impl BootstrapOptions {
       owner_name: None,
       device_name: None,
       now: None,
-      test_seed: None,
     }
   }
 }
@@ -53,7 +53,6 @@ pub struct BootstrapOptionsBuilder {
   owner_name: Option<String>,
   device_name: Option<String>,
   now: Option<DateTime<Utc>>,
-  test_seed: Option<Vec<u8>>,
 }
 
 impl BootstrapOptionsBuilder {
@@ -63,7 +62,6 @@ impl BootstrapOptionsBuilder {
       owner_name: None,
       device_name: None,
       now: None,
-      test_seed: None,
     }
   }
 
@@ -87,19 +85,13 @@ impl BootstrapOptionsBuilder {
     self
   }
 
-  pub fn test_seed(mut self, seed: Vec<u8>) -> Self {
-    self.test_seed = Some(seed);
-    self
-  }
-
-  pub fn build(self) -> Result<BootstrapOptions> {
-    Ok(BootstrapOptions {
+  pub fn build(self) -> BootstrapOptions {
+    BootstrapOptions {
       root_group_name: self.root_group_name,
       owner_name: self.owner_name,
       device_name: self.device_name,
       now: self.now,
-      test_seed: self.test_seed,
-    })
+    }
   }
 }
 
@@ -127,10 +119,7 @@ where
     Self { exec }
   }
 
-  async fn get_or_create_master_key(
-    &self,
-    options: &BootstrapOptions,
-  ) -> Result<(Key, Vec<u8>, bool)> {
+  async fn get_or_create_master_key(&self) -> Result<(Key, Vec<u8>, bool)> {
     let query = Query::nodes(
       NodeQuery::new(NodeType::Key.as_str()).filter(field("metadata.derivation_path").eq("m/44'")),
     );
@@ -154,17 +143,9 @@ where
     }
 
     let mut entropy = [0u8; 32];
-    if let Some(seed) = options.test_seed.as_ref() {
-      if seed.len() != 32 {
-        return Err(CoreError::InvalidInput(InvalidInput::Other(
-          "test_seed must be 32 bytes".to_string(),
-        )));
-      }
-      entropy.copy_from_slice(&seed[..32]);
-    } else {
-      getrandom::getrandom(&mut entropy)
-        .map_err(|e| CoreError::other(InvalidInput::Other(format!("getrandom error: {}", e))))?;
-    }
+    getrandom::getrandom(&mut entropy)
+      .map_err(|e| CoreError::other(InvalidInput::Other(format!("getrandom error: {}", e))))?;
+
     let key = Key::from_entropy(&entropy).map_err(CoreError::from)?;
 
     Ok((key, entropy.to_vec(), true))
@@ -228,7 +209,7 @@ where
       Some((group_id, key_id, public_key, _priv_b64)) => (group_id, key_id, public_key, false),
       None => {
         let (master_key, seed_bytes, master_key_created): (Key, Vec<u8>, bool) =
-          self.get_or_create_master_key(&options).await?;
+          self.get_or_create_master_key().await?;
         let kp = master_key.ed25519_keypair()?;
         let public_key = BASE64_URL_SAFE.encode(kp.public.as_bytes());
 
@@ -290,35 +271,19 @@ where
     let owner_user_id = match identity.find_owner(root_group_id).await? {
       Some(owner_node) => owner_node.id,
       None => {
-        let tx = self.exec.transaction().await?;
-
-        let user_node = tx
-          .create_node(
-            NodeType::Identity.as_str().to_string(),
-            NodeMeta::Identity(IdentityMeta::User {
-              name: options
-                .owner_name
-                .clone()
-                .unwrap_or_else(|| "admin".to_owned()),
-              // Force the user to reset password on first login
-              encrypted_password: "$argon2id$v=19$m=19,t=2,p=1$cmc5ZXVXT1N0RmxjZFR1NQ$/0nLLEJDUFjP/lO6UhUHlzvL6Zlz1NO8BW+XdMNTG3c".to_string(),
-              force_password_reset: Some(true),
-            }),
+        let (user_node, _key_node) = identity
+          .create_user(
+            options
+              .owner_name
+              .clone()
+              .unwrap_or_else(|| "admin".to_owned()),
+            hash_password("admin")?,
           )
           .await?;
 
-        tx.create_edge(
-          EdgeType::Owns.as_str().to_string(),
-          user_node.id,
-          root_group_id,
-          EdgeProps::Owns {
-            since: options.now,
-            until: options.now,
-          },
-        )
-        .await?;
-
-        tx.commit().await?;
+        identity
+          .set_owner(user_node.id, root_group_id)
+          .await?;
 
         log::debug!(
           "bootstrap: created owner user {} for group {}",
@@ -340,80 +305,23 @@ where
     let device_id = if let Some(did_node) = devices.into_iter().next() {
       did_node.id
     } else {
-      let tx = self.exec.transaction().await?;
-      let device_node = tx
-        .create_node(
-          NodeType::Identity.as_str().to_string(),
-          NodeMeta::Identity(IdentityMeta::Device {
-            name: options.device_name.unwrap_or_else(|| "device".to_string()),
-            root: Some(root_group_id),
-          }),
+      let (device_node, _key_node) = identity
+        .create_device(
+          options.device_name.unwrap_or_else(|| "device".to_string()),
+          root_group_id,
         )
         .await?;
-      tx.create_edge(
-        EdgeType::MemberOf.as_str().to_string(),
-        device_node.id,
-        root_group_id,
-        EdgeProps::MemberOf {
-          since: options.now,
-          until: options.now,
-        },
-      )
-      .await?;
-      tx.commit().await?;
+
+      identity
+        .add_member_of(device_node.id, root_group_id, options.now)
+        .await?;
+
       log::debug!(
         "Created device with id {} belonging to master group {}",
         device_node.id,
         root_group_id
       );
       device_node.id
-    };
-
-    let _app_id = {
-      let q = Query::nodes(
-        NodeQuery::new(NodeType::Identity.as_str())
-          .filter(field("metadata.type").eq(IdentityType::Application.as_str())),
-      );
-      let elements = self.exec.query(q).await?;
-      if let Some(Element::Node(n)) = elements.into_iter().find(|e| matches!(e, Element::Node(_))) {
-        n.id
-      } else {
-        let tx = self.exec.transaction().await?;
-        let app_node = tx
-          .create_node(
-            NodeType::Identity.as_str().to_string(),
-            NodeMeta::Identity(IdentityMeta::Application {
-              name: "tauri".to_string(),
-              oidc: Some(OidcClientMeta {
-                redirect_uris: Vec::from([
-                  "http://localhost:5173/authorize/callback".to_string(),
-                  "mises://authorize/callback".to_string(),
-                ]),
-                response_types: Vec::from([ResponseType::Code, ResponseType::IdToken]),
-                grant_types: Vec::new(),
-                scope: Some("openid".to_string()),
-                token_endpoint_auth_method: Some(TokenEndpointAuthMethod::None),
-                ..Default::default()
-              }),
-            }),
-          )
-          .await?;
-
-        tx.create_edge(
-          EdgeType::Owns.as_str().to_string(),
-          owner_user_id,
-          app_node.id,
-          EdgeProps::Owns {
-            since: options.now,
-            until: options.now,
-          },
-        )
-        .await?;
-
-        tx.commit().await?;
-        log::debug!("Created application identity {}", app_node.id);
-        app_node.id
-      }
     };
 
     Ok(BootstrapResult {

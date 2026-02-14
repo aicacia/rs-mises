@@ -37,7 +37,6 @@ where
         owner_name: Some(request.get_ref().owner_name.clone()),
         device_name: Some(request.get_ref().device_name.clone()),
         now: Some(chrono::Utc::now()),
-        test_seed: None,
       })
       .await
       .map_err(|e| Status::internal(e.to_string()))?;

@@ -6,7 +6,7 @@ use crate::{
 };
 use clap::{CommandFactory, Parser};
 use clap_complete::generate;
-use mises_core::service::graph::GraphService;
+use mises_core::service::graph::{BootstrapOptionsBuilder, GraphService};
 use mises_graph::{InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
 use mises_grpc_server::{
   BootstrapService, OidcService, bootstrap_service_server::BootstrapServiceServer,
@@ -117,7 +117,19 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
   let store = InMemoryKeyValueStore::new();
   let repo = KeyValueRepository::new(store.clone(), UuidGenerator::new());
 
-  let _graph_service = GraphService::new(repo.clone());
+  let graph_service = GraphService::new(repo.clone());
+
+  graph_service
+    .bootstrap(
+      BootstrapOptionsBuilder::new()
+        .root_group_name(config.root_group_name.clone())
+        .owner_name(config.owner_name.clone())
+        .device_name(config.device_name.clone())
+        .now(chrono::Utc::now())
+        .build(),
+    )
+    .await
+    .map_err(|e| io::Error::other(format!("failed to bootstrap graph service: {}", e)))?;
 
   let reflection_service = tonic_reflection::server::Builder::configure()
     .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)

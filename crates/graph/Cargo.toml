@@ -37,9 +37,7 @@ serde = { version = "1", default-features = false, features = [
 ] }
 serde_json = { version = "1", default-features = false, features = ["alloc"] }
 async-trait = { version = "0.1", features = [], default-features = false }
-spin = { version = "0.10", optional = true, default-features = false, features = [
-  "rwlock",
-] }
+parking_lot = { version = "0.12", optional = true, default-features = false }
 
 [dev-dependencies]
 tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
@@ -61,4 +59,4 @@ std = [
   "uuid/std",
 ]
 # in-memory repository feature
-in-memory = ["dep:spin", "mises-async-kv-bytes/in-memory"]
+in-memory = ["dep:parking_lot", "mises-async-kv-bytes/in-memory"]

@@ -36,6 +36,9 @@ serde_json = { version = "1", default-features = false, features = ["alloc"] }
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
 getrandom = { version = "0.2", default-features = false }
 
+# Cryptography
+argon2 = { version = "3.0.0", package = "rust-argon2" }
+
 # async
 async-trait = { version = "0.1", default-features = false, features = [] }
 

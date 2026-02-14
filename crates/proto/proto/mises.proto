@@ -97,13 +97,14 @@ message AuthorizationCode {
 
 message RefreshToken {
     string refresh_token = 1;
-    optional string scope = 2;
-    optional string client_id = 3;
+    optional string client_id = 2;
+    optional string scope = 3;
 }
 
 message ClientCredentials {
-    optional string scope = 1;
-    optional string client_id = 2;
+    string client_id = 1;
+    string client_secret = 2;
+    optional string scope = 3;
 }
 
 message DeviceCode {
@@ -114,8 +115,8 @@ message DeviceCode {
 message Password {
     string username = 1;
     string password = 2;
-    optional string scope = 3;
-    optional string client_id = 4;
+    string client_id = 3;
+    optional string scope = 4;
 }
 
 message TokenResponse {

@@ -15,16 +15,14 @@ name = "mises_async_kv_bytes"
 # Async
 async-trait = { version = "0.1", default-features = false, features = [] }
 
-# Utils
-spin = { version = "0.10", optional = true, default-features = false, features = [
-  "rwlock",
+# Locking
+parking_lot = { version = "0.12", optional = true, default-features = false, features = [
 ] }
 
 [dev-dependencies]
+tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
 
 [features]
-# default to no_std; enable std opt-in
-default = ["in-memory", "std"]
+default = ["in-memory"]
 std = []
-# in-memory repository feature
-in-memory = ["dep:spin"]
+in-memory = ["dep:parking_lot"]

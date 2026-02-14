@@ -52,6 +52,8 @@ where
     &self,
     request: Request<mises_proto::AuthorizeRequest>,
   ) -> Result<Response<mises_proto::AuthorizeResponse>, Status> {
+    log::debug!("authorize request: {:?}", request);
+
     let claims = if let Some(auth_header) = request
       .metadata()
       .get("authorization")
@@ -87,6 +89,8 @@ where
     &self,
     request: Request<mises_proto::TokenRequest>,
   ) -> Result<Response<mises_proto::TokenResponse>, Status> {
+    log::debug!("Token request: {:?}", request);
+
     let claims = if let Some(auth_header) = request
       .metadata()
       .get("authorization")
@@ -100,9 +104,15 @@ where
       None
     };
 
-    token(&self.repo, &self.store, request.into_inner(), claims)
-      .await
-      .map(Response::new)
+    token(
+      &self.repo,
+      &self.store,
+      request.into_inner(),
+      claims,
+      &self.issuer,
+    )
+    .await
+    .map(Response::new)
   }
 
   async fn introspect(

@@ -1,17 +1,21 @@
 use uuid::Uuid;
 
 use alloc::{
+  format,
   string::{String, ToString},
   vec::Vec,
 };
 
+use base64::{Engine, prelude::BASE64_URL_SAFE};
 use mises_graph::{EdgeQuery, Element, Filter, NodeQuery, Query, field};
+use mises_key::Key;
 
 use crate::{
-  CoreError, Result,
+  CoreError, InvalidInput, Result,
   model::{
     edge::{EdgeProps, EdgeType},
     identity::{IdentityMeta, IdentityType},
+    keys::KeyMeta,
     node::{NodeMeta, NodeType},
   },
   traits::Executor,
@@ -96,7 +100,41 @@ where
     Ok(None)
   }
 
-  pub async fn create_user(&self, name: String, encrypted_password: String) -> Result<E::Node> {
+  async fn create_key_for_identity(&self) -> Result<E::Node> {
+    let entropy = {
+      let mut buf = [0u8; 32];
+      getrandom::getrandom(&mut buf)
+        .map_err(|e| CoreError::other(InvalidInput::Other(format!("getrandom error: {}", e))))?;
+      buf
+    };
+
+    let key = Key::from_entropy(&entropy).map_err(CoreError::from)?;
+    let kp = key.ed25519_keypair()?;
+    let public_key = BASE64_URL_SAFE.encode(kp.public.as_bytes());
+    let private_key_b64 = BASE64_URL_SAFE.encode(&entropy);
+
+    let key_node = self
+      .exec
+      .create_node(
+        NodeType::Key.as_str().to_string(),
+        NodeMeta::Key(KeyMeta {
+          public_key,
+          private_key: Some(private_key_b64),
+          derivation_path: key.derivation_path(),
+        }),
+      )
+      .await?;
+
+    Ok(key_node)
+  }
+
+  pub async fn create_user(
+    &self,
+    name: String,
+    encrypted_password: String,
+  ) -> Result<(E::Node, E::Node)> {
+    let key_node = self.create_key_for_identity().await?;
+
     let user_node = self
       .exec
       .create_node(
@@ -109,7 +147,20 @@ where
       )
       .await?;
 
-    Ok(user_node)
+    self
+      .exec
+      .create_edge(
+        EdgeType::Owns.as_str().to_string(),
+        user_node.id,
+        key_node.id,
+        EdgeProps::Owns {
+          since: None,
+          until: None,
+        },
+      )
+      .await?;
+
+    Ok((user_node, key_node))
   }
 
   pub async fn set_owner(&self, owner_id: Uuid, target_id: Uuid) -> Result<()> {
@@ -168,7 +219,9 @@ where
     Ok(None)
   }
 
-  pub async fn create_device(&self, device_name: String, root: Uuid) -> Result<E::Node> {
+  pub async fn create_device(&self, device_name: String, root: Uuid) -> Result<(E::Node, E::Node)> {
+    let key_node = self.create_key_for_identity().await?;
+
     let device_node = self
       .exec
       .create_node(
@@ -180,7 +233,20 @@ where
       )
       .await?;
 
-    Ok(device_node)
+    self
+      .exec
+      .create_edge(
+        EdgeType::Owns.as_str().to_string(),
+        device_node.id,
+        key_node.id,
+        EdgeProps::Owns {
+          since: None,
+          until: None,
+        },
+      )
+      .await?;
+
+    Ok((device_node, key_node))
   }
 
   pub async fn add_member_of(
@@ -203,5 +269,59 @@ where
       .await?;
 
     Ok(())
+  }
+
+  pub async fn create_group(&self, name: String) -> Result<(E::Node, E::Node)> {
+    let key_node = self.create_key_for_identity().await?;
+
+    let group_node = self
+      .exec
+      .create_node(
+        NodeType::Identity.as_str().to_string(),
+        NodeMeta::Identity(IdentityMeta::Group { name }),
+      )
+      .await?;
+
+    self
+      .exec
+      .create_edge(
+        EdgeType::Owns.as_str().to_string(),
+        group_node.id,
+        key_node.id,
+        EdgeProps::Owns {
+          since: None,
+          until: None,
+        },
+      )
+      .await?;
+
+    Ok((group_node, key_node))
+  }
+
+  pub async fn create_application(&self, name: String) -> Result<(E::Node, E::Node)> {
+    let key_node = self.create_key_for_identity().await?;
+
+    let app_node = self
+      .exec
+      .create_node(
+        NodeType::Identity.as_str().to_string(),
+        NodeMeta::Identity(IdentityMeta::Application { name, oidc: None }),
+      )
+      .await?;
+
+    self
+      .exec
+      .create_edge(
+        EdgeType::Owns.as_str().to_string(),
+        app_node.id,
+        key_node.id,
+        EdgeProps::Owns {
+          since: None,
+          until: None,
+        },
+      )
+      .await?;
+
+    Ok((app_node, key_node))
   }
 }

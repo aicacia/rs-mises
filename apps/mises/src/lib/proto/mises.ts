@@ -51,6 +51,7 @@ export interface TokenRequest {
   refreshToken?: RefreshToken | undefined;
   clientCredentials?: ClientCredentials | undefined;
   deviceCode?: DeviceCode | undefined;
+  password?: Password | undefined;
 }
 
 export interface AuthorizationCode {
@@ -62,18 +63,26 @@ export interface AuthorizationCode {
 
 export interface RefreshToken {
   refreshToken: string;
-  scope?: string | undefined;
   clientId?: string | undefined;
+  scope?: string | undefined;
 }
 
 export interface ClientCredentials {
+  clientId: string;
+  clientSecret: string;
   scope?: string | undefined;
-  clientId?: string | undefined;
 }
 
 export interface DeviceCode {
   deviceCode: string;
   clientId?: string | undefined;
+}
+
+export interface Password {
+  username: string;
+  password: string;
+  clientId: string;
+  scope?: string | undefined;
 }
 
 export interface TokenResponse {
@@ -174,6 +183,16 @@ export interface ClientRegisterRequest {
   responseTypes: string[];
   scope?: string | undefined;
   tokenEndpointAuthMethod?: string | undefined;
+}
+
+export interface NativeAuthenticateRequest {
+  /** client id (UUID string) or development shortcut 'tauri' */
+  clientId?:
+    | string
+    | undefined;
+  /** optional hint about the subject to act as (server may ignore and create its own) */
+  sub?: string | undefined;
+  scope?: string | undefined;
 }
 
 export interface Client {
@@ -669,7 +688,13 @@ export const AuthorizeResponse: MessageFns<AuthorizeResponse> = {
 };
 
 function createBaseTokenRequest(): TokenRequest {
-  return { authorizationCode: undefined, refreshToken: undefined, clientCredentials: undefined, deviceCode: undefined };
+  return {
+    authorizationCode: undefined,
+    refreshToken: undefined,
+    clientCredentials: undefined,
+    deviceCode: undefined,
+    password: undefined,
+  };
 }
 
 export const TokenRequest: MessageFns<TokenRequest> = {
@@ -685,6 +710,9 @@ export const TokenRequest: MessageFns<TokenRequest> = {
     }
     if (message.deviceCode !== undefined) {
       DeviceCode.encode(message.deviceCode, writer.uint32(34).fork()).join();
+    }
+    if (message.password !== undefined) {
+      Password.encode(message.password, writer.uint32(42).fork()).join();
     }
     return writer;
   },
@@ -728,6 +756,14 @@ export const TokenRequest: MessageFns<TokenRequest> = {
           message.deviceCode = DeviceCode.decode(reader, reader.uint32());
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.password = Password.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -753,6 +789,9 @@ export const TokenRequest: MessageFns<TokenRequest> = {
       : undefined;
     message.deviceCode = (object.deviceCode !== undefined && object.deviceCode !== null)
       ? DeviceCode.fromPartial(object.deviceCode)
+      : undefined;
+    message.password = (object.password !== undefined && object.password !== null)
+      ? Password.fromPartial(object.password)
       : undefined;
     return message;
   },
@@ -841,7 +880,7 @@ export const AuthorizationCode: MessageFns<AuthorizationCode> = {
 };
 
 function createBaseRefreshToken(): RefreshToken {
-  return { refreshToken: "", scope: undefined, clientId: undefined };
+  return { refreshToken: "", clientId: undefined, scope: undefined };
 }
 
 export const RefreshToken: MessageFns<RefreshToken> = {
@@ -849,11 +888,11 @@ export const RefreshToken: MessageFns<RefreshToken> = {
     if (message.refreshToken !== "") {
       writer.uint32(10).string(message.refreshToken);
     }
-    if (message.scope !== undefined) {
-      writer.uint32(18).string(message.scope);
-    }
     if (message.clientId !== undefined) {
-      writer.uint32(26).string(message.clientId);
+      writer.uint32(18).string(message.clientId);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(26).string(message.scope);
     }
     return writer;
   },
@@ -878,7 +917,7 @@ export const RefreshToken: MessageFns<RefreshToken> = {
             break;
           }
 
-          message.scope = reader.string();
+          message.clientId = reader.string();
           continue;
         }
         case 3: {
@@ -886,7 +925,7 @@ export const RefreshToken: MessageFns<RefreshToken> = {
             break;
           }
 
-          message.clientId = reader.string();
+          message.scope = reader.string();
           continue;
         }
       }
@@ -904,23 +943,26 @@ export const RefreshToken: MessageFns<RefreshToken> = {
   fromPartial(object: DeepPartial<RefreshToken>): RefreshToken {
     const message = createBaseRefreshToken();
     message.refreshToken = object.refreshToken ?? "";
-    message.scope = object.scope ?? undefined;
     message.clientId = object.clientId ?? undefined;
+    message.scope = object.scope ?? undefined;
     return message;
   },
 };
 
 function createBaseClientCredentials(): ClientCredentials {
-  return { scope: undefined, clientId: undefined };
+  return { clientId: "", clientSecret: "", scope: undefined };
 }
 
 export const ClientCredentials: MessageFns<ClientCredentials> = {
   encode(message: ClientCredentials, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.scope !== undefined) {
-      writer.uint32(10).string(message.scope);
+    if (message.clientId !== "") {
+      writer.uint32(10).string(message.clientId);
     }
-    if (message.clientId !== undefined) {
-      writer.uint32(18).string(message.clientId);
+    if (message.clientSecret !== "") {
+      writer.uint32(18).string(message.clientSecret);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(26).string(message.scope);
     }
     return writer;
   },
@@ -937,7 +979,7 @@ export const ClientCredentials: MessageFns<ClientCredentials> = {
             break;
           }
 
-          message.scope = reader.string();
+          message.clientId = reader.string();
           continue;
         }
         case 2: {
@@ -945,7 +987,15 @@ export const ClientCredentials: MessageFns<ClientCredentials> = {
             break;
           }
 
-          message.clientId = reader.string();
+          message.clientSecret = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.scope = reader.string();
           continue;
         }
       }
@@ -962,8 +1012,9 @@ export const ClientCredentials: MessageFns<ClientCredentials> = {
   },
   fromPartial(object: DeepPartial<ClientCredentials>): ClientCredentials {
     const message = createBaseClientCredentials();
+    message.clientId = object.clientId ?? "";
+    message.clientSecret = object.clientSecret ?? "";
     message.scope = object.scope ?? undefined;
-    message.clientId = object.clientId ?? undefined;
     return message;
   },
 };
@@ -1022,6 +1073,88 @@ export const DeviceCode: MessageFns<DeviceCode> = {
     const message = createBaseDeviceCode();
     message.deviceCode = object.deviceCode ?? "";
     message.clientId = object.clientId ?? undefined;
+    return message;
+  },
+};
+
+function createBasePassword(): Password {
+  return { username: "", password: "", clientId: "", scope: undefined };
+}
+
+export const Password: MessageFns<Password> = {
+  encode(message: Password, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.username !== "") {
+      writer.uint32(10).string(message.username);
+    }
+    if (message.password !== "") {
+      writer.uint32(18).string(message.password);
+    }
+    if (message.clientId !== "") {
+      writer.uint32(26).string(message.clientId);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(34).string(message.scope);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Password {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePassword();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.username = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.password = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<Password>): Password {
+    return Password.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<Password>): Password {
+    const message = createBasePassword();
+    message.username = object.username ?? "";
+    message.password = object.password ?? "";
+    message.clientId = object.clientId ?? "";
+    message.scope = object.scope ?? undefined;
     return message;
   },
 };
@@ -2176,6 +2309,76 @@ export const ClientRegisterRequest: MessageFns<ClientRegisterRequest> = {
     message.responseTypes = object.responseTypes?.map((e) => e) || [];
     message.scope = object.scope ?? undefined;
     message.tokenEndpointAuthMethod = object.tokenEndpointAuthMethod ?? undefined;
+    return message;
+  },
+};
+
+function createBaseNativeAuthenticateRequest(): NativeAuthenticateRequest {
+  return { clientId: undefined, sub: undefined, scope: undefined };
+}
+
+export const NativeAuthenticateRequest: MessageFns<NativeAuthenticateRequest> = {
+  encode(message: NativeAuthenticateRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.clientId !== undefined) {
+      writer.uint32(10).string(message.clientId);
+    }
+    if (message.sub !== undefined) {
+      writer.uint32(18).string(message.sub);
+    }
+    if (message.scope !== undefined) {
+      writer.uint32(26).string(message.scope);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): NativeAuthenticateRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseNativeAuthenticateRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.sub = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<NativeAuthenticateRequest>): NativeAuthenticateRequest {
+    return NativeAuthenticateRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<NativeAuthenticateRequest>): NativeAuthenticateRequest {
+    const message = createBaseNativeAuthenticateRequest();
+    message.clientId = object.clientId ?? undefined;
+    message.sub = object.sub ?? undefined;
+    message.scope = object.scope ?? undefined;
     return message;
   },
 };

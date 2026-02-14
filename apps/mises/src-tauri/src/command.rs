@@ -1,17 +1,14 @@
-use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
 use tauri::{AppHandle, Emitter, async_runtime};
 
-use tokio::{
-  sync::{RwLock, mpsc},
-  time::timeout,
-};
+use tokio::{sync::mpsc, time::timeout};
 
 use uuid::Uuid;
 
-use crate::background::{BootstrapState, ClientRequest};
+use crate::background::ClientRequest;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -231,27 +228,4 @@ pub fn grpc(
   }));
 
   Ok(request_id)
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BootstrapInfo {
-  pub root_group: String,
-  pub master_key_created: bool,
-  pub master_key_public_key: String,
-  pub owner_user: String,
-  pub device: String,
-}
-
-#[tauri::command]
-pub async fn get_bootstrap_state(
-  state: tauri::State<'_, Arc<RwLock<Option<BootstrapState>>>>,
-) -> Result<Option<BootstrapInfo>, GrpcError> {
-  let bootstrap = state.read().await;
-  Ok(bootstrap.as_ref().map(|b| BootstrapInfo {
-    root_group: b.root_group.clone(),
-    master_key_created: b.master_key_created,
-    master_key_public_key: b.master_key_public_key.clone(),
-    owner_user: b.owner_user.clone(),
-    device: b.device.clone(),
-  }))
 }

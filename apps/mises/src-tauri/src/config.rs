@@ -6,9 +6,6 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
   pub socket_path: PathBuf,
   pub daemon_path: Option<PathBuf>,
-  pub root_group_name: String,
-  pub owner_name: String,
-  pub device_name: String,
 }
 
 impl Default for Config {
@@ -16,9 +13,6 @@ impl Default for Config {
     Self {
       socket_path: PathBuf::from("../../../mises.sock"),
       daemon_path: None,
-      root_group_name: "root".to_string(),
-      owner_name: "admin".to_string(),
-      device_name: "device".to_string(),
     }
   }
 }
