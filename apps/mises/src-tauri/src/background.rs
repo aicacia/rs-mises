@@ -321,8 +321,9 @@ async fn forward_grpc_request(
     return Err(format!("failed to send header frame: {}", e));
   }
 
-  // Stream response body as data frames
+  // Stream response body frames (data + trailers)
   let body = response.body_mut();
+  let mut trailers_sent = false;
   while let Some(chunk) = body.frame().await {
     match chunk {
       Ok(frame) => match frame.into_data() {
@@ -338,12 +339,43 @@ async fn forward_grpc_request(
           }
         }
         Err(frame) => {
-          log::debug!(
-            "request {}: received non-data frame: {:?}",
-            request_id,
-            frame
-          );
-          // We can choose to ignore non-data frames or handle them as needed
+          if let Ok(trailers) = frame.into_trailers() {
+            let mut trailer_metadata = HashMap::new();
+
+            for (key, value) in trailers.iter() {
+              let key_str = key.as_str().to_string();
+              if let Ok(text) = value.to_str() {
+                trailer_metadata
+                  .entry(key_str)
+                  .or_insert_with(Vec::new)
+                  .push(MetadataValue::Text(text.to_string()));
+              } else {
+                trailer_metadata
+                  .entry(key_str)
+                  .or_insert_with(Vec::new)
+                  .push(MetadataValue::Binary(value.as_bytes().to_vec()));
+              }
+            }
+
+            if let Err(e) = sender
+              .send(Ok(Frame::Trailer {
+                trailer: trailer_metadata,
+              }))
+              .await
+            {
+              log::debug!(
+                "request {}: failed to send trailer frame: {}",
+                request_id,
+                e
+              );
+              return Err(format!("failed to send trailer frame: {}", e));
+            }
+
+            trailers_sent = true;
+            break;
+          }
+
+          log::debug!("request {}: received unknown body frame", request_id);
         }
       },
       Err(e) => {
@@ -365,37 +397,22 @@ async fn forward_grpc_request(
     }
   }
 
-  // Extract trailers from response (gRPC trailers are in the response headers)
-  let trailers = response.headers();
-  let mut trailer_metadata = HashMap::new();
-
-  for (key, value) in trailers.iter() {
-    let key_str = key.as_str().to_string();
-    if let Ok(text) = value.to_str() {
-      trailer_metadata
-        .entry(key_str)
-        .or_insert_with(Vec::new)
-        .push(MetadataValue::Text(text.to_string()));
-    } else {
-      trailer_metadata
-        .entry(key_str)
-        .or_insert_with(Vec::new)
-        .push(MetadataValue::Binary(value.as_bytes().to_vec()));
+  if !trailers_sent {
+    if let Err(e) = sender
+      .send(Err(GrpcError::Internal {
+        message: "missing gRPC trailers from server response".to_string(),
+      }))
+      .await
+    {
+      log::debug!(
+        "request {}: failed to send missing-trailer error: {}",
+        request_id,
+        e
+      );
+      return Err(format!("failed to send missing-trailer error: {}", e));
     }
-  }
 
-  if let Err(e) = sender
-    .send(Ok(Frame::Trailer {
-      trailer: trailer_metadata,
-    }))
-    .await
-  {
-    log::debug!(
-      "request {}: failed to send trailer frame: {}",
-      request_id,
-      e
-    );
-    return Err(format!("failed to send trailer frame: {}", e));
+    return Err("missing gRPC trailers from server response".to_string());
   }
 
   log::debug!(
