@@ -1,5 +1,4 @@
-use alloc::string::String;
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use core::str::FromStr;
 
 use serde::{Deserialize, Serialize};
@@ -394,6 +393,8 @@ pub struct OidcClientMeta {
   pub contacts: Vec<String>,
   #[serde(default)]
   pub client_name: String,
+  #[serde(default)]
+  pub application_urn: String,
   #[serde(default)]
   pub client_uri: String,
   #[serde(default)]

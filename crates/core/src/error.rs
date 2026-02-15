@@ -1,5 +1,4 @@
 use alloc::{boxed::Box, string::String};
-
 use core::{
   error::Error,
   fmt::{self, Display, Formatter},

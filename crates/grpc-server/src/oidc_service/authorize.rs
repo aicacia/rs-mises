@@ -1,19 +1,21 @@
-use mises_graph::KeyValueStoreExecutor;
 use tonic::Status;
+use uuid::Uuid;
 
 use mises_core::{
   model::{identity::IdentityMeta, node::NodeMeta},
   traits::Repository,
 };
-use uuid::Uuid;
+use mises_graph::KeyValueStoreExecutor;
 
-use crate::jwt::Claims;
-use crate::oidc_service::{
-  authorization_code::{
-    AuthorizationCodeData, generate_authorization_code, store_authorization_code,
+use crate::{
+  jwt::Claims,
+  oidc_service::{
+    authorization_code::{
+      AuthorizationCodeData, generate_authorization_code, store_authorization_code,
+    },
+    constants::{self, CODE_CHALLENGE_METHODS_SUPPORTED},
+    helpers::{ensure_application_identity, matches_redirect_pattern},
   },
-  constants::{self, CODE_CHALLENGE_METHODS_SUPPORTED},
-  helpers::{ensure_application_identity, matches_redirect_pattern},
 };
 
 struct AuthorizeError {

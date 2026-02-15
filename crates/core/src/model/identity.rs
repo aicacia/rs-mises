@@ -1,8 +1,7 @@
 use alloc::string::String;
 
-use uuid::Uuid;
-
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::model::oidc::OidcClientMeta;
 

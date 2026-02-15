@@ -6,7 +6,6 @@ use tonic::Status;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
 pub struct Claims {
   pub sub: String,
   pub exp: Option<i64>,

@@ -153,6 +153,25 @@ where
   ) -> Result<Response<mises_proto::Client>, Status> {
     log::debug!("client_register request: {:?}", request);
 
+    let claims = if let Some(auth_header) = request
+      .metadata()
+      .get("authorization")
+      .and_then(|v| v.to_str().ok())
+    {
+      Some(
+        extract_and_parse_jwt_claims(auth_header)
+          .map_err(|_| Status::unauthenticated("invalid bearer token"))?,
+      )
+    } else {
+      None
+    };
+
+    if claims.is_none() {
+      return Err(Status::unauthenticated(
+        "authorization required: bearer token not provided",
+      ));
+    }
+
     client_register(&self.repo, request.into_inner())
       .await
       .map(Response::new)

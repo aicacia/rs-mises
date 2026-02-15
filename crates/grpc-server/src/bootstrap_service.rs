@@ -1,8 +1,9 @@
+use tonic::{Request, Response, Status};
+
 use mises_core::{
   service::graph::{BootstrapOptions, GraphService},
   traits::Repository,
 };
-use tonic::{Request, Response, Status};
 
 pub struct BootstrapService<R>
 where

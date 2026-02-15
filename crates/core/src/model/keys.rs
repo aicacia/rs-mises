@@ -1,9 +1,8 @@
 use alloc::{format, string::String, vec::Vec};
 
 use base64::{Engine, prelude::BASE64_URL_SAFE};
-use serde::{Deserialize, Serialize};
-
 use mises_key::Key;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct KeyMeta {

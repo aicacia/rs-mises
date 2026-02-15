@@ -1,6 +1,7 @@
+use core::fmt;
+
 #[cfg(not(feature = "std"))]
 use core::error::Error;
-use core::fmt;
 
 #[derive(Debug)]
 pub enum KeyError {

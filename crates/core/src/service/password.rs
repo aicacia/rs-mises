@@ -1,4 +1,5 @@
 use alloc::string::String;
+
 use argon2::{Config, ThreadMode, Variant, Version};
 use getrandom::getrandom;
 
@@ -23,7 +24,6 @@ fn get_config() -> Config<'static> {
 pub fn hash_password(password: &str) -> crate::Result<String> {
   let config = get_config();
 
-  // Generate a secure random 16-byte salt
   let mut salt = [0u8; 16];
   getrandom(&mut salt).map_err(|e| {
     CoreError::InvalidInput(InvalidInput::Other(alloc::format!(

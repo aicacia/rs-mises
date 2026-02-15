@@ -1,9 +1,8 @@
 use alloc::{string::String, vec::Vec};
 
-use uuid::Uuid;
-
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::model::edge::EdgeType;
 

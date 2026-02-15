@@ -1,9 +1,8 @@
-use core::{error::Error, fmt};
-
 use alloc::{
   boxed::Box,
   string::{String, ToString},
 };
+use core::{error::Error, fmt};
 
 #[derive(Debug)]
 pub enum GraphError {

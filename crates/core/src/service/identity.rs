@@ -1,5 +1,3 @@
-use uuid::Uuid;
-
 use alloc::{
   format,
   string::{String, ToString},
@@ -9,6 +7,7 @@ use alloc::{
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use mises_graph::{EdgeQuery, Element, Filter, NodeQuery, Query, field};
 use mises_key::Key;
+use uuid::Uuid;
 
 use crate::{
   CoreError, InvalidInput, Result,

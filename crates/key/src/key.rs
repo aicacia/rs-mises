@@ -1,7 +1,6 @@
 use alloc::{format, string::String, vec, vec::Vec};
 use core::{convert::TryFrom, str::FromStr};
 
-use crate::KeyError;
 use bip32::{ChildNumber, DerivationPath, XPrv};
 use bip39::Mnemonic;
 use ed25519_dalek::{
@@ -11,8 +10,9 @@ use slip10::{
   Curve as Slip10Curve, derive_key_from_path as slip10_derive_key_from_path,
   path::BIP32Path as Slip10BIP32Path,
 };
-
 use zeroize::Zeroizing;
+
+use crate::KeyError;
 
 #[derive(Debug, Clone)]
 pub struct Key {

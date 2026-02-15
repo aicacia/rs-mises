@@ -1,4 +1,3 @@
-use mises_graph::{EdgeQuery, KeyValueStoreExecutor};
 use tonic::Status;
 
 use mises_core::{
@@ -10,11 +9,13 @@ use mises_core::{
   service::password,
   traits::Repository,
 };
-use mises_graph::{Element, Filter, NodeQuery, Query, field};
+use mises_graph::{EdgeQuery, Element, Filter, KeyValueStoreExecutor, NodeQuery, Query, field};
 
-use crate::jwt::{Claims, generate_access_token, generate_refresh_token};
-use crate::oidc_service::{
-  authorization_code::get_and_delete_authorization_code, helpers::ensure_application_identity,
+use crate::{
+  jwt::{Claims, generate_access_token, generate_refresh_token},
+  oidc_service::{
+    authorization_code::get_and_delete_authorization_code, helpers::ensure_application_identity,
+  },
 };
 
 pub async fn token<R, S>(
@@ -161,15 +162,8 @@ where
     return Err(Status::invalid_argument("password is required"));
   }
 
-  // let client_uuid = uuid::Uuid::parse_str(&grant.client_id)
-  //   .map_err(|_| Status::invalid_argument("invalid client_id"))?;
-
-  // let client_node = ensure_application_identity(repo, client_uuid).await?;
-
-  // let (access_token_expiry, refresh_token_expiry) = extract_client_token_expiry(&client_node)?;
-
-  let access_token_expiry = 900; // 15 minutes in seconds
-  let refresh_token_expiry = 604800; // 7 days in seconds
+  let access_token_expiry = 900;
+  let refresh_token_expiry = 604800;
 
   let user_node = find_user_by_name(repo, &grant.username, &grant.password).await?;
 
@@ -238,7 +232,6 @@ where
       }) = &node.metadata
       && name == username
     {
-      // Verify the password hash
       let is_valid = password::verify_password(password_plain, encrypted_password)
         .map_err(|e| Status::internal(format!("failed to verify password: {}", e)))?;
 

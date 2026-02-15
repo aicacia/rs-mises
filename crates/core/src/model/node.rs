@@ -1,9 +1,8 @@
+use alloc::string::{String, ToString};
 use core::{
   fmt::{Display, Formatter},
   str::FromStr,
 };
-
-use alloc::string::{String, ToString};
 
 use serde::{Deserialize, Serialize};
 
