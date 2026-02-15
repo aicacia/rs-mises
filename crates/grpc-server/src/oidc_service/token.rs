@@ -1,3 +1,4 @@
+use sha2::{Digest, Sha256};
 use tonic::Status;
 
 use mises_core::{
@@ -93,7 +94,6 @@ where
       .unwrap_or("plain");
     let computed_challenge = match method {
       "S256" => {
-        use sha2::{Digest, Sha256};
         let hash = Sha256::digest(verifier.as_bytes());
         base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, hash)
       }

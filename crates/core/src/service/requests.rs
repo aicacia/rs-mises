@@ -551,7 +551,7 @@ where
     Ok((approvers_vec, quorum))
   }
 
-  /// Return eligible approvers for a stored request (computed at call time).
+  /// Compute eligible approvers for a stored request.
   pub async fn get_eligible_approvers(&self, id: Uuid) -> Result<Vec<Uuid>> {
     let node = self
       .repo

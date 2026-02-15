@@ -1,4 +1,4 @@
-use tonic::{Request, Response, Status};
+use std::collections::HashSet;
 
 use mises_core::{
   model::node::NodeMeta,
@@ -6,6 +6,8 @@ use mises_core::{
   traits::Repository,
 };
 use mises_graph::KeyValueStoreExecutor;
+use tonic::{Request, Response, Status};
+use url::Url;
 
 use crate::{
   jwt::extract_and_parse_jwt_claims,
@@ -20,7 +22,7 @@ where
   repo: R,
   store: S,
   issuer: String,
-  public_uri: Option<url::Url>,
+  public_uri: Option<Url>,
   sign_in_url: Option<String>,
 }
 
@@ -33,7 +35,7 @@ where
     repo: R,
     store: S,
     issuer: String,
-    public_uri: Option<url::Url>,
+    public_uri: Option<Url>,
     sign_in_url: Option<String>,
   ) -> Self {
     Self {
@@ -203,8 +205,8 @@ where
       .await
       .map_err(|e| Status::internal(format!("list_applications error: {}", e)))?;
 
-    let mut supported_response_types: std::collections::HashSet<String> = Default::default();
-    let mut supported_grant_types: std::collections::HashSet<String> = Default::default();
+    let mut supported_response_types: HashSet<String> = Default::default();
+    let mut supported_grant_types: HashSet<String> = Default::default();
 
     for app in applications {
       if let NodeMeta::Identity(mises_core::model::identity::IdentityMeta::Application {

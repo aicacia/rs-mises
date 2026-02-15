@@ -3,6 +3,9 @@ use core::fmt;
 #[cfg(not(feature = "std"))]
 use core::error::Error;
 
+#[cfg(feature = "std")]
+use std::error::Error as StdError;
+
 #[derive(Debug)]
 pub enum KeyError {
   Bip32(bip32::Error),
@@ -74,4 +77,4 @@ impl From<bip39::Error> for KeyError {
 impl Error for KeyError {}
 
 #[cfg(feature = "std")]
-impl std::error::Error for KeyError {}
+impl StdError for KeyError {}

@@ -1,9 +1,5 @@
-use std::{io, os::unix::fs::FileTypeExt, path::Path, str::FromStr, sync::Arc};
+use std::{io, os::unix::fs::FileTypeExt, path::Path, str::FromStr, sync::Arc, time::Duration};
 
-use crate::{
-  cli::args::{CliArgs, CliCommand},
-  config::Config,
-};
 use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use mises_core::service::graph::{BootstrapOptionsBuilder, GraphService};
@@ -12,12 +8,16 @@ use mises_grpc_server::{
   BootstrapService, OidcService, bootstrap_service_server::BootstrapServiceServer,
   oidc_service_server::OidcServiceServer, proto::FILE_DESCRIPTOR_SET,
 };
-
 use tokio::{fs, net::UnixListener};
 use tokio_stream::wrappers::UnixListenerStream;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Server;
 use tracing_subscriber::layer::SubscriberExt;
+
+use crate::{
+  cli::args::{CliArgs, CliCommand},
+  config::Config,
+};
 
 pub async fn run() -> io::Result<()> {
   let args = CliArgs::parse();
@@ -72,7 +72,7 @@ pub async fn run() -> io::Result<()> {
       }
     }
     _ = shutdown_signal(cancellation_token.clone()) => {
-      let wait_duration = std::time::Duration::from_secs(5);
+      let wait_duration = Duration::from_secs(5);
       log::debug!("shutdown initiated, waiting up to {}s for server to stop", wait_duration.as_secs());
 
       match tokio::time::timeout(wait_duration, &mut command_handle).await {

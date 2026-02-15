@@ -19,8 +19,7 @@ fn get_config() -> Config<'static> {
   }
 }
 
-/// Hash a password using Argon2
-/// Returns hashed password string suitable for storage
+/// Hash a password using Argon2 for storage.
 pub fn hash_password(password: &str) -> crate::Result<String> {
   let config = get_config();
 
@@ -42,8 +41,7 @@ pub fn hash_password(password: &str) -> crate::Result<String> {
   Ok(hash)
 }
 
-/// Verify a password against its hash
-/// Returns `true` if the password matches the hash, `false` otherwise
+/// Verify a password against its hash.
 pub fn verify_password(password: &str, hash: &str) -> crate::Result<bool> {
   argon2::verify_encoded(hash, password.as_bytes()).map_err(|e| {
     CoreError::InvalidInput(InvalidInput::Other(alloc::format!(

@@ -8,10 +8,9 @@ use alloc::{
   vec::Vec,
 };
 
-use hashbrown::{HashMap, HashSet};
-
 use async_trait::async_trait;
 use chrono::Utc;
+use hashbrown::{HashMap, HashSet};
 use mises_async_kv_bytes::{KeyValueStore, KeyValueStoreExecutor, KeyValueStoreTransaction};
 
 use crate::{
@@ -1429,19 +1428,20 @@ mod tests {
     store.put(b"key2".as_ref(), b"v2".to_vec()).await?;
     store.put(b"key3".as_ref(), b"v3".to_vec()).await?;
 
+    let key1 = b"key1".to_vec();
+    let key2 = b"key2".to_vec();
     let mut res: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
     store
       .scan(
         b"key1".to_vec()..b"key9".to_vec(),
         |k: &Vec<u8>, v: &Vec<u8>| {
-          if k == &b"key2".to_vec() {
-            false // stop scanning early
-          } else if k == &b"key1".to_vec() {
-            res.push((k.clone(), v.clone())); // include key1
-            true
-          } else {
-            true // skip others but continue
+          if k == &key2 {
+            return false;
           }
+          if k == &key1 {
+            res.push((k.clone(), v.clone()));
+          }
+          true
         },
       )
       .await?;

@@ -2,14 +2,13 @@ use tonic::Status;
 use url::Url;
 use uuid::Uuid;
 
-use mises_graph::{EdgeQuery, Element, Filter, NodeQuery, Query, field};
-
 use mises_core::{
   CoreError,
   model::{edge::EdgeType, identity::IdentityType, node::NodeType},
   service::identity::IdentityService,
   traits::Repository,
 };
+use mises_graph::{EdgeQuery, Element, Filter, NodeQuery, Query, field};
 
 pub fn matches_redirect_pattern(redirect_uri: &str, pattern: &str) -> bool {
   if pattern == redirect_uri {

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::Infallible, io, path::Path};
+use std::{collections::HashMap, convert::Infallible, fmt::Write as FmtWrite, io, path::Path};
 
 use bytes::Bytes;
 use http::{Method, Request, Version};
@@ -185,7 +185,6 @@ async fn start_client(
   }
 }
 
-/// Converts our MetadataValue format to tonic MetadataMap
 fn build_metadata_map(
   metadata: HashMap<String, Vec<MetadataValue>>,
 ) -> Result<MetadataMap, String> {
@@ -193,12 +192,9 @@ fn build_metadata_map(
 
   for (key, values) in metadata {
     for value in values {
-      // Convert both text and binary values to strings for the metadata map
       let value_str = match value {
         MetadataValue::Text(text) => text,
         MetadataValue::Binary(bytes) => {
-          // Convert binary to base64 string for transport in metadata
-          use std::fmt::Write as FmtWrite;
           let mut result = String::new();
           for byte in bytes {
             write!(result, "{:02x}", byte).map_err(|e| format!("encoding error: {}", e))?;
@@ -221,7 +217,6 @@ fn build_metadata_map(
   Ok(map)
 }
 
-/// Forwards a gRPC request to the daemon and streams responses
 async fn forward_grpc_request(
   request_id: Uuid,
   mut channel: Channel,
@@ -230,7 +225,6 @@ async fn forward_grpc_request(
   body: Vec<u8>,
   sender: mpsc::Sender<Result<Frame, GrpcError>>,
 ) -> Result<(), String> {
-  // Convert metadata to tonic format
   let metadata_map = build_metadata_map(metadata)?;
 
   log::debug!(

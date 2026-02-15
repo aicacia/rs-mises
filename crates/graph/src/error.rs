@@ -4,6 +4,9 @@ use alloc::{
 };
 use core::{error::Error, fmt};
 
+#[cfg(feature = "std")]
+use std::sync::PoisonError;
+
 #[derive(Debug)]
 pub enum GraphError {
   NotFound,
@@ -43,8 +46,8 @@ impl From<mises_async_kv_bytes::in_memory_key_value_store::InMemoryError> for Gr
 }
 
 #[cfg(feature = "std")]
-impl<T> From<std::sync::PoisonError<T>> for GraphError {
-  fn from(e: std::sync::PoisonError<T>) -> Self {
+impl<T> From<PoisonError<T>> for GraphError {
+  fn from(e: PoisonError<T>) -> Self {
     GraphError::Other(e.to_string().into())
   }
 }

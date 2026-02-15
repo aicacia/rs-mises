@@ -6,6 +6,9 @@ extern crate alloc;
 use alloc::{format, string::String};
 use core::fmt;
 
+#[cfg(feature = "std")]
+use std::error::Error as StdError;
+
 use tokio::process::Command;
 
 #[derive(Debug, Clone, Copy)]
@@ -99,7 +102,7 @@ impl fmt::Display for PolicyError {
 impl core::error::Error for PolicyError {}
 
 #[cfg(feature = "std")]
-impl std::error::Error for PolicyError {}
+impl StdError for PolicyError {}
 
 #[derive(Debug)]
 pub enum AuthError {
@@ -122,7 +125,7 @@ impl fmt::Display for AuthError {
 impl core::error::Error for AuthError {}
 
 #[cfg(feature = "std")]
-impl std::error::Error for AuthError {}
+impl StdError for AuthError {}
 
 #[derive(Debug, Clone)]
 pub struct Context;

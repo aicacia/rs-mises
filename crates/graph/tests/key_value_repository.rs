@@ -1,5 +1,7 @@
 #![cfg(feature = "in-memory")]
 
+use std::ops::RangeBounds;
+
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 use mises_graph::{
@@ -301,7 +303,7 @@ async fn create_edge_cleanup_on_partial_failure() {
 
     async fn scan<R, F>(&self, range: R, f: F) -> Result<(), Self::Error>
     where
-      R: std::ops::RangeBounds<Vec<u8>> + Send,
+      R: RangeBounds<Vec<u8>> + Send,
       F: FnMut(&Vec<u8>, &Vec<u8>) -> bool + Send,
     {
       self.inner.scan(range, f).await
@@ -317,7 +319,8 @@ async fn create_edge_cleanup_on_partial_failure() {
     }
   }
 
-  let store = FailingStore::new(4); // fail on the 4th put (after two nodes + main edge)
+  let fail_on_put = 4;
+  let store = FailingStore::new(fail_on_put);
   let repo = mises_graph::KeyValueRepository::<
     usize,
     serde_json::Value,

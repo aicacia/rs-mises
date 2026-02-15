@@ -106,10 +106,9 @@ where
   if let Some(auth_method) = request
     .token_endpoint_auth_method
     .filter(|m| !m.trim().is_empty())
+    && let Ok(method) = auth_method.parse()
   {
-    if let Ok(method) = auth_method.parse() {
-      oidc_meta.token_endpoint_auth_method = method;
-    }
+    oidc_meta.token_endpoint_auth_method = method;
   }
 
   if let Some(application_urn) = request.application_urn.filter(|u| !u.trim().is_empty()) {

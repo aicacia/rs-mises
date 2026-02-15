@@ -1,11 +1,15 @@
 #![cfg(feature = "in-memory")]
 
-use mises_core::model::edge::EdgeProps;
-use mises_core::model::identity::{IdentityMeta, IdentityType};
-use mises_core::model::node::NodeMeta;
-use mises_core::service::identity::IdentityService;
+use mises_core::{
+  model::{
+    edge::EdgeProps,
+    identity::{IdentityMeta, IdentityType},
+    node::NodeMeta,
+  },
+  service::identity::IdentityService,
+};
 use mises_graph::{Executor, InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
-use uuid::Uuid; // to get create_node
+use uuid::Uuid;
 
 fn make_repo() -> KeyValueRepository<Uuid, NodeMeta, EdgeProps, UuidGenerator, InMemoryKeyValueStore>
 {

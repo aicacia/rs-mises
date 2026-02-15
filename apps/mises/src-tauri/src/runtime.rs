@@ -5,6 +5,9 @@ use tauri_plugin_cli::CliExt;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
+#[cfg(any(windows, target_os = "linux"))]
+use tauri_plugin_deep_link::DeepLinkExt;
+
 use crate::{background::start_background, command, config::Config};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -39,7 +42,6 @@ pub fn start() {
     .setup(move |app| {
       #[cfg(any(windows, target_os = "linux"))]
       {
-        use tauri_plugin_deep_link::DeepLinkExt;
         let _ = app.deep_link().register_all();
       }
 

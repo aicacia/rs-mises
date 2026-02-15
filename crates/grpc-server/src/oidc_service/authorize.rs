@@ -1,4 +1,5 @@
 use tonic::Status;
+use url::Url;
 use uuid::Uuid;
 
 use mises_core::{
@@ -34,7 +35,7 @@ impl AuthorizeError {
   }
 
   fn to_response(&self) -> Result<mises_proto::AuthorizeResponse, Status> {
-    let mut url = url::Url::parse(&self.redirect_uri)
+    let mut url = Url::parse(&self.redirect_uri)
       .map_err(|_| Status::internal("failed to parse redirect url"))?;
     {
       let mut query_pairs = url.query_pairs_mut();
@@ -63,7 +64,7 @@ where
   if claims.is_none() {
     if let Some(sign_in_url_str) = sign_in_url {
       let mut sign_in_redirect =
-        url::Url::parse(sign_in_url_str).map_err(|_| Status::internal("invalid sign-in url"))?;
+        Url::parse(sign_in_url_str).map_err(|_| Status::internal("invalid sign-in url"))?;
       {
         let mut query_pairs = sign_in_redirect.query_pairs_mut();
         if !req.client_id.trim().is_empty() {
@@ -101,7 +102,7 @@ where
     if redirect.trim().is_empty() {
       return Err(Status::invalid_argument(constants::ERR_REDIRECT_URI_EMPTY));
     }
-    if url::Url::parse(redirect).is_err() {
+    if Url::parse(redirect).is_err() {
       return Err(Status::invalid_argument(format!(
         "invalid redirect_uri: {}",
         redirect
@@ -185,7 +186,7 @@ where
     ));
   };
 
-  if url::Url::parse(&resolved_redirect).is_err() {
+  if Url::parse(&resolved_redirect).is_err() {
     let err = AuthorizeError::new(
       "invalid_request",
       &format!("invalid redirect_uri: {}", resolved_redirect),
@@ -332,8 +333,8 @@ where
 
   store_authorization_code(store, &code, authorization_data).await?;
 
-  let mut final_redirect = url::Url::parse(&resolved_redirect)
-    .map_err(|_| Status::internal("failed to parse redirect uri"))?;
+  let mut final_redirect =
+    Url::parse(&resolved_redirect).map_err(|_| Status::internal("failed to parse redirect uri"))?;
   {
     let mut query_pairs = final_redirect.query_pairs_mut();
     query_pairs.append_pair("code", &code);

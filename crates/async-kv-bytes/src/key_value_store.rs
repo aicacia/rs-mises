@@ -15,9 +15,7 @@ pub trait KeyValueStoreExecutor: Send + Sync {
   where
     K: AsRef<[u8]> + Send;
 
-  /// Scans the key-value store for entries within the specified key range,
-  /// if the function returns `true`, the scan will continue, otherwise it will stop
-  /// if it returns `false`, the scan will stop immediately
+  /// Scan a key range, stopping when the callback returns `false`.
   async fn scan<R, F>(&self, range: R, f: F) -> Result<(), Self::Error>
   where
     R: RangeBounds<Vec<u8>> + Send,
