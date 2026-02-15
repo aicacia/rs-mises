@@ -1,5 +1,6 @@
 pub mod authorization_code;
 pub mod authorize;
+pub mod client_register;
 pub mod constants;
 pub mod helpers;
 pub mod service;

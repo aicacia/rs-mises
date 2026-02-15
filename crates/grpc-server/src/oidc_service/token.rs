@@ -5,7 +5,7 @@ use mises_core::{
   model::{
     edge::EdgeType,
     identity::{IdentityMeta, IdentityType},
-    node::NodeMeta,
+    node::{NodeMeta, NodeType},
   },
   service::password,
   traits::Repository,
@@ -277,34 +277,27 @@ where
 
   let query = Query::edges(
     EdgeQuery::outgoing(EdgeType::Owns.as_str())
-      .from(NodeQuery::any().filter(field("id").eq(identity_id.to_string()))),
+      .from(NodeQuery::any().filter(field("id").eq(identity_id.to_string())))
+      .to(NodeQuery::new(NodeType::Key.as_str())),
   );
 
   let elements = repo
     .query(query)
     .await
-    .map_err(|e| Status::internal(format!("failed to query key edges: {}", e)))?;
+    .map_err(|e| Status::internal(format!("failed to query key nodes: {}", e)))?;
 
-  for el in elements.iter() {
-    if let Element::Edge(edge) = el {
-      if let Ok(Some(key_node)) = repo.get_node_by_id(edge.to_id).await {
-        if let NodeMeta::Key(key_meta) = &key_node.metadata {
-          if let Some(private_key_b64) = &key_meta.private_key {
-            // Try different base64 decoders
-            let decode_result = base64::engine::general_purpose::URL_SAFE_NO_PAD
-              .decode(private_key_b64.as_bytes())
-              .or_else(|_| {
-                base64::engine::general_purpose::STANDARD.decode(private_key_b64.as_bytes())
-              })
-              .or_else(|_| {
-                base64::engine::general_purpose::URL_SAFE.decode(private_key_b64.as_bytes())
-              });
+  for el in elements {
+    if let Element::Node(key_node) = el
+      && let NodeMeta::Key(key_meta) = &key_node.metadata
+      && let Some(private_key_b64) = &key_meta.private_key
+    {
+      let decode_result = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(private_key_b64.as_bytes())
+        .or_else(|_| base64::engine::general_purpose::STANDARD.decode(private_key_b64.as_bytes()))
+        .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(private_key_b64.as_bytes()));
 
-            if let Ok(private_key_bytes) = decode_result {
-              return Ok(private_key_bytes);
-            }
-          }
-        }
+      if let Ok(private_key_bytes) = decode_result {
+        return Ok(private_key_bytes);
       }
     }
   }

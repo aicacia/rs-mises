@@ -1,11 +1,15 @@
 use tonic::{Request, Response, Status};
 
-use mises_core::{service::graph::GraphService, traits::Repository};
+use mises_core::{
+  model::node::NodeMeta,
+  service::{graph::GraphService, identity::IdentityService},
+  traits::Repository,
+};
 use mises_graph::KeyValueStoreExecutor;
 
 use crate::{
   jwt::extract_and_parse_jwt_claims,
-  oidc_service::{authorize::authorize, constants, token::token},
+  oidc_service::{authorize::authorize, client_register::client_register, constants, token::token},
 };
 
 pub struct OidcService<R, S>
@@ -145,9 +149,13 @@ where
 
   async fn client_register(
     &self,
-    _request: Request<mises_proto::ClientRegisterRequest>,
+    request: Request<mises_proto::ClientRegisterRequest>,
   ) -> Result<Response<mises_proto::Client>, Status> {
-    Err(Status::unimplemented("client_register not implemented"))
+    log::debug!("client_register request: {:?}", request);
+
+    client_register(&self.repo, request.into_inner())
+      .await
+      .map(Response::new)
   }
 
   async fn end_session(
@@ -169,6 +177,30 @@ where
     _request: Request<()>,
   ) -> Result<Response<mises_proto::OpenIdConfiguration>, Status> {
     let issuer = self.issuer.to_owned();
+
+    let identity_service = IdentityService::new(self.repo.clone());
+    let applications = identity_service
+      .list_applications()
+      .await
+      .map_err(|e| Status::internal(format!("list_applications error: {}", e)))?;
+
+    let mut supported_response_types: std::collections::HashSet<String> = Default::default();
+    let mut supported_grant_types: std::collections::HashSet<String> = Default::default();
+
+    for app in applications {
+      if let NodeMeta::Identity(mises_core::model::identity::IdentityMeta::Application {
+        oidc: Some(oidc),
+        ..
+      }) = &app.metadata
+      {
+        for rt in &oidc.response_types {
+          supported_response_types.insert(rt.as_str().to_string());
+        }
+        for gt in &oidc.grant_types {
+          supported_grant_types.insert(gt.as_str().to_string());
+        }
+      }
+    }
 
     let (
       jwks_uri,
@@ -211,20 +243,28 @@ where
       )
     };
 
-    let response_types_supported = constants::RESPONSE_TYPES_SUPPORTED
-      .iter()
-      .map(|s| s.to_string())
-      .collect::<Vec<_>>();
+    let response_types_supported: Vec<String> = if supported_response_types.is_empty() {
+      constants::RESPONSE_TYPES_SUPPORTED
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+    } else {
+      supported_response_types.into_iter().collect()
+    };
 
     let response_modes_supported = constants::RESPONSE_MODES
       .iter()
       .map(|s| s.to_string())
       .collect::<Vec<_>>();
 
-    let grant_types_supported = constants::GRANT_TYPES_SUPPORTED
-      .iter()
-      .map(|s| s.to_string())
-      .collect::<Vec<_>>();
+    let grant_types_supported: Vec<String> = if supported_grant_types.is_empty() {
+      constants::GRANT_TYPES_SUPPORTED
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+    } else {
+      supported_grant_types.into_iter().collect()
+    };
 
     let token_endpoint_auth_methods_supported = constants::TOKEN_AUTH_METHODS_SUPPORTED
       .iter()

@@ -21,10 +21,7 @@ use crate::{
     keys::KeyMeta,
     node::{NodeMeta, NodeType},
   },
-  service::{
-    identity::IdentityService,
-    password::hash_password,
-  },
+  service::{identity::IdentityService, password::hash_password},
   traits::{Executor, Repository},
 };
 
@@ -281,9 +278,7 @@ where
           )
           .await?;
 
-        identity
-          .set_owner(user_node.id, root_group_id)
-          .await?;
+        identity.set_owner(user_node.id, root_group_id).await?;
 
         log::debug!(
           "bootstrap: created owner user {} for group {}",
