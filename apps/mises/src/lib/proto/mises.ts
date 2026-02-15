@@ -8,7 +8,6 @@
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 import type { CallContext, CallOptions } from "nice-grpc-common";
 import { Empty } from "./google/protobuf/empty";
-import { Struct } from "./google/protobuf/struct";
 
 export const protobufPackage = "mises";
 
@@ -33,11 +32,8 @@ export interface AuthorizeRequest {
   scope?: string | undefined;
   redirectUri?: string | undefined;
   state?: string | undefined;
-  nonce?:
-    | string
-    | undefined;
-  /** JSON object */
-  registration?: { [key: string]: any } | undefined;
+  nonce?: string | undefined;
+  registration?: ClientRegisterRequest | undefined;
   codeChallenge?: string | undefined;
   codeChallengeMethod?: string | undefined;
 }
@@ -152,7 +148,7 @@ export interface PushedAuthorizeRequest {
   redirectUri?: string | undefined;
   state?: string | undefined;
   nonce?: string | undefined;
-  registration?: { [key: string]: any } | undefined;
+  registration?: ClientRegisterRequest | undefined;
   codeChallenge?: string | undefined;
   codeChallengeMethod?: string | undefined;
 }
@@ -183,6 +179,8 @@ export interface ClientRegisterRequest {
   responseTypes: string[];
   scope?: string | undefined;
   tokenEndpointAuthMethod?: string | undefined;
+  applicationUrn?: string | undefined;
+  serviceId?: string | undefined;
 }
 
 export interface NativeAuthenticateRequest {
@@ -515,7 +513,7 @@ export const AuthorizeRequest: MessageFns<AuthorizeRequest> = {
       writer.uint32(58).string(message.nonce);
     }
     if (message.registration !== undefined) {
-      Struct.encode(Struct.wrap(message.registration), writer.uint32(66).fork()).join();
+      ClientRegisterRequest.encode(message.registration, writer.uint32(66).fork()).join();
     }
     if (message.codeChallenge !== undefined) {
       writer.uint32(74).string(message.codeChallenge);
@@ -594,7 +592,7 @@ export const AuthorizeRequest: MessageFns<AuthorizeRequest> = {
             break;
           }
 
-          message.registration = Struct.unwrap(Struct.decode(reader, reader.uint32()));
+          message.registration = ClientRegisterRequest.decode(reader, reader.uint32());
           continue;
         }
         case 9: {
@@ -634,7 +632,9 @@ export const AuthorizeRequest: MessageFns<AuthorizeRequest> = {
     message.redirectUri = object.redirectUri ?? undefined;
     message.state = object.state ?? undefined;
     message.nonce = object.nonce ?? undefined;
-    message.registration = object.registration ?? undefined;
+    message.registration = (object.registration !== undefined && object.registration !== null)
+      ? ClientRegisterRequest.fromPartial(object.registration)
+      : undefined;
     message.codeChallenge = object.codeChallenge ?? undefined;
     message.codeChallengeMethod = object.codeChallengeMethod ?? undefined;
     return message;
@@ -1850,7 +1850,7 @@ export const PushedAuthorizeRequest: MessageFns<PushedAuthorizeRequest> = {
       writer.uint32(58).string(message.nonce);
     }
     if (message.registration !== undefined) {
-      Struct.encode(Struct.wrap(message.registration), writer.uint32(66).fork()).join();
+      ClientRegisterRequest.encode(message.registration, writer.uint32(66).fork()).join();
     }
     if (message.codeChallenge !== undefined) {
       writer.uint32(74).string(message.codeChallenge);
@@ -1929,7 +1929,7 @@ export const PushedAuthorizeRequest: MessageFns<PushedAuthorizeRequest> = {
             break;
           }
 
-          message.registration = Struct.unwrap(Struct.decode(reader, reader.uint32()));
+          message.registration = ClientRegisterRequest.decode(reader, reader.uint32());
           continue;
         }
         case 9: {
@@ -1969,7 +1969,9 @@ export const PushedAuthorizeRequest: MessageFns<PushedAuthorizeRequest> = {
     message.redirectUri = object.redirectUri ?? undefined;
     message.state = object.state ?? undefined;
     message.nonce = object.nonce ?? undefined;
-    message.registration = object.registration ?? undefined;
+    message.registration = (object.registration !== undefined && object.registration !== null)
+      ? ClientRegisterRequest.fromPartial(object.registration)
+      : undefined;
     message.codeChallenge = object.codeChallenge ?? undefined;
     message.codeChallengeMethod = object.codeChallengeMethod ?? undefined;
     return message;
@@ -2184,6 +2186,8 @@ function createBaseClientRegisterRequest(): ClientRegisterRequest {
     responseTypes: [],
     scope: undefined,
     tokenEndpointAuthMethod: undefined,
+    applicationUrn: undefined,
+    serviceId: undefined,
   };
 }
 
@@ -2212,6 +2216,12 @@ export const ClientRegisterRequest: MessageFns<ClientRegisterRequest> = {
     }
     if (message.tokenEndpointAuthMethod !== undefined) {
       writer.uint32(66).string(message.tokenEndpointAuthMethod);
+    }
+    if (message.applicationUrn !== undefined) {
+      writer.uint32(74).string(message.applicationUrn);
+    }
+    if (message.serviceId !== undefined) {
+      writer.uint32(82).string(message.serviceId);
     }
     return writer;
   },
@@ -2287,6 +2297,22 @@ export const ClientRegisterRequest: MessageFns<ClientRegisterRequest> = {
           message.tokenEndpointAuthMethod = reader.string();
           continue;
         }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.applicationUrn = reader.string();
+          continue;
+        }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.serviceId = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2309,6 +2335,8 @@ export const ClientRegisterRequest: MessageFns<ClientRegisterRequest> = {
     message.responseTypes = object.responseTypes?.map((e) => e) || [];
     message.scope = object.scope ?? undefined;
     message.tokenEndpointAuthMethod = object.tokenEndpointAuthMethod ?? undefined;
+    message.applicationUrn = object.applicationUrn ?? undefined;
+    message.serviceId = object.serviceId ?? undefined;
     return message;
   },
 };
