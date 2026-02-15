@@ -250,10 +250,11 @@ where
   }
 
   pub async fn get_identity_key(&self, identity_id: Uuid) -> Result<(E::Node, Vec<u8>)> {
-    let query = Query::edges(
-      EdgeQuery::outgoing(EdgeType::Owns.as_str())
-        .from(NodeQuery::any().filter(field("id").eq(identity_id.to_string())))
-        .to(NodeQuery::new(NodeType::Key.as_str())),
+    let query = Query::nodes(
+      NodeQuery::new(NodeType::Key.as_str()).include(
+        EdgeQuery::outgoing(EdgeType::Owns.as_str())
+          .from(NodeQuery::any().filter(field("id").eq(identity_id.to_string()))),
+      ),
     );
 
     let elements = self.exec.query(query).await?;

@@ -82,12 +82,15 @@ pub fn grpc(
     body,
     sender: response_sender,
   }) {
+    let error_msg = format!("failed to send request to server: {}", e);
+    log::error!("request {}: {}", request_id, error_msg);
+
     match app.emit(
       "grpc-response",
       GrpcEvent::Error {
         request_id,
         error: GrpcError::Internal {
-          message: format!("failed to send request to server: {}", e),
+          message: error_msg.clone(),
         },
       },
     ) {
@@ -99,9 +102,7 @@ pub fn grpc(
       ),
     }
 
-    return Err(GrpcError::Internal {
-      message: format!("failed to send request to server: {}", e),
-    });
+    return Err(GrpcError::Internal { message: error_msg });
   }
 
   log::debug!(

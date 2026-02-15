@@ -45,24 +45,34 @@ pub async fn start_background(
       channel
     }
     Err(e) => {
-      log::error!("failed to connect to daemon: {}", e);
+      log::error!(
+        "failed to connect to daemon: {} - background task will exit",
+        e
+      );
       return;
     }
   };
 
   match init_client_identity(channel.clone()).await {
-    Ok(()) => {}
+    Ok(()) => {
+      log::debug!("client identity initialized");
+    }
+    Err(join_err) => {
+      log::error!("Client identity init failed: {}", join_err);
+    }
+  }
+
+  log::info!("starting client request handler loop");
+  match async_runtime::spawn(start_client(receiver, channel, cancellation_token.clone())).await {
+    Ok(()) => {
+      log::info!("client request handler loop exited normally");
+    }
     Err(join_err) => {
       log::error!("Client task panicked: {}", join_err);
     }
   }
 
-  match async_runtime::spawn(start_client(receiver, channel, cancellation_token.clone())).await {
-    Ok(()) => {}
-    Err(join_err) => {
-      log::error!("Client task panicked: {}", join_err);
-    }
-  }
+  log::warn!("background task has terminated");
 }
 
 async fn ensure_daemon_and_connect(
@@ -281,9 +291,13 @@ async fn forward_grpc_request(
 
   let response_headers = response.headers();
   let mut header_metadata = HashMap::new();
+  let mut has_grpc_status = false;
 
   for (key, value) in response_headers.iter() {
     let key_str = key.as_str().to_string();
+    if key_str == "grpc-status" {
+      has_grpc_status = true;
+    }
     if let Ok(text) = value.to_str() {
       header_metadata
         .entry(key_str)
@@ -299,12 +313,35 @@ async fn forward_grpc_request(
 
   if let Err(e) = sender
     .send(Ok(Frame::Header {
-      header: header_metadata,
+      header: header_metadata.clone(),
     }))
     .await
   {
     log::debug!("request {}: failed to send header frame: {}", request_id, e);
     return Err(format!("failed to send header frame: {}", e));
+  }
+
+  // If grpc-status is in headers, this is a trailers-only response
+  if has_grpc_status {
+    log::debug!(
+      "request {}: trailers-only response detected (grpc-status in headers)",
+      request_id
+    );
+    if let Err(e) = sender
+      .send(Ok(Frame::Trailer {
+        trailer: header_metadata,
+      }))
+      .await
+    {
+      log::debug!(
+        "request {}: failed to send trailer frame from headers: {}",
+        request_id,
+        e
+      );
+      return Err(format!("failed to send trailer frame from headers: {}", e));
+    }
+    log::debug!("request {}: trailers-only response completed", request_id);
+    return Ok(());
   }
 
   let body = response.body_mut();
