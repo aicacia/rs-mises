@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use mises_core::{
-  model::node::NodeMeta,
+  model::{identity::IdentityMeta, node::NodeMeta},
   service::{graph::GraphService, identity::IdentityService},
   traits::Repository,
 };
@@ -176,15 +176,14 @@ where
     let mut supported_grant_types: HashSet<String> = Default::default();
 
     for app in applications {
-      if let NodeMeta::Identity(mises_core::model::identity::IdentityMeta::Application {
-        oidc: Some(oidc),
-        ..
-      }) = &app.metadata
+      if let NodeMeta::Identity(identity) = &app.metadata
+        && let IdentityMeta::Application { oidc, .. } = identity.as_ref()
+        && let Some(oidc_meta) = oidc.as_ref()
       {
-        for rt in &oidc.response_types {
+        for rt in &oidc_meta.response_types {
           supported_response_types.insert(rt.as_str().to_string());
         }
-        for gt in &oidc.grant_types {
+        for gt in &oidc_meta.grant_types {
           supported_grant_types.insert(gt.as_str().to_string());
         }
       }

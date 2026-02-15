@@ -1,7 +1,12 @@
 #![cfg(feature = "in-memory")]
 
-use mises_core::model::{keys::KeyMeta, node::NodeMeta, node::NodeType};
-use mises_core::service::graph::GraphService;
+use mises_core::{
+  model::{
+    keys::KeyMeta,
+    node::{NodeMeta, NodeType},
+  },
+  service::graph::GraphService,
+};
 use mises_key::Key;
 
 mod common;

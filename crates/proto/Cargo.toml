@@ -12,10 +12,10 @@ rust-version = "1.93"
 name = "mises_proto"
 
 [dependencies]
-tonic = { version = "0.14", default-features = false, features = ["codegen"] }
-prost = { version = "0.14", default-features = false, features = [] }
-tonic-prost = { version = "0.14", default-features = false, features = [] }
-prost-types = { version = "0.14", default-features = false, features = [] }
+tonic = { workspace = true, features = ["codegen"] }
+prost = { workspace = true, features = [] }
+tonic-prost = { workspace = true, features = [] }
+prost-types = { workspace = true, features = [] }
 
 [build-dependencies]
 tonic-prost-build = { version = "0.14", default-features = false }

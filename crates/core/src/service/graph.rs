@@ -1,17 +1,20 @@
 use alloc::{
   borrow::ToOwned,
+  boxed::Box,
   format,
   string::{String, ToString},
   vec::Vec,
 };
 
-use base64::{Engine, prelude::BASE64_URL_SAFE};
-use chrono::{DateTime, Utc};
-use mises_graph::{
-  EdgeQuery, Element, Executor as MisesGraphExecutor, NodeQuery, Query, Transaction, field,
+use {
+  base64::{Engine, prelude::BASE64_URL_SAFE},
+  chrono::{DateTime, Utc},
+  mises_graph::{
+    EdgeQuery, Element, Executor as MisesGraphExecutor, NodeQuery, Query, Transaction, field,
+  },
+  mises_key::Key,
+  uuid::Uuid,
 };
-use mises_key::Key;
-use uuid::Uuid;
 
 use crate::{
   CoreError, InvalidInput, Result,
@@ -232,11 +235,11 @@ where
         let group_node = tx
           .create_node(
             NodeType::Identity.as_str().to_string(),
-            NodeMeta::Identity(IdentityMeta::Group {
+            NodeMeta::Identity(Box::new(IdentityMeta::Group {
               name: options
                 .root_group_name
                 .unwrap_or_else(|| "Everything".to_string()),
-            }),
+            })),
           )
           .await?;
 

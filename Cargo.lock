@@ -2762,10 +2762,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mises"
-version = "0.1.0"
-
-[[package]]
 name = "mises-async-kv-bytes"
 version = "0.1.0"
 dependencies = [

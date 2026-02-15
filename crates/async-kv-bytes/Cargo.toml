@@ -13,14 +13,14 @@ name = "mises_async_kv_bytes"
 
 [dependencies]
 # Async
-async-trait = { version = "0.1", default-features = false, features = [] }
+async-trait = { workspace = true, features = [] }
 
 # Locking
 parking_lot = { version = "0.12", optional = true, default-features = false, features = [
 ] }
 
 [dev-dependencies]
-tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 default = ["in-memory"]

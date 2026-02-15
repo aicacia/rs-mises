@@ -8,6 +8,7 @@ extern crate alloc;
 extern crate std;
 
 pub mod error;
+pub mod error_utils;
 pub mod model;
 pub mod service;
 pub mod traits;

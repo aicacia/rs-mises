@@ -15,32 +15,22 @@ name = "mises_core"
 mises-key = { path = "../key", default-features = false, features = [] }
 mises-graph = { path = "../graph", default-features = false }
 
-# utils
-log = { version = "0.4", default-features = false, features = [] }
-chrono = { version = "0.4", default-features = false, features = [
-  "alloc",
-  "serde",
-  "clock",
-] }
-uuid = { version = "1.20", default-features = false, features = [
-  "v4",
-  "serde",
-] }
+# Utils
+log = { workspace = true, features = [] }
+chrono = { workspace = true, features = ["alloc", "serde", "clock"] }
+uuid = { workspace = true, features = ["v4", "serde"] }
 
-# serialization
-serde = { version = "1", default-features = false, features = [
-  "derive",
-  "alloc",
-] }
-serde_json = { version = "1", default-features = false, features = ["alloc"] }
-base64 = { version = "0.21", default-features = false, features = ["alloc"] }
-getrandom = { version = "0.2", default-features = false }
+# Serialization
+serde = { workspace = true, features = ["derive", "alloc"] }
+serde_json = { workspace = true, features = ["alloc"] }
+base64 = { workspace = true, features = ["alloc"] }
+getrandom = { workspace = true, features = [] }
 
 # Cryptography
 argon2 = { version = "3.0.0", package = "rust-argon2" }
 
-# async
-async-trait = { version = "0.1", default-features = false, features = [] }
+# Async
+async-trait = { workspace = true, features = [] }
 
 [dev-dependencies]
 # Use the in-memory repository for core unit tests
@@ -51,11 +41,8 @@ mises-graph = { path = "../graph", default-features = false, features = [
 
 mises-key = { path = "../key", default-features = false, features = ["std"] }
 
-tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
-chrono = { version = "0.4", default-features = false, features = [
-  "serde",
-  "std",
-] }
+tokio = { workspace = true, features = ["macros", "rt"] }
+chrono = { workspace = true, features = ["serde", "std"] }
 
 [features]
 # default to no_std; enable std opt-in

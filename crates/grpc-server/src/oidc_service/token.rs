@@ -1,12 +1,11 @@
-use sha2::{Digest, Sha256};
-use tonic::Status;
-
 use mises_core::{
   model::{identity::IdentityMeta, node::NodeMeta},
   service::identity::IdentityService,
   traits::Repository,
 };
 use mises_graph::KeyValueStoreExecutor;
+use sha2::{Digest, Sha256};
+use tonic::Status;
 
 use crate::{
   error::ToStatus,
@@ -214,16 +213,19 @@ fn extract_client_token_expiry(
   client_node: &mises_core::traits::Node,
 ) -> Result<(i64, i64), Status> {
   match &client_node.metadata {
-    NodeMeta::Identity(IdentityMeta::Application {
-      oidc: Some(oidc_meta),
-      ..
-    }) => {
-      let access_expiry = oidc_meta.access_token_expiry as i64;
-      let refresh_expiry = oidc_meta.refresh_token_expiry as i64;
-      Ok((access_expiry, refresh_expiry))
-    }
-    _ => Err(Status::internal(
-      "client node is not an application with OIDC metadata",
-    )),
+    NodeMeta::Identity(identity) => match identity.as_ref() {
+      IdentityMeta::Application { oidc, .. } => match oidc.as_ref() {
+        Some(oidc_meta) => {
+          let access_expiry = oidc_meta.access_token_expiry as i64;
+          let refresh_expiry = oidc_meta.refresh_token_expiry as i64;
+          Ok((access_expiry, refresh_expiry))
+        }
+        None => Err(Status::internal(
+          "client node application has no OIDC metadata",
+        )),
+      },
+      _ => Err(Status::internal("client node is not an application")),
+    },
+    _ => Err(Status::internal("client node is not an identity")),
   }
 }

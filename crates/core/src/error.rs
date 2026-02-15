@@ -4,9 +4,7 @@ use core::{
   fmt::{self, Display, Formatter},
 };
 
-use mises_graph::GraphError;
-use mises_key::KeyError;
-use serde_json::Error as SerdeError;
+use {mises_graph::GraphError, mises_key::KeyError, serde_json::Error as SerdeError};
 
 #[derive(Debug)]
 pub enum InvalidInput {

@@ -1,0 +1,17 @@
+[package]
+name = "mises-macros"
+edition = "2021"
+version = "0.1.0"
+authors = ["nathanfaucett@gmail.com"]
+description = "Mises procedural macros"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/aicacia/rs-mises"
+rust-version = "1.93"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }

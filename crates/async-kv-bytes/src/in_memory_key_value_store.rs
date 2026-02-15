@@ -369,7 +369,7 @@ mod tests {
   async fn test_get_batch() {
     let store = InMemoryKeyValueStore::new();
     let keys = vec![b"key1".to_vec(), b"key2".to_vec(), b"key3".to_vec()];
-    let values = vec![vec![1, 2], vec![3, 4], vec![5, 6]];
+    let values: alloc::vec::Vec<alloc::vec::Vec<u8>> = [vec![1, 2], vec![3, 4], vec![5, 6]].into();
 
     for (key, value) in keys.iter().zip(values.iter()) {
       store.put(key.clone(), value.clone()).await.unwrap();

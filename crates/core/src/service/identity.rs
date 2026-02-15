@@ -1,13 +1,16 @@
 use alloc::{
+  boxed::Box,
   format,
   string::{String, ToString},
   vec::Vec,
 };
 
-use base64::{Engine, prelude::BASE64_URL_SAFE};
-use mises_graph::{EdgeQuery, Element, Filter, NodeQuery, Query, field};
-use mises_key::Key;
-use uuid::Uuid;
+use {
+  base64::{Engine, prelude::BASE64_URL_SAFE},
+  mises_graph::{EdgeQuery, Element, Filter, NodeQuery, Query, field},
+  mises_key::Key,
+  uuid::Uuid,
+};
 
 use crate::{
   CoreError, InvalidInput, Result,
@@ -198,11 +201,11 @@ where
       .exec
       .create_node(
         NodeType::Identity.as_str().to_string(),
-        NodeMeta::Identity(IdentityMeta::User {
+        NodeMeta::Identity(Box::new(IdentityMeta::User {
           name,
           encrypted_password,
           force_password_reset: None,
-        }),
+        })),
       )
       .await?;
 
@@ -281,11 +284,12 @@ where
 
     for el in elements {
       if let Element::Node(node) = el
-        && let NodeMeta::Identity(IdentityMeta::User {
+        && let NodeMeta::Identity(identity_meta) = &node.metadata
+        && let IdentityMeta::User {
           name,
           encrypted_password,
           ..
-        }) = &node.metadata
+        } = identity_meta.as_ref()
         && name == username
       {
         let is_valid = crate::service::password::verify_password(password, encrypted_password)?;
@@ -463,10 +467,10 @@ where
       .exec
       .create_node(
         NodeType::Identity.as_str().to_string(),
-        NodeMeta::Identity(IdentityMeta::Device {
+        NodeMeta::Identity(Box::new(IdentityMeta::Device {
           name: device_name,
           root: Some(root),
-        }),
+        })),
       )
       .await?;
 
@@ -522,7 +526,7 @@ where
       .exec
       .create_node(
         NodeType::Identity.as_str().to_string(),
-        NodeMeta::Identity(IdentityMeta::Group { name }),
+        NodeMeta::Identity(Box::new(IdentityMeta::Group { name })),
       )
       .await?;
 
@@ -553,7 +557,10 @@ where
       .exec
       .create_node(
         NodeType::Identity.as_str().to_string(),
-        NodeMeta::Identity(IdentityMeta::Application { name, oidc: None }),
+        NodeMeta::Identity(Box::new(IdentityMeta::Application {
+          name,
+          oidc: Box::new(None),
+        })),
       )
       .await?;
 
@@ -591,7 +598,7 @@ where
       .exec
       .create_node(
         NodeType::Identity.as_str().to_string(),
-        NodeMeta::Identity(IdentityMeta::Service { name }),
+        NodeMeta::Identity(Box::new(IdentityMeta::Service { name })),
       )
       .await?;
 

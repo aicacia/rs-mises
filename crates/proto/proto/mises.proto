@@ -22,7 +22,6 @@ message BootstrapResponse {
 }
 
 import "google/protobuf/empty.proto";
-import "google/protobuf/struct.proto";
 
 // ---- OIDC service and messages ----
 service OidcService {

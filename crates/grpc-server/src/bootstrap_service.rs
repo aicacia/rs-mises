@@ -1,9 +1,8 @@
-use tonic::{Request, Response, Status};
-
 use mises_core::{
   service::graph::{BootstrapOptionsBuilder, GraphService},
   traits::Repository,
 };
+use tonic::{Request, Response, Status};
 
 use crate::error::ToStatus;
 

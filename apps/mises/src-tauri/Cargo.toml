@@ -43,13 +43,13 @@ hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
 
 # utils
 log = { version = "*" }
-uuid = { version = "1", default-features = false, features = ["v7", "std"] }
+uuid = { workspace = true, features = ["v7", "std"] }
 prost = { version = "0.14", default-features = false }
 config = { version = "0.15", default-features = false, features = ["json"] }
 
 # serialization
-serde = { version = "1", default-features = false, features = ["derive"] }
-serde_json = { version = "1", default-features = false, features = [] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = [] }
 tauri-plugin-log = { version = "2", default-features = false, features = [] }
 tauri-plugin-deep-link = { version = "2", default-features = false, features = [
 ] }

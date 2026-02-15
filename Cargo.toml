@@ -1,16 +1,3 @@
-[package]
-name = "mises"
-edition = "2024"
-version = "0.1.0"
-authors = ["nathanfaucett@gmail.com"]
-description = "Mises - Mesh Identity and Security Enforcement System"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/aicacia/rs-mises"
-rust-version = "1.93"
-
-[lib]
-name = "mises"
-
 [workspace]
 members = [
   "crates/async-kv-bytes",
@@ -24,9 +11,27 @@ members = [
 ]
 resolver = "2"
 
-[dependencies]
+[workspace.dependencies]
+# Serialization
+serde = { version = "1", default-features = false }
+serde_json = { version = "1", default-features = false }
 
-[features]
+# Utils
+chrono = { version = "0.4", default-features = false }
+uuid = { version = "1.20", default-features = false }
+log = { version = "0.4", default-features = false }
+base64 = { version = "0.21", default-features = false }
+getrandom = { version = "0.2", default-features = false }
+
+# Async
+async-trait = { version = "0.1", default-features = false }
+tokio = { version = "1", default-features = false }
+
+# gRPC
+tonic = { version = "0.14", default-features = false }
+prost = { version = "0.14", default-features = false }
+prost-types = { version = "0.14", default-features = false }
+tonic-prost = { version = "0.14", default-features = false }
 
 [profile.release]
 opt-level = "s"

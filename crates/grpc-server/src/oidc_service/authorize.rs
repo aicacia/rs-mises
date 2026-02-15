@@ -1,12 +1,11 @@
-use tonic::Status;
-use url::Url;
-use uuid::Uuid;
-
 use mises_core::{
   model::{identity::IdentityMeta, node::NodeMeta},
   traits::Repository,
 };
 use mises_graph::KeyValueStoreExecutor;
+use tonic::Status;
+use url::Url;
+use uuid::Uuid;
 
 use crate::{
   jwt::Claims,
@@ -133,13 +132,25 @@ where
     Err(e) => return Err(e),
   };
 
-  let client = match node.metadata {
-    NodeMeta::Identity(IdentityMeta::Application {
-      oidc: Some(oidc), ..
-    }) => oidc,
+  let client = match &node.metadata {
+    NodeMeta::Identity(identity) => match identity.as_ref() {
+      IdentityMeta::Application { oidc, .. } => match oidc.as_ref() {
+        Some(oidc_meta) => oidc_meta.clone(),
+        None => {
+          return Err(Status::invalid_argument(
+            "invalid client_id: not an OIDC client",
+          ));
+        }
+      },
+      _ => {
+        return Err(Status::invalid_argument(
+          "invalid client_id: not an application",
+        ));
+      }
+    },
     _ => {
       return Err(Status::invalid_argument(
-        "invalid client_id: not an OIDC client",
+        "invalid client_id: not an identity",
       ));
     }
   };
@@ -302,7 +313,11 @@ where
   }
 
   for part in req.response_type.split_whitespace() {
-    if !client.response_types.iter().any(|rt| rt.as_str() == part) {
+    if !client
+      .response_types
+      .iter()
+      .any(|rt: &mises_core::model::oidc::ResponseType| rt.as_str() == part)
+    {
       let err = AuthorizeError::new(
         "unauthorized_client",
         &format!("response_type '{}' not allowed for client", part),

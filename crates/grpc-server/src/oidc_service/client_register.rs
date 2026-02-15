@@ -1,11 +1,10 @@
-use tonic::Status;
-use uuid::Uuid;
-
 use mises_core::{
   model::{identity::IdentityMeta, node::NodeMeta},
   service::identity::IdentityService,
   traits::Repository,
 };
+use tonic::Status;
+use uuid::Uuid;
 
 use crate::{
   error::ToStatus,
@@ -67,12 +66,15 @@ where
 
   let app_id = app_node.id;
 
-  let current_oidc =
-    if let NodeMeta::Identity(IdentityMeta::Application { oidc, .. }) = &app_node.metadata {
-      oidc.clone()
+  let current_oidc = if let NodeMeta::Identity(identity_meta) = &app_node.metadata {
+    if let IdentityMeta::Application { oidc, .. } = identity_meta.as_ref() {
+      oidc.as_ref().clone()
     } else {
       None
-    };
+    }
+  } else {
+    None
+  };
 
   let mut oidc_meta = current_oidc.unwrap_or_default();
 
@@ -125,16 +127,20 @@ where
   }
 
   let updated_identity = IdentityMeta::Application {
-    name: if let NodeMeta::Identity(IdentityMeta::Application { name, .. }) = &app_node.metadata {
-      name.clone()
+    name: if let NodeMeta::Identity(identity_meta) = &app_node.metadata {
+      if let IdentityMeta::Application { name, .. } = identity_meta.as_ref() {
+        name.clone()
+      } else {
+        "OIDC Client".to_string()
+      }
     } else {
       "OIDC Client".to_string()
     },
-    oidc: Some(oidc_meta.clone()),
+    oidc: Box::new(Some(oidc_meta.clone())),
   };
 
   repo
-    .update_node(app_id, NodeMeta::Identity(updated_identity), None)
+    .update_node(app_id, NodeMeta::Identity(Box::new(updated_identity)), None)
     .await
     .map_err(|e| e.to_status())?;
 
@@ -151,12 +157,12 @@ where
     grant_types: oidc_meta
       .grant_types
       .iter()
-      .map(|gt| gt.as_str().to_string())
+      .map(|gt: &mises_core::model::oidc::GrantType| gt.as_str().to_string())
       .collect(),
     response_types: oidc_meta
       .response_types
       .iter()
-      .map(|rt| rt.as_str().to_string())
+      .map(|rt: &mises_core::model::oidc::ResponseType| rt.as_str().to_string())
       .collect(),
     scope: if oidc_meta.scope.is_empty() {
       None

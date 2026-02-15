@@ -1,4 +1,4 @@
-use std::{env, error::Error, path::PathBuf};
+use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
   #[allow(unused_mut)]
@@ -6,6 +6,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
   #[cfg(feature = "file-descriptor-set")]
   {
+    use std::{env, path::PathBuf};
+
     config = config.file_descriptor_set_path(PathBuf::from(env::var("OUT_DIR")?).join("mises.bin"));
   }
 

@@ -25,20 +25,20 @@ jsonwebtoken = { version = "10.3.0", default-features = false, features = [
 sha2 = { version = "0.10", default-features = false, features = ["std"] }
 
 # Serialization
-base64 = { version = "0.21", default-features = false }
-serde = { version = "1", default-features = false, features = ["derive"] }
-serde_json = { version = "1", default-features = false, features = ["alloc"] }
+base64 = { workspace = true, features = [] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["alloc"] }
 
 # Utils
-log = { version = "0.4", default-features = false, features = ["std"] }
-chrono = { version = "0.4", default-features = false, features = ["std"] }
-getrandom = { version = "0.2", default-features = false, features = ["std"] }
+log = { workspace = true, features = ["std"] }
+chrono = { workspace = true, features = ["std"] }
+getrandom = { workspace = true, features = ["std"] }
 url = { version = "2.5", default-features = false, features = ["std"] }
-uuid = { version = "1.20", default-features = false, features = [] }
+uuid = { workspace = true, features = [] }
 
 # gRPC
-prost-types = { version = "0.14", default-features = false, features = [] }
-tonic = { version = "0.14", default-features = false, features = [] }
+prost-types = { workspace = true, features = [] }
+tonic = { workspace = true, features = [] }
 
 
 [dev-dependencies]
@@ -46,7 +46,7 @@ mises-graph = { path = "../graph", default-features = false, features = [
   "in-memory",
   "std",
 ] }
-tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 default = ["file-descriptor-set"]

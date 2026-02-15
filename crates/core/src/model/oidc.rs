@@ -13,64 +13,20 @@ impl core::fmt::Display for ParseOidcEnumError {
   }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-#[derive(Default)]
 pub enum ApplicationType {
   #[default]
   Web,
   Native,
 }
 
-impl ApplicationType {
-  pub fn as_str(&self) -> &'static str {
-    match self {
-      Self::Web => "web",
-      Self::Native => "native",
-    }
-  }
-}
-
-impl FromStr for ApplicationType {
-  type Err = ParseOidcEnumError;
-
-  fn from_str(s: &str) -> Result<Self, Self::Err> {
-    match s {
-      "web" => Ok(Self::Web),
-      "native" => Ok(Self::Native),
-      _ => Err(ParseOidcEnumError),
-    }
-  }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-#[derive(Default)]
 pub enum SubjectType {
   #[default]
   Public,
   Pairwise,
-}
-
-impl SubjectType {
-  pub fn as_str(&self) -> &'static str {
-    match self {
-      Self::Public => "public",
-      Self::Pairwise => "pairwise",
-    }
-  }
-}
-
-impl FromStr for SubjectType {
-  type Err = ParseOidcEnumError;
-
-  fn from_str(s: &str) -> Result<Self, Self::Err> {
-    match s {
-      "public" => Ok(Self::Public),
-      "pairwise" => Ok(Self::Pairwise),
-      _ => Err(ParseOidcEnumError),
-    }
-  }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -94,7 +50,13 @@ impl ResponseType {
   }
 }
 
-impl FromStr for ResponseType {
+impl core::fmt::Display for ResponseType {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    f.write_str(self.as_str())
+  }
+}
+
+impl core::str::FromStr for ResponseType {
   type Err = ParseOidcEnumError;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -138,7 +100,13 @@ impl GrantType {
   }
 }
 
-impl FromStr for GrantType {
+impl core::fmt::Display for GrantType {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    f.write_str(self.as_str())
+  }
+}
+
+impl core::str::FromStr for GrantType {
   type Err = ParseOidcEnumError;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {

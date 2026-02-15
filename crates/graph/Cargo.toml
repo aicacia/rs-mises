@@ -15,36 +15,24 @@ name = "mises_graph"
 # internal
 mises-async-kv-bytes = { path = "../async-kv-bytes", default-features = false }
 
-# utils
-uuid = { version = "1", optional = true, default-features = false, features = [
-  "v4",
-  "v7",
-  "serde",
-] }
+# Utils
+uuid = { workspace = true, optional = true, features = ["v4", "v7", "serde"] }
 hashbrown = { version = "0.16", default-features = false, features = [
   "default-hasher",
 ] }
 
-# core-compatible deps
-chrono = { version = "0.4", default-features = false, features = [
-  "alloc",
-  "serde",
-  "clock",
-] }
-serde = { version = "1", default-features = false, features = [
-  "derive",
-  "alloc",
-] }
-serde_json = { version = "1", default-features = false, features = ["alloc"] }
-async-trait = { version = "0.1", features = [], default-features = false }
+# Serialization
+serde = { workspace = true, features = ["derive", "alloc"] }
+serde_json = { workspace = true, features = ["alloc"] }
+
+# Utils
+chrono = { workspace = true, features = ["alloc", "serde", "clock"] }
+async-trait = { workspace = true, features = [] }
 parking_lot = { version = "0.12", optional = true, default-features = false }
 
 [dev-dependencies]
-tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
-chrono = { version = "0.4", default-features = false, features = [
-  "serde",
-  "std",
-] }
+tokio = { workspace = true, features = ["macros", "rt"] }
+chrono = { workspace = true, features = ["serde", "std"] }
 
 
 [features]

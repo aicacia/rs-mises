@@ -1,4 +1,7 @@
-use alloc::string::{String, ToString};
+use alloc::{
+  boxed::Box,
+  string::{String, ToString},
+};
 use core::{
   fmt::{Display, Formatter},
   str::FromStr,
@@ -16,7 +19,7 @@ use crate::model::{
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum NodeMeta {
-  Identity(IdentityMeta),
+  Identity(Box<IdentityMeta>),
   Key(KeyMeta),
   Resource(ResourceMeta),
   Policy(PolicyMeta),

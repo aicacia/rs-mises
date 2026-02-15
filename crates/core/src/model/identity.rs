@@ -1,4 +1,4 @@
-use alloc::string::String;
+use alloc::{boxed::Box, string::String};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -62,7 +62,7 @@ pub enum IdentityMeta {
   Application {
     name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    oidc: Option<OidcClientMeta>,
+    oidc: Box<Option<OidcClientMeta>>,
   },
 }
 

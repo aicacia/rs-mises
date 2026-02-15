@@ -8,10 +8,12 @@ use alloc::{
   vec::Vec,
 };
 
-use async_trait::async_trait;
-use chrono::Utc;
-use hashbrown::{HashMap, HashSet};
-use mises_async_kv_bytes::{KeyValueStore, KeyValueStoreExecutor, KeyValueStoreTransaction};
+use {
+  async_trait::async_trait,
+  chrono::Utc,
+  hashbrown::{HashMap, HashSet},
+  mises_async_kv_bytes::{KeyValueStore, KeyValueStoreExecutor, KeyValueStoreTransaction},
+};
 
 use crate::{
   ComparisonOp, EdgeDirection, EdgeQuery, Filter, NodeQuery, Predicate,

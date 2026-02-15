@@ -17,7 +17,7 @@ pub async fn create_identity(repo: &Repo, meta: IdentityMeta) -> Uuid {
   repo
     .create_node(
       NodeType::Identity.as_str().to_string(),
-      NodeMeta::Identity(meta),
+      NodeMeta::Identity(Box::new(meta)),
     )
     .await
     .unwrap()
