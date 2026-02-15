@@ -7,8 +7,9 @@ use mises_core::{
   traits::Repository,
 };
 
-use crate::oidc_service::helpers::{
-  ensure_application_identity, ensure_service_identity, ensure_service_owns_application,
+use crate::{
+  error::ToStatus,
+  oidc_service::helpers::{ensure_application_identity, ensure_service_owns_application},
 };
 
 pub async fn client_register<R>(
@@ -29,10 +30,14 @@ where
     .filter(|id| !id.trim().is_empty())
     .ok_or_else(|| Status::invalid_argument("missing service_id"))?;
 
-  let service_node = ensure_service_identity(repo, &service_id).await?;
-  let service_uuid = service_node.id;
-
   let identity_service = IdentityService::new(repo.clone());
+
+  let service_node = identity_service
+    .find_service_by_name(&service_id)
+    .await
+    .map_err(|e| e.to_status())?
+    .ok_or_else(|| Status::invalid_argument(format!("service_id not found: {}", service_id)))?;
+  let service_uuid = service_node.id;
 
   let app_node = if let Some(ref id_str) = client_id {
     let client_uuid =
@@ -48,14 +53,14 @@ where
       .unwrap_or_else(|| "OIDC Client".to_string());
 
     let (app_node, _key_node) = identity_service
-      .create_application(app_name)
+      .create_application(app_name, None)
       .await
-      .map_err(|e| Status::internal(format!("failed to create application: {}", e)))?;
+      .map_err(|e| e.to_status())?;
 
     identity_service
       .set_owner(service_uuid, app_node.id)
       .await
-      .map_err(|e| Status::internal(format!("failed to set service owner: {}", e)))?;
+      .map_err(|e| e.to_status())?;
 
     app_node
   };
@@ -131,7 +136,7 @@ where
   repo
     .update_node(app_id, NodeMeta::Identity(updated_identity), None)
     .await
-    .map_err(|e| Status::internal(format!("failed to update application: {}", e)))?;
+    .map_err(|e| e.to_status())?;
 
   Ok(mises_proto::Client {
     id: app_id.to_string(),

@@ -1,14 +1,29 @@
-use tonic::Status;
+use tonic::{Request, Status};
 use url::Url;
 use uuid::Uuid;
 
 use mises_core::{
-  CoreError,
-  model::{edge::EdgeType, identity::IdentityType, node::NodeType},
-  service::identity::IdentityService,
-  traits::Repository,
+  CoreError, model::identity::IdentityType, service::identity::IdentityService, traits::Repository,
 };
-use mises_graph::{EdgeQuery, Element, Filter, NodeQuery, Query, field};
+
+use crate::{
+  error::ToStatus,
+  jwt::{Claims, extract_and_parse_jwt_claims},
+};
+
+pub fn extract_optional_claims<T>(request: &Request<T>) -> Result<Option<Claims>, Status> {
+  let Some(auth_header) = request
+    .metadata()
+    .get("authorization")
+    .and_then(|v| v.to_str().ok())
+  else {
+    return Ok(None);
+  };
+
+  extract_and_parse_jwt_claims(auth_header)
+    .map(Some)
+    .map_err(|_| Status::unauthenticated("invalid bearer token"))
+}
 
 pub fn matches_redirect_pattern(redirect_uri: &str, pattern: &str) -> bool {
   if pattern == redirect_uri {
@@ -103,45 +118,6 @@ where
     })
 }
 
-pub async fn ensure_service_identity<R>(repo: &R, service_id: &str) -> Result<R::Node, Status>
-where
-  R: Repository + Clone + Send + Sync + 'static,
-{
-  let query = Query::nodes(
-    NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
-      field("metadata.type")
-        .eq(IdentityType::Service.as_str())
-        .into(),
-      field("metadata.name").eq(service_id.to_string()).into(),
-    ])),
-  );
-
-  let elements = repo
-    .query(query)
-    .await
-    .map_err(|e| Status::internal(format!("identity lookup error: {}", e)))?;
-
-  let mut matches = elements.into_iter().filter_map(|el| match el {
-    Element::Node(node) => Some(node),
-    _ => None,
-  });
-
-  let Some(node) = matches.next() else {
-    return Err(Status::invalid_argument(format!(
-      "invalid_request: service_id not found: {}",
-      service_id
-    )));
-  };
-
-  if matches.next().is_some() {
-    return Err(Status::invalid_argument(
-      "invalid_request: service_id is not unique",
-    ));
-  }
-
-  Ok(node)
-}
-
 pub async fn ensure_service_owns_application<R>(
   repo: &R,
   service_id: Uuid,
@@ -150,30 +126,19 @@ pub async fn ensure_service_owns_application<R>(
 where
   R: Repository + Clone + Send + Sync + 'static,
 {
-  let query = Query::edges(
-    EdgeQuery::outgoing(EdgeType::Owns.as_str())
-      .from(NodeQuery::any().filter(field("id").eq(service_id.to_string())))
-      .to(NodeQuery::any().filter(field("id").eq(application_id.to_string()))),
-  );
-
-  let elements = repo
-    .query(query)
+  let identity_service = IdentityService::new(repo.clone());
+  let owns = identity_service
+    .verify_ownership(service_id, application_id)
     .await
-    .map_err(|e| Status::internal(format!("ownership check failed: {}", e)))?;
+    .map_err(|e| e.to_status())?;
 
-  for el in elements {
-    if let Element::Edge(edge) = el
-      && edge.r#type == EdgeType::Owns.as_str()
-      && edge.from_id == service_id
-      && edge.to_id == application_id
-    {
-      return Ok(());
-    }
+  if owns {
+    Ok(())
+  } else {
+    Err(Status::invalid_argument(
+      "invalid_request: service does not own client application",
+    ))
   }
-
-  Err(Status::invalid_argument(
-    "invalid_request: service does not own client application",
-  ))
 }
 
 #[cfg(test)]

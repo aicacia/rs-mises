@@ -275,6 +275,7 @@ where
               .clone()
               .unwrap_or_else(|| "admin".to_owned()),
             hash_password("admin")?,
+            None,
           )
           .await?;
 
@@ -304,6 +305,7 @@ where
         .create_device(
           options.device_name.unwrap_or_else(|| "device".to_string()),
           root_group_id,
+          None,
         )
         .await?;
 
@@ -317,6 +319,17 @@ where
         root_group_id
       );
       device_node.id
+    };
+
+    let _service_id = match identity.find_service_by_name("mises").await? {
+      Some(service_node) => service_node.id,
+      None => {
+        let (service_node, _key_node) = identity.create_service("mises".to_owned(), None).await?;
+
+        log::debug!("Created service identity with id {}", service_node.id);
+
+        service_node.id
+      }
     };
 
     Ok(BootstrapResult {

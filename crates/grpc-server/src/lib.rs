@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod bootstrap_service;
+mod error;
 mod jwt;
 mod oidc_service;
 

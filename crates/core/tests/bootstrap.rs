@@ -5,22 +5,11 @@ use mises_core::{
   model::{keys::KeyMeta, node::NodeMeta, node::NodeType},
   service::graph::{BootstrapOptions, GraphService},
 };
-use mises_graph::{
-  Element, Executor, InMemoryKeyValueStore, KeyValueRepository, NodeQuery, Query, UuidGenerator,
-  field,
-};
+use mises_graph::{Element, Executor, NodeQuery, Query, field};
 
-use uuid::Uuid;
+mod common;
 
-fn make_repo() -> KeyValueRepository<
-  Uuid,
-  NodeMeta,
-  mises_core::model::edge::EdgeProps,
-  UuidGenerator,
-  InMemoryKeyValueStore,
-> {
-  KeyValueRepository::new(InMemoryKeyValueStore::new(), UuidGenerator::new())
-}
+use common::make_repo;
 
 #[tokio::test]
 async fn bootstrap_persists_base64_private_key() {

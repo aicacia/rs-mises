@@ -60,6 +60,28 @@ impl KeyMeta {
       .or_else(|_| {
         base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(self.public_key.as_bytes())
       })
+      .or_else(|_| base64::engine::general_purpose::STANDARD.decode(self.public_key.as_bytes()))
+      .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(self.public_key.as_bytes()))
+  }
+
+  pub fn decode_private_key(&self) -> crate::Result<Vec<u8>> {
+    let private_key_b64 = self.private_key.as_ref().ok_or_else(|| {
+      crate::CoreError::InvalidInput(crate::InvalidInput::Other("private key not present".into()))
+    })?;
+
+    BASE64_URL_SAFE
+      .decode(private_key_b64.as_bytes())
+      .or_else(|_| {
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(private_key_b64.as_bytes())
+      })
+      .or_else(|_| base64::engine::general_purpose::STANDARD.decode(private_key_b64.as_bytes()))
+      .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(private_key_b64.as_bytes()))
+      .map_err(|e| {
+        crate::CoreError::InvalidInput(crate::InvalidInput::Other(format!(
+          "invalid private_key base64: {}",
+          e
+        )))
+      })
   }
 
   pub fn to_bytes(&self) -> crate::Result<Vec<u8>> {

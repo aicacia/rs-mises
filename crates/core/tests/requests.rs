@@ -10,47 +10,12 @@ use mises_core::{
   },
   service::requests::RequestService,
 };
-use mises_graph::{
-  EdgeQuery, Element, Executor, InMemoryKeyValueStore, KeyValueRepository, NodeQuery, Query,
-  Repository, Transaction, UuidGenerator, field,
-};
+use mises_graph::{EdgeQuery, Element, Executor, NodeQuery, Query, Repository, Transaction, field};
 use uuid::Uuid;
 
-fn make_repo() -> KeyValueRepository<Uuid, NodeMeta, EdgeProps, UuidGenerator, InMemoryKeyValueStore>
-{
-  KeyValueRepository::new(InMemoryKeyValueStore::new(), UuidGenerator::new())
-}
+mod common;
 
-async fn create_identity(
-  repo: &KeyValueRepository<Uuid, NodeMeta, EdgeProps, UuidGenerator, InMemoryKeyValueStore>,
-  meta: IdentityMeta,
-) -> Uuid {
-  repo
-    .create_node(
-      NodeType::Identity.as_str().to_string(),
-      NodeMeta::Identity(meta),
-    )
-    .await
-    .unwrap()
-    .id
-}
-
-async fn create_resource(
-  repo: &KeyValueRepository<Uuid, NodeMeta, EdgeProps, UuidGenerator, InMemoryKeyValueStore>,
-  r#type: &str,
-) -> Uuid {
-  repo
-    .create_node(
-      NodeType::Resource.as_str().to_string(),
-      NodeMeta::Resource(ResourceMeta {
-        r#type: r#type.to_string(),
-        permissions: vec!["readwrite".to_string()],
-      }),
-    )
-    .await
-    .unwrap()
-    .id
-}
+use common::{create_identity, create_resource, make_repo};
 
 #[tokio::test]
 async fn request_lifecycle_happy_path() {

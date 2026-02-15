@@ -2,19 +2,11 @@
 
 use mises_core::model::{keys::KeyMeta, node::NodeMeta, node::NodeType};
 use mises_core::service::graph::GraphService;
-use mises_graph::{Executor, InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
 use mises_key::Key;
-use uuid::Uuid;
 
-fn make_repo() -> KeyValueRepository<
-  Uuid,
-  NodeMeta,
-  mises_core::model::edge::EdgeProps,
-  UuidGenerator,
-  InMemoryKeyValueStore,
-> {
-  KeyValueRepository::new(InMemoryKeyValueStore::new(), UuidGenerator::new())
-}
+mod common;
+
+use common::make_repo;
 
 #[tokio::test]
 async fn list_keys_returns_keymeta() {

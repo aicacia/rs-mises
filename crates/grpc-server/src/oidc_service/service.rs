@@ -9,9 +9,9 @@ use mises_graph::KeyValueStoreExecutor;
 use tonic::{Request, Response, Status};
 use url::Url;
 
-use crate::{
-  jwt::extract_and_parse_jwt_claims,
-  oidc_service::{authorize::authorize, client_register::client_register, constants, token::token},
+use crate::oidc_service::{
+  authorize::authorize, client_register::client_register, constants,
+  helpers::extract_optional_claims, token::token,
 };
 
 pub struct OidcService<R, S>
@@ -60,18 +60,7 @@ where
   ) -> Result<Response<mises_proto::AuthorizeResponse>, Status> {
     log::debug!("authorize request: {:?}", request);
 
-    let claims = if let Some(auth_header) = request
-      .metadata()
-      .get("authorization")
-      .and_then(|v| v.to_str().ok())
-    {
-      Some(
-        extract_and_parse_jwt_claims(auth_header)
-          .map_err(|_| Status::unauthenticated("invalid bearer token"))?,
-      )
-    } else {
-      None
-    };
+    let claims = extract_optional_claims(&request)?;
 
     authorize(
       &self.repo,
@@ -97,18 +86,7 @@ where
   ) -> Result<Response<mises_proto::TokenResponse>, Status> {
     log::debug!("Token request: {:?}", request);
 
-    let claims = if let Some(auth_header) = request
-      .metadata()
-      .get("authorization")
-      .and_then(|v| v.to_str().ok())
-    {
-      Some(
-        extract_and_parse_jwt_claims(auth_header)
-          .map_err(|_| Status::unauthenticated("invalid bearer token"))?,
-      )
-    } else {
-      None
-    };
+    let claims = extract_optional_claims(&request)?;
 
     token(
       &self.repo,
@@ -155,18 +133,7 @@ where
   ) -> Result<Response<mises_proto::Client>, Status> {
     log::debug!("client_register request: {:?}", request);
 
-    let claims = if let Some(auth_header) = request
-      .metadata()
-      .get("authorization")
-      .and_then(|v| v.to_str().ok())
-    {
-      Some(
-        extract_and_parse_jwt_claims(auth_header)
-          .map_err(|_| Status::unauthenticated("invalid bearer token"))?,
-      )
-    } else {
-      None
-    };
+    let claims = extract_optional_claims(&request)?;
 
     if claims.is_none() {
       return Err(Status::unauthenticated(

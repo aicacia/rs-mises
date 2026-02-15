@@ -233,7 +233,6 @@ async fn forward_grpc_request(
     path
   );
 
-  // Build HTTP/2 gRPC request
   let uri = Uri::builder()
     .scheme("http")
     .authority("[::]:50051")
@@ -248,7 +247,6 @@ async fn forward_grpc_request(
     .header("content-type", "application/grpc")
     .header("te", "trailers");
 
-  // Add metadata as HTTP headers
   for key_and_value in metadata_map.iter() {
     match key_and_value {
       tonic::metadata::KeyAndValueRef::Ascii(key, value) => {
@@ -262,18 +260,13 @@ async fn forward_grpc_request(
     }
   }
 
-  // Create a tonic Body from bytes
   let body_bytes = Bytes::from(body);
-
-  // Use Empty body for now as a workaround - we'll need to encode the request properly
   let tonic_body = Full::new(body_bytes);
 
   let http_request: http::Request<_> = request
     .body(tonic_body)
     .map_err(|e| format!("failed to build request: {}", e))?;
 
-  // Make the gRPC call through the channel
-  // We need to convert the request body to the type expected by Channel
   let mut response = channel
     .ready()
     .await
@@ -286,7 +279,6 @@ async fn forward_grpc_request(
     .await
     .map_err(|e| format!("gRPC call failed: {}", e))?;
 
-  // Extract response headers and send as header frame
   let response_headers = response.headers();
   let mut header_metadata = HashMap::new();
 
@@ -315,7 +307,6 @@ async fn forward_grpc_request(
     return Err(format!("failed to send header frame: {}", e));
   }
 
-  // Stream response body frames (data + trailers)
   let body = response.body_mut();
   let mut trailers_sent = false;
   while let Some(chunk) = body.frame().await {

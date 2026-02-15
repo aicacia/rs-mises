@@ -190,6 +190,7 @@ where
     &self,
     name: String,
     encrypted_password: String,
+    group_id: Option<Uuid>,
   ) -> Result<(E::Node, E::Node)> {
     let key_node = self.create_key_for_identity().await?;
 
@@ -218,6 +219,13 @@ where
       )
       .await?;
 
+    let group_id = match group_id {
+      Some(id) => id,
+      None => self.get_or_create_master_group().await?.id,
+    };
+
+    self.add_member_of(user_node.id, group_id, None).await?;
+
     Ok((user_node, key_node))
   }
 
@@ -236,6 +244,110 @@ where
       .await?;
 
     Ok(())
+  }
+
+  pub async fn get_identity_key(&self, identity_id: Uuid) -> Result<(E::Node, Vec<u8>)> {
+    let query = Query::edges(
+      EdgeQuery::outgoing(EdgeType::Owns.as_str())
+        .from(NodeQuery::any().filter(field("id").eq(identity_id.to_string())))
+        .to(NodeQuery::new(NodeType::Key.as_str())),
+    );
+
+    let elements = self.exec.query(query).await?;
+
+    for el in elements {
+      if let Element::Node(key_node) = el
+        && let NodeMeta::Key(key_meta) = &key_node.metadata
+      {
+        let private_key_bytes = key_meta.decode_private_key()?;
+        return Ok((key_node, private_key_bytes));
+      }
+    }
+
+    Err(CoreError::NotFound)
+  }
+
+  pub async fn authenticate_user(&self, username: &str, password: &str) -> Result<E::Node> {
+    let query = Query::nodes(
+      NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
+        field("metadata.type")
+          .eq(IdentityType::User.as_str())
+          .into(),
+        field("metadata.name").eq(username.to_string()).into(),
+      ])),
+    );
+
+    let elements = self.exec.query(query).await?;
+
+    for el in elements {
+      if let Element::Node(node) = el
+        && let NodeMeta::Identity(IdentityMeta::User {
+          name,
+          encrypted_password,
+          ..
+        }) = &node.metadata
+        && name == username
+      {
+        let is_valid = crate::service::password::verify_password(password, encrypted_password)?;
+
+        if is_valid {
+          return Ok(node);
+        }
+      }
+    }
+
+    Err(CoreError::NotFound)
+  }
+
+  pub async fn verify_ownership(&self, owner_id: Uuid, owned_id: Uuid) -> Result<bool> {
+    let query = Query::edges(
+      EdgeQuery::outgoing(EdgeType::Owns.as_str())
+        .from(NodeQuery::any().filter(field("id").eq(owner_id.to_string())))
+        .to(NodeQuery::any().filter(field("id").eq(owned_id.to_string()))),
+    );
+
+    let elements = self.exec.query(query).await?;
+
+    for el in elements {
+      if let Element::Edge(edge) = el
+        && edge.r#type == EdgeType::Owns.as_str()
+        && edge.from_id == owner_id
+        && edge.to_id == owned_id
+      {
+        return Ok(true);
+      }
+    }
+
+    Ok(false)
+  }
+
+  pub async fn find_owned_identities(
+    &self,
+    owner_id: Uuid,
+    identity_type: Option<IdentityType>,
+  ) -> Result<Vec<E::Node>> {
+    let to_query = if let Some(itype) = identity_type {
+      NodeQuery::new(NodeType::Identity.as_str()).filter(field("metadata.type").eq(itype.as_str()))
+    } else {
+      NodeQuery::new(NodeType::Identity.as_str())
+    };
+
+    let query = Query::edges(
+      EdgeQuery::outgoing(EdgeType::Owns.as_str())
+        .from(NodeQuery::any().filter(field("id").eq(owner_id.to_string())))
+        .to(to_query),
+    );
+
+    let elements = self.exec.query(query).await?;
+    let mut identities = Vec::new();
+
+    for el in elements {
+      if let Element::Node(node) = el {
+        identities.push(node);
+      }
+    }
+
+    Ok(identities)
   }
 
   pub async fn find_root_devices(&self, root_group_id: Uuid) -> Result<Vec<E::Node>> {
@@ -277,6 +389,49 @@ where
     Ok(None)
   }
 
+  pub async fn find_service_by_name(&self, name: &str) -> Result<Option<E::Node>> {
+    let query = Query::nodes(
+      NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
+        field("metadata.type")
+          .eq(IdentityType::Service.as_str())
+          .into(),
+        field("metadata.name").eq(name.to_string()).into(),
+      ])),
+    );
+
+    let elements = self.exec.query(query).await?;
+
+    for el in elements {
+      if let Element::Node(node) = el {
+        return Ok(Some(node));
+      }
+    }
+
+    Ok(None)
+  }
+
+  pub async fn get_or_create_master_group(&self) -> Result<E::Node> {
+    let query = Query::nodes(
+      NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
+        field("metadata.type")
+          .eq(IdentityType::Group.as_str())
+          .into(),
+        field("metadata.name").eq("master".to_string()).into(),
+      ])),
+    );
+
+    let elements = self.exec.query(query).await?;
+
+    for el in elements {
+      if let Element::Node(node) = el {
+        return Ok(node);
+      }
+    }
+
+    let (group_node, _key_node) = self.create_group("master".to_string()).await?;
+    Ok(group_node)
+  }
+
   pub async fn list_applications(&self) -> Result<Vec<E::Node>> {
     let query = Query::nodes(
       NodeQuery::new(NodeType::Identity.as_str())
@@ -296,7 +451,12 @@ where
     Ok(applications)
   }
 
-  pub async fn create_device(&self, device_name: String, root: Uuid) -> Result<(E::Node, E::Node)> {
+  pub async fn create_device(
+    &self,
+    device_name: String,
+    root: Uuid,
+    group_id: Option<Uuid>,
+  ) -> Result<(E::Node, E::Node)> {
     let key_node = self.create_key_for_identity().await?;
 
     let device_node = self
@@ -322,6 +482,13 @@ where
         },
       )
       .await?;
+
+    let group_id = match group_id {
+      Some(id) => id,
+      None => self.get_or_create_master_group().await?.id,
+    };
+
+    self.add_member_of(device_node.id, group_id, None).await?;
 
     Ok((device_node, key_node))
   }
@@ -375,7 +542,11 @@ where
     Ok((group_node, key_node))
   }
 
-  pub async fn create_application(&self, name: String) -> Result<(E::Node, E::Node)> {
+  pub async fn create_application(
+    &self,
+    name: String,
+    group_id: Option<Uuid>,
+  ) -> Result<(E::Node, E::Node)> {
     let key_node = self.create_key_for_identity().await?;
 
     let app_node = self
@@ -399,6 +570,51 @@ where
       )
       .await?;
 
+    let group_id = match group_id {
+      Some(id) => id,
+      None => self.get_or_create_master_group().await?.id,
+    };
+
+    self.add_member_of(app_node.id, group_id, None).await?;
+
     Ok((app_node, key_node))
+  }
+
+  pub async fn create_service(
+    &self,
+    name: String,
+    group_id: Option<Uuid>,
+  ) -> Result<(E::Node, E::Node)> {
+    let key_node = self.create_key_for_identity().await?;
+
+    let service_node = self
+      .exec
+      .create_node(
+        NodeType::Identity.as_str().to_string(),
+        NodeMeta::Identity(IdentityMeta::Service { name }),
+      )
+      .await?;
+
+    self
+      .exec
+      .create_edge(
+        EdgeType::Owns.as_str().to_string(),
+        service_node.id,
+        key_node.id,
+        EdgeProps::Owns {
+          since: None,
+          until: None,
+        },
+      )
+      .await?;
+
+    let group_id = match group_id {
+      Some(id) => id,
+      None => self.get_or_create_master_group().await?.id,
+    };
+
+    self.add_member_of(service_node.id, group_id, None).await?;
+
+    Ok((service_node, key_node))
   }
 }

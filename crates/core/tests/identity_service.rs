@@ -1,31 +1,12 @@
 #![cfg(feature = "in-memory")]
 
 use mises_core::{
-  model::{
-    edge::EdgeProps,
-    identity::{IdentityMeta, IdentityType},
-    node::NodeMeta,
-  },
+  model::identity::{IdentityMeta, IdentityType},
   service::identity::IdentityService,
 };
-use mises_graph::{Executor, InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
-use uuid::Uuid;
+mod common;
 
-fn make_repo() -> KeyValueRepository<Uuid, NodeMeta, EdgeProps, UuidGenerator, InMemoryKeyValueStore>
-{
-  KeyValueRepository::new(InMemoryKeyValueStore::new(), UuidGenerator::new())
-}
-
-async fn create_identity(
-  repo: &KeyValueRepository<Uuid, NodeMeta, EdgeProps, UuidGenerator, InMemoryKeyValueStore>,
-  meta: IdentityMeta,
-) -> Uuid {
-  repo
-    .create_node("identity".to_string(), NodeMeta::Identity(meta))
-    .await
-    .unwrap()
-    .id
-}
+use common::{create_identity, make_repo};
 
 #[tokio::test]
 async fn get_node_by_id_and_identity_type_happy_path() {

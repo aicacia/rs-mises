@@ -1,9 +1,11 @@
 use tonic::{Request, Response, Status};
 
 use mises_core::{
-  service::graph::{BootstrapOptions, GraphService},
+  service::graph::{BootstrapOptionsBuilder, GraphService},
   traits::Repository,
 };
+
+use crate::error::ToStatus;
 
 pub struct BootstrapService<R>
 where
@@ -33,14 +35,16 @@ where
     let graph_service = GraphService::new(self.repo.clone());
 
     let bootstrap_result = graph_service
-      .bootstrap(BootstrapOptions {
-        root_group_name: Some(request.get_ref().root_group_name.clone()),
-        owner_name: Some(request.get_ref().owner_name.clone()),
-        device_name: Some(request.get_ref().device_name.clone()),
-        now: Some(chrono::Utc::now()),
-      })
+      .bootstrap(
+        BootstrapOptionsBuilder::new()
+          .root_group_name(request.get_ref().root_group_name.clone())
+          .owner_name(request.get_ref().owner_name.clone())
+          .device_name(request.get_ref().device_name.clone())
+          .now(chrono::Utc::now())
+          .build(),
+      )
       .await
-      .map_err(|e| Status::internal(e.to_string()))?;
+      .map_err(|e| e.to_status())?;
 
     let reply = mises_proto::BootstrapResponse {
       root_group: bootstrap_result.root_group.to_string(),
