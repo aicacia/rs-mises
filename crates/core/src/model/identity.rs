@@ -29,6 +29,17 @@ impl IdentityType {
     }
   }
 
+  pub fn as_u32(&self) -> u32 {
+    match self {
+      Self::User => 0,
+      Self::Device => 1,
+      Self::Group => 2,
+      Self::Service => 3,
+      Self::Application => 4,
+      Self::Persona => 5,
+    }
+  }
+
   pub fn can_authenticate(&self) -> bool {
     !matches!(self, Self::Group | Self::Persona)
   }

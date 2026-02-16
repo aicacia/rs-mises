@@ -1,6 +1,5 @@
 use alloc::{
   borrow::ToOwned,
-  boxed::Box,
   format,
   string::{String, ToString},
   vec::Vec,
@@ -17,8 +16,8 @@ use uuid::Uuid;
 use crate::{
   CoreError, InvalidInput, Result,
   model::{
-    edge::{EdgeProps, EdgeType},
-    identity::{IdentityMeta, IdentityType},
+    edge::EdgeType,
+    identity::IdentityType,
     keys::KeyMeta,
     node::{NodeMeta, NodeType},
   },
@@ -203,6 +202,8 @@ where
       }
     };
 
+    let identity = IdentityService::new(self.exec.clone());
+
     let (root_group_id, _master_key, master_key_public_key, master_key_created) = match group_node {
       Some((group_id, key_id, public_key, _priv_b64)) => (group_id, key_id, public_key, false),
       None => {
@@ -215,44 +216,32 @@ where
 
         if master_key_created {
           log::debug!("A new master key was created");
+
+          // Create the master key node directly - this is foundational
+          let tx = self.exec.transaction().await?;
+
+          let _key_node = tx
+            .create_node(
+              NodeType::Key.as_str().to_string(),
+              NodeMeta::Key(KeyMeta {
+                public_key: public_key.clone(),
+                private_key: Some(secret_b64),
+                derivation_path: master_key.derivation_path(),
+              }),
+            )
+            .await?;
+
+          tx.commit().await?;
         }
 
-        let tx = self.exec.transaction().await?;
-
-        let key_node = tx
-          .create_node(
-            NodeType::Key.as_str().to_string(),
-            NodeMeta::Key(KeyMeta {
-              public_key: public_key.clone(),
-              private_key: Some(secret_b64),
-              derivation_path: master_key.derivation_path(),
-            }),
+        // Use IdentityService for creating the root group
+        let (group_node, key_node) = identity
+          .create_group(
+            options
+              .root_group_name
+              .unwrap_or_else(|| "Everything".to_string()),
           )
           .await?;
-
-        let group_node = tx
-          .create_node(
-            NodeType::Identity.as_str().to_string(),
-            NodeMeta::Identity(Box::new(IdentityMeta::Group {
-              name: options
-                .root_group_name
-                .unwrap_or_else(|| "Everything".to_string()),
-            })),
-          )
-          .await?;
-
-        tx.create_edge(
-          EdgeType::Owns.as_str().to_string(),
-          group_node.id,
-          key_node.id,
-          EdgeProps::Owns {
-            since: options.now,
-            until: options.now,
-          },
-        )
-        .await?;
-
-        tx.commit().await?;
 
         log::debug!(
           "Created master group with id {} and master key with id {}",
@@ -264,9 +253,10 @@ where
       }
     };
 
-    let identity = IdentityService::new(self.exec.clone());
-
-    let owner_user_id = match identity.find_owner(root_group_id).await? {
+    let owner_user_id = match identity
+      .find_owner(root_group_id, Some(IdentityType::User))
+      .await?
+    {
       Some(owner_node) => owner_node.id,
       None => {
         let (user_node, _key_node) = identity

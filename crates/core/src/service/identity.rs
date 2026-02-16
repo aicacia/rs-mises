@@ -64,9 +64,19 @@ where
     }
   }
 
-  pub async fn find_owner(&self, id: Uuid) -> Result<Option<E::Node>> {
+  pub async fn find_owner(
+    &self,
+    id: Uuid,
+    owner_type: Option<IdentityType>,
+  ) -> Result<Option<E::Node>> {
+    let owner_query = if let Some(itype) = owner_type {
+      NodeQuery::new(NodeType::Identity.as_str()).filter(field("metadata.type").eq(itype.as_str()))
+    } else {
+      NodeQuery::new(NodeType::Identity.as_str())
+    };
+
     let query = Query::nodes(
-      NodeQuery::new(NodeType::Identity.as_str()).include(
+      owner_query.include(
         EdgeQuery::outgoing(EdgeType::Owns.as_str())
           .to(NodeQuery::any().filter(field("id").eq(id.to_string()))),
       ),
@@ -83,11 +93,16 @@ where
     Ok(None)
   }
 
-  async fn create_key_for_identity(&self, identity_id: Uuid) -> Result<E::Node> {
+  async fn create_key_for_identity(
+    &self,
+    identity_id: Uuid,
+    identity_type: IdentityType,
+  ) -> Result<E::Node> {
     let master_key = self.get_master_key().await?;
 
     let identity_index = Self::uuid_to_u32(identity_id);
-    let child_path = format!("m/44'/{}/0", identity_index);
+    let type_index = identity_type.as_u32();
+    let child_path = format!("m/44'/{}/{}", type_index, identity_index);
 
     let child_key = master_key
       .child_from_derivation_path(&child_path)
@@ -149,7 +164,7 @@ where
     let b = u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
     let c = u32::from_be_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
     let d = u32::from_be_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]);
-    a ^ b ^ c ^ d
+    (a ^ b ^ c ^ d) & 0x7fffffff
   }
 
   pub async fn create_user(
@@ -170,7 +185,9 @@ where
       )
       .await?;
 
-    let key_node = self.create_key_for_identity(user_node.id).await?;
+    let key_node = self
+      .create_key_for_identity(user_node.id, IdentityType::User)
+      .await?;
 
     self
       .exec
@@ -436,7 +453,9 @@ where
       )
       .await?;
 
-    let key_node = self.create_key_for_identity(device_node.id).await?;
+    let key_node = self
+      .create_key_for_identity(device_node.id, IdentityType::Device)
+      .await?;
 
     self
       .exec
@@ -492,7 +511,9 @@ where
       )
       .await?;
 
-    let key_node = self.create_key_for_identity(group_node.id).await?;
+    let key_node = self
+      .create_key_for_identity(group_node.id, IdentityType::Group)
+      .await?;
 
     self
       .exec
@@ -526,7 +547,9 @@ where
       )
       .await?;
 
-    let key_node = self.create_key_for_identity(app_node.id).await?;
+    let key_node = self
+      .create_key_for_identity(app_node.id, IdentityType::Application)
+      .await?;
 
     self
       .exec
@@ -564,7 +587,9 @@ where
       )
       .await?;
 
-    let key_node = self.create_key_for_identity(service_node.id).await?;
+    let key_node = self
+      .create_key_for_identity(service_node.id, IdentityType::Service)
+      .await?;
 
     self
       .exec
