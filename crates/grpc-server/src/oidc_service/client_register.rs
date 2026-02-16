@@ -13,6 +13,7 @@ use crate::{
 
 pub async fn client_register<R>(
   repo: &R,
+  device_id: &str,
   request: mises_proto::ClientRegisterRequest,
 ) -> Result<mises_proto::Client, Status>
 where
@@ -29,7 +30,7 @@ where
     .filter(|id| !id.trim().is_empty())
     .ok_or_else(|| Status::invalid_argument("missing service_id"))?;
 
-  let identity_service = IdentityService::new(repo.clone());
+  let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
 
   let service_node = identity_service
     .find_service_by_name(&service_id)
@@ -41,8 +42,8 @@ where
   let app_node = if let Some(ref id_str) = client_id {
     let client_uuid =
       Uuid::parse_str(id_str).map_err(|_| Status::invalid_argument("invalid client_id format"))?;
-    let app_node = ensure_application_identity(repo, client_uuid).await?;
-    ensure_service_owns_application(repo, service_uuid, app_node.id).await?;
+    let app_node = ensure_application_identity(&identity_service, client_uuid).await?;
+    ensure_service_owns_application(&identity_service, service_uuid, app_node.id).await?;
     app_node
   } else {
     let app_name = request

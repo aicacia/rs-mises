@@ -38,6 +38,7 @@ clap_complete = { version = "4.5", default-features = false, features = [] }
 # Utils
 config = { version = "0.15", features = ["json"], default-features = false }
 chrono = { workspace = true, features = ["std"] }
+machine-uid = { version = "0.5.4", default-features = false, features = [] }
 
 # logging
 log = { version = "0.4", default-features = false }

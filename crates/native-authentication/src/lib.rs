@@ -1,12 +1,6 @@
-#![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
 
-extern crate alloc;
-
-use alloc::{format, string::String};
-use core::fmt;
-#[cfg(feature = "std")]
-use std::error::Error as StdError;
+use std::{error::Error, fmt};
 
 use tokio::process::Command;
 
@@ -97,11 +91,7 @@ impl fmt::Display for PolicyError {
   }
 }
 
-#[cfg(not(feature = "std"))]
-impl core::error::Error for PolicyError {}
-
-#[cfg(feature = "std")]
-impl StdError for PolicyError {}
+impl Error for PolicyError {}
 
 #[derive(Debug)]
 pub enum AuthError {
@@ -120,11 +110,7 @@ impl fmt::Display for AuthError {
   }
 }
 
-#[cfg(not(feature = "std"))]
-impl core::error::Error for AuthError {}
-
-#[cfg(feature = "std")]
-impl StdError for AuthError {}
+impl Error for AuthError {}
 
 #[derive(Debug, Clone)]
 pub struct Context;
@@ -144,7 +130,11 @@ impl Context {
     }
 
     let status = Command::new("pkcheck")
+      .arg("--action-id")
+      .arg("org.freedesktop.policykit.exec")
       .arg("--allow-user-interaction")
+      .arg("--process")
+      .arg(format!("{}", std::process::id()))
       .status()
       .await;
 

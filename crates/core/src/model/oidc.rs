@@ -81,6 +81,8 @@ pub enum GrantType {
   DeviceCode,
   #[serde(rename = "urn:ietf:params:oauth:grant-type:jwt-bearer")]
   JwtBearer,
+  #[serde(rename = "urn:ietf:params:oauth:grant-type:device_credentials")]
+  DeviceCredentials,
   #[serde(other)]
   Unknown,
 }
@@ -95,6 +97,7 @@ impl GrantType {
       Self::Password => "password",
       Self::DeviceCode => "urn:ietf:params:oauth:grant-type:device_code",
       Self::JwtBearer => "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      Self::DeviceCredentials => "urn:ietf:params:oauth:grant-type:device_credentials",
       Self::Unknown => "unknown",
     }
   }

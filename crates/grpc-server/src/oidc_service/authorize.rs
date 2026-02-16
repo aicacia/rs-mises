@@ -1,5 +1,6 @@
 use mises_core::{
   model::{identity::IdentityMeta, node::NodeMeta},
+  service::identity::IdentityService,
   traits::Repository,
 };
 use mises_graph::KeyValueStoreExecutor;
@@ -51,6 +52,7 @@ impl AuthorizeError {
 
 pub async fn authorize<R, S>(
   repo: &R,
+  device_id: &str,
   store: &S,
   req: mises_proto::AuthorizeRequest,
   claims: Option<Claims>,
@@ -127,7 +129,9 @@ where
     }
   };
 
-  let node = match ensure_application_identity(repo, client_uuid).await {
+  let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
+
+  let node = match ensure_application_identity(&identity_service, client_uuid).await {
     Ok(n) => n,
     Err(e) => return Err(e),
   };

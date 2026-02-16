@@ -5,8 +5,7 @@ use clap_complete::generate;
 use mises_core::service::graph::{BootstrapOptionsBuilder, GraphService};
 use mises_graph::{InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
 use mises_grpc_server::{
-  BootstrapService, OidcService, bootstrap_service_server::BootstrapServiceServer,
-  oidc_service_server::OidcServiceServer, proto::FILE_DESCRIPTOR_SET,
+  OidcService, oidc_service_server::OidcServiceServer, proto::FILE_DESCRIPTOR_SET,
 };
 use tokio::{fs, net::UnixListener};
 use tokio_stream::wrappers::UnixListenerStream;
@@ -119,9 +118,12 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
 
   let graph_service = GraphService::new(repo.clone());
 
+  let device_id = machine_uid::get()
+    .map_err(|e| io::Error::other(format!("failed to get machine UID: {}", e)))?;
+
   graph_service
     .bootstrap(
-      BootstrapOptionsBuilder::new()
+      BootstrapOptionsBuilder::new(device_id.clone())
         .root_group_name(config.root_group_name.clone())
         .owner_name(config.owner_name.clone())
         .device_name(config.device_name.clone())
@@ -137,11 +139,9 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
     .map_err(|e| io::Error::other(format!("failed to build reflection service: {}", e)))?;
 
   let server_result = Server::builder()
-    .add_service(BootstrapServiceServer::new(BootstrapService::new(
-      repo.clone(),
-    )))
     .add_service(OidcServiceServer::new(OidcService::new(
       repo.clone(),
+      device_id,
       store.clone(),
       bind_path.to_string_lossy().to_string(),
       None,

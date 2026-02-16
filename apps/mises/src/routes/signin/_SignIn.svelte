@@ -34,7 +34,18 @@
 		const token = await oidcClient().token({
 			password: {
 				username: output.username,
-				password: output.password
+				password: output.password,
+				scope: 'openid profile email'
+			}
+		});
+
+		console.log({ token });
+	}
+
+	async function onDeviceSubmit() {
+		const token = await oidcClient().token({
+			deviceCredentials: {
+				scope: 'openid'
 			}
 		});
 
@@ -67,3 +78,5 @@
 	</label>
 	<input class="btn primary mt-4" type="submit" value={m.sign_in()} />
 </form>
+
+<button class="btn secondary mt-4" on:click={onDeviceSubmit}>{m.sign_in_with_device()}</button>

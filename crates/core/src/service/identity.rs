@@ -27,14 +27,15 @@ where
   E: Executor,
 {
   exec: E,
+  device_id: String,
 }
 
 impl<E> IdentityService<E>
 where
   E: Executor,
 {
-  pub fn new(exec: E) -> Self {
-    Self { exec }
+  pub fn new(exec: E, device_id: String) -> Self {
+    Self { exec, device_id }
   }
 
   pub async fn get_node_by_id_and_identity_type(
@@ -204,7 +205,7 @@ where
 
     let group_id = match group_id {
       Some(id) => id,
-      None => self.get_or_create_master_group().await?.id,
+      None => self.get_master_group().await?.id,
     };
 
     self.add_member_of(user_node.id, group_id, None).await?;
@@ -335,45 +336,6 @@ where
     Ok(identities)
   }
 
-  pub async fn find_root_devices(&self, root_group_id: Uuid) -> Result<Vec<E::Node>> {
-    let query = Query::nodes(
-      NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
-        field("metadata.type")
-          .eq(IdentityType::Device.as_str())
-          .into(),
-        field("metadata.root").eq(root_group_id.to_string()).into(),
-      ])),
-    );
-
-    let elements = self.exec.query(query).await?;
-    let mut devices = Vec::new();
-
-    for el in elements {
-      if let Element::Node(node) = el {
-        devices.push(node);
-      }
-    }
-
-    Ok(devices)
-  }
-
-  pub async fn find_any_application(&self) -> Result<Option<E::Node>> {
-    let query = Query::nodes(
-      NodeQuery::new(NodeType::Identity.as_str())
-        .filter(field("metadata.type").eq(IdentityType::Application.as_str())),
-    );
-
-    let elements = self.exec.query(query).await?;
-
-    for el in elements {
-      if let Element::Node(node) = el {
-        return Ok(Some(node));
-      }
-    }
-
-    Ok(None)
-  }
-
   pub async fn find_service_by_name(&self, name: &str) -> Result<Option<E::Node>> {
     let query = Query::nodes(
       NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
@@ -395,17 +357,37 @@ where
     Ok(None)
   }
 
-  pub async fn get_or_create_master_group(&self) -> Result<E::Node> {
+  pub async fn get_master_group(&self) -> Result<E::Node> {
+    // Get the master key node ID
     let query = Query::nodes(
-      NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
-        field("metadata.type")
-          .eq(IdentityType::Group.as_str())
-          .into(),
-        field("metadata.name").eq("master".to_string()).into(),
-      ])),
+      NodeQuery::new(NodeType::Key.as_str()).filter(field("metadata.derivation_path").eq("m/44'")),
+    );
+    let elements = self.exec.query(query).await?;
+
+    let master_key_node_id = elements
+      .iter()
+      .find_map(|el| {
+        if let Element::Node(node) = el {
+          Some(node.id)
+        } else {
+          None
+        }
+      })
+      .ok_or(CoreError::other(InvalidInput::Other(
+        "master key not found".into(),
+      )))?;
+
+    // Find the group that owns the master key
+    let owner_query = Query::nodes(
+      NodeQuery::new(NodeType::Identity.as_str())
+        .filter(field("metadata.type").eq(IdentityType::Group.as_str()))
+        .include(
+          EdgeQuery::outgoing(EdgeType::Owns.as_str())
+            .to(NodeQuery::any().filter(field("id").eq(master_key_node_id.to_string()))),
+        ),
     );
 
-    let elements = self.exec.query(query).await?;
+    let elements = self.exec.query(owner_query).await?;
 
     for el in elements {
       if let Element::Node(node) = el {
@@ -413,8 +395,9 @@ where
       }
     }
 
-    let (group_node, _key_node) = self.create_group("master".to_string()).await?;
-    Ok(group_node)
+    Err(CoreError::other(InvalidInput::Other(
+      "master group not found".into(),
+    )))
   }
 
   pub async fn list_applications(&self) -> Result<Vec<E::Node>> {
@@ -438,8 +421,9 @@ where
 
   pub async fn create_device(
     &self,
-    device_name: String,
-    root: Uuid,
+    name: String,
+    root: Option<Uuid>,
+    device_id: Option<String>,
     group_id: Option<Uuid>,
   ) -> Result<(E::Node, E::Node)> {
     let device_node = self
@@ -447,8 +431,9 @@ where
       .create_node(
         NodeType::Identity.as_str().to_string(),
         NodeMeta::Identity(Box::new(IdentityMeta::Device {
-          name: device_name,
-          root: Some(root),
+          name,
+          root,
+          device_id,
         })),
       )
       .await?;
@@ -472,12 +457,35 @@ where
 
     let group_id = match group_id {
       Some(id) => id,
-      None => self.get_or_create_master_group().await?.id,
+      None => self.get_master_group().await?.id,
     };
-
     self.add_member_of(device_node.id, group_id, None).await?;
 
     Ok((device_node, key_node))
+  }
+
+  pub async fn find_this_device(&self, root_group_id: Uuid) -> Result<Option<E::Node>> {
+    let query = Query::nodes(
+      NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
+        field("metadata.type")
+          .eq(IdentityType::Device.as_str())
+          .into(),
+        field("metadata.root").eq(root_group_id.to_string()).into(),
+        field("metadata.device_id")
+          .eq(self.device_id.clone())
+          .into(),
+      ])),
+    );
+
+    let elements = self.exec.query(query).await?;
+
+    for el in elements {
+      if let Element::Node(node) = el {
+        return Ok(Some(node));
+      }
+    }
+
+    Ok(None)
   }
 
   pub async fn add_member_of(
@@ -566,7 +574,7 @@ where
 
     let group_id = match group_id {
       Some(id) => id,
-      None => self.get_or_create_master_group().await?.id,
+      None => self.get_master_group().await?.id,
     };
 
     self.add_member_of(app_node.id, group_id, None).await?;
@@ -606,7 +614,7 @@ where
 
     let group_id = match group_id {
       Some(id) => id,
-      None => self.get_or_create_master_group().await?.id,
+      None => self.get_master_group().await?.id,
     };
 
     self.add_member_of(service_node.id, group_id, None).await?;

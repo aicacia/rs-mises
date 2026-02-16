@@ -36,17 +36,24 @@ async-trait = { workspace = true, features = [] }
 # Use the in-memory repository for core unit tests
 mises-graph = { path = "../graph", default-features = false, features = [
   "in-memory",
-  "std",
 ] }
 
-mises-key = { path = "../key", default-features = false, features = ["std"] }
+mises-key = { path = "../key", default-features = false, features = [] }
 
 tokio = { workspace = true, features = ["macros", "rt"] }
-chrono = { workspace = true, features = ["serde", "std"] }
+chrono = { workspace = true, features = ["serde"] }
 
 [features]
 # default to no_std; enable std opt-in
 default = []
-std = ["mises-graph/std"]
+std = [
+  "mises-graph/std",
+  "mises-key/std",
+  "chrono/std",
+  "uuid/std",
+  "serde/std",
+  "serde_json/std",
+  "base64/std",
+]
 # enable in-memory graph repository for tests and dev
 in-memory = ["mises-graph/in-memory"]

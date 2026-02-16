@@ -48,6 +48,7 @@ export interface TokenRequest {
   clientCredentials?: ClientCredentials | undefined;
   deviceCode?: DeviceCode | undefined;
   password?: Password | undefined;
+  deviceCredentials?: DeviceCredentials | undefined;
 }
 
 export interface AuthorizationCode {
@@ -78,6 +79,10 @@ export interface Password {
   username: string;
   password: string;
   clientId: string;
+  scope?: string | undefined;
+}
+
+export interface DeviceCredentials {
   scope?: string | undefined;
 }
 
@@ -694,6 +699,7 @@ function createBaseTokenRequest(): TokenRequest {
     clientCredentials: undefined,
     deviceCode: undefined,
     password: undefined,
+    deviceCredentials: undefined,
   };
 }
 
@@ -713,6 +719,9 @@ export const TokenRequest: MessageFns<TokenRequest> = {
     }
     if (message.password !== undefined) {
       Password.encode(message.password, writer.uint32(42).fork()).join();
+    }
+    if (message.deviceCredentials !== undefined) {
+      DeviceCredentials.encode(message.deviceCredentials, writer.uint32(50).fork()).join();
     }
     return writer;
   },
@@ -764,6 +773,14 @@ export const TokenRequest: MessageFns<TokenRequest> = {
           message.password = Password.decode(reader, reader.uint32());
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.deviceCredentials = DeviceCredentials.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -792,6 +809,9 @@ export const TokenRequest: MessageFns<TokenRequest> = {
       : undefined;
     message.password = (object.password !== undefined && object.password !== null)
       ? Password.fromPartial(object.password)
+      : undefined;
+    message.deviceCredentials = (object.deviceCredentials !== undefined && object.deviceCredentials !== null)
+      ? DeviceCredentials.fromPartial(object.deviceCredentials)
       : undefined;
     return message;
   },
@@ -1154,6 +1174,52 @@ export const Password: MessageFns<Password> = {
     message.username = object.username ?? "";
     message.password = object.password ?? "";
     message.clientId = object.clientId ?? "";
+    message.scope = object.scope ?? undefined;
+    return message;
+  },
+};
+
+function createBaseDeviceCredentials(): DeviceCredentials {
+  return { scope: undefined };
+}
+
+export const DeviceCredentials: MessageFns<DeviceCredentials> = {
+  encode(message: DeviceCredentials, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.scope !== undefined) {
+      writer.uint32(26).string(message.scope);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeviceCredentials {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeviceCredentials();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.scope = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<DeviceCredentials>): DeviceCredentials {
+    return DeviceCredentials.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DeviceCredentials>): DeviceCredentials {
+    const message = createBaseDeviceCredentials();
     message.scope = object.scope ?? undefined;
     return message;
   },

@@ -66,6 +66,7 @@ pub enum IdentityMeta {
   Device {
     name: String,
     root: Option<Uuid>,
+    device_id: Option<String>,
   },
   Service {
     name: String,

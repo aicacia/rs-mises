@@ -20,6 +20,7 @@ where
   S: KeyValueStoreExecutor,
 {
   repo: R,
+  device_id: String,
   store: S,
   issuer: String,
   public_uri: Option<Url>,
@@ -33,6 +34,7 @@ where
 {
   pub fn new(
     repo: R,
+    device_id: String,
     store: S,
     issuer: String,
     public_uri: Option<Url>,
@@ -40,6 +42,7 @@ where
   ) -> Self {
     Self {
       repo,
+      device_id,
       store,
       issuer,
       public_uri,
@@ -64,6 +67,7 @@ where
 
     authorize(
       &self.repo,
+      &self.device_id,
       &self.store,
       request.into_inner(),
       claims,
@@ -90,6 +94,7 @@ where
 
     token(
       &self.repo,
+      &self.device_id,
       &self.store,
       request.into_inner(),
       claims,
@@ -141,7 +146,7 @@ where
       ));
     }
 
-    client_register(&self.repo, request.into_inner())
+    client_register(&self.repo, &self.device_id, request.into_inner())
       .await
       .map(Response::new)
   }
@@ -166,7 +171,7 @@ where
   ) -> Result<Response<mises_proto::OpenIdConfiguration>, Status> {
     let issuer = self.issuer.to_owned();
 
-    let identity_service = IdentityService::new(self.repo.clone());
+    let identity_service = IdentityService::new(self.repo.clone(), self.device_id.to_string());
     let applications = identity_service
       .list_applications()
       .await

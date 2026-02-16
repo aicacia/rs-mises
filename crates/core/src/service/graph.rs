@@ -8,7 +8,7 @@ use alloc::{
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use chrono::{DateTime, Utc};
 use mises_graph::{
-  EdgeQuery, Element, Executor as MisesGraphExecutor, NodeQuery, Query, Transaction, field,
+  Element, Executor as MisesGraphExecutor, Filter, NodeQuery, Query, Transaction, field,
 };
 use mises_key::Key;
 use uuid::Uuid;
@@ -16,7 +16,6 @@ use uuid::Uuid;
 use crate::{
   CoreError, InvalidInput, Result,
   model::{
-    edge::EdgeType,
     identity::IdentityType,
     keys::KeyMeta,
     node::{NodeMeta, NodeType},
@@ -27,18 +26,20 @@ use crate::{
 
 #[derive(Clone)]
 pub struct BootstrapOptions {
+  pub device_id: String,
+  pub device_name: Option<String>,
   pub root_group_name: Option<String>,
   pub owner_name: Option<String>,
-  pub device_name: Option<String>,
   pub now: Option<DateTime<Utc>>,
 }
 
 impl BootstrapOptions {
-  pub fn builder() -> BootstrapOptionsBuilder {
+  pub fn builder(device_id: impl Into<String>) -> BootstrapOptionsBuilder {
     BootstrapOptionsBuilder {
+      device_id: device_id.into(),
+      device_name: None,
       root_group_name: None,
       owner_name: None,
-      device_name: None,
       now: None,
     }
   }
@@ -46,20 +47,27 @@ impl BootstrapOptions {
 
 #[derive(Clone, Default)]
 pub struct BootstrapOptionsBuilder {
+  device_id: String,
+  device_name: Option<String>,
   root_group_name: Option<String>,
   owner_name: Option<String>,
-  device_name: Option<String>,
   now: Option<DateTime<Utc>>,
 }
 
 impl BootstrapOptionsBuilder {
-  pub fn new() -> Self {
+  pub fn new(device_id: impl Into<String>) -> Self {
     Self {
+      device_id: device_id.into(),
+      device_name: None,
       root_group_name: None,
       owner_name: None,
-      device_name: None,
       now: None,
     }
+  }
+
+  pub fn device_name(mut self, name: impl Into<String>) -> Self {
+    self.device_name = Some(name.into());
+    self
   }
 
   pub fn root_group_name(mut self, name: impl Into<String>) -> Self {
@@ -72,11 +80,6 @@ impl BootstrapOptionsBuilder {
     self
   }
 
-  pub fn device_name(mut self, name: impl Into<String>) -> Self {
-    self.device_name = Some(name.into());
-    self
-  }
-
   pub fn now(mut self, now: DateTime<Utc>) -> Self {
     self.now = Some(now);
     self
@@ -84,20 +87,21 @@ impl BootstrapOptionsBuilder {
 
   pub fn build(self) -> BootstrapOptions {
     BootstrapOptions {
+      device_id: self.device_id,
+      device_name: self.device_name,
       root_group_name: self.root_group_name,
       owner_name: self.owner_name,
-      device_name: self.device_name,
       now: self.now,
     }
   }
 }
 
 pub struct BootstrapResult {
-  pub root_group: Uuid,
+  pub root_group_id: Uuid,
   pub master_key_public_key: String,
   pub master_key_created: bool,
-  pub owner_user: Uuid,
-  pub device: Uuid,
+  pub owner_user_id: Uuid,
+  pub device_id: Uuid,
 }
 
 #[derive(Clone)]
@@ -152,105 +156,52 @@ where
   where
     E: Repository + Clone,
   {
-    let group_node = {
-      let query = Query::nodes(
-        NodeQuery::new(NodeType::Key.as_str())
-          .filter(field("metadata.derivation_path").eq("m/44'"))
-          .include(
-            EdgeQuery::incoming(EdgeType::Owns.as_str()).from(
-              NodeQuery::new(NodeType::Identity.as_str())
-                .filter(field("metadata.type").eq(IdentityType::Group.as_str())),
-            ),
-          ),
-      );
-      let elements = self.exec.query(query).await?;
-      let mut group_id = None;
-      let mut key_id = None;
-      let mut key_public_key = None;
-      let mut key_private_b64: Option<String> = None;
+    let identity = IdentityService::new(self.exec.clone(), options.device_id.clone());
 
-      for el in elements {
-        match el {
-          Element::Node(node) => {
-            if let NodeMeta::Key(KeyMeta {
-              public_key,
-              private_key,
-              ..
-            }) = &node.metadata
-            {
-              log::debug!("Found existing master key with id {}", node.id);
-              key_id = Some(node.id);
-              key_public_key = Some(public_key.clone());
-              key_private_b64 = private_key.clone();
-            }
-          }
-          Element::Edge(edge) => {
-            if edge.r#type == EdgeType::Owns.as_str() {
-              log::debug!("Found existing master group with id {}", edge.from_id);
-              group_id = Some(edge.from_id);
-            }
-          }
-        }
-      }
+    // Get or create master key
+    let (master_key, seed_bytes, master_key_created): (Key, Vec<u8>, bool) =
+      self.get_or_create_master_key().await?;
+    let kp = master_key.ed25519_keypair()?;
+    let master_key_public_key = BASE64_URL_SAFE.encode(kp.public.as_bytes());
 
-      match (group_id, key_id, key_public_key, key_private_b64) {
-        (Some(gid), Some(kid), Some(pk), priv_b64) => Some((gid, kid, pk, priv_b64)),
-        _ => {
-          log::debug!("No existing master group/key found");
-          None
-        }
-      }
-    };
+    if master_key_created {
+      log::debug!("A new master key was created");
 
-    let identity = IdentityService::new(self.exec.clone());
+      // Create the master key node directly - this is foundational
+      let tx = self.exec.transaction().await?;
 
-    let (root_group_id, _master_key, master_key_public_key, master_key_created) = match group_node {
-      Some((group_id, key_id, public_key, _priv_b64)) => (group_id, key_id, public_key, false),
-      None => {
-        let (master_key, seed_bytes, master_key_created): (Key, Vec<u8>, bool) =
-          self.get_or_create_master_key().await?;
-        let kp = master_key.ed25519_keypair()?;
-        let public_key = BASE64_URL_SAFE.encode(kp.public.as_bytes());
+      let _key_node = tx
+        .create_node(
+          NodeType::Key.as_str().to_string(),
+          NodeMeta::Key(KeyMeta {
+            public_key: master_key_public_key.clone(),
+            private_key: Some(BASE64_URL_SAFE.encode(seed_bytes.as_slice())),
+            derivation_path: master_key.derivation_path(),
+          }),
+        )
+        .await?;
 
-        let secret_b64 = BASE64_URL_SAFE.encode(seed_bytes.as_slice());
+      tx.commit().await?;
+    }
 
-        if master_key_created {
-          log::debug!("A new master key was created");
+    // Get or create the root group
+    let master_group_query = Query::nodes(
+      NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
+        field("metadata.type")
+          .eq(IdentityType::Group.as_str())
+          .into(),
+        field("metadata.name").eq("master".to_string()).into(),
+      ])),
+    );
 
-          // Create the master key node directly - this is foundational
-          let tx = self.exec.transaction().await?;
-
-          let _key_node = tx
-            .create_node(
-              NodeType::Key.as_str().to_string(),
-              NodeMeta::Key(KeyMeta {
-                public_key: public_key.clone(),
-                private_key: Some(secret_b64),
-                derivation_path: master_key.derivation_path(),
-              }),
-            )
-            .await?;
-
-          tx.commit().await?;
-        }
-
-        // Use IdentityService for creating the root group
-        let (group_node, key_node) = identity
-          .create_group(
-            options
-              .root_group_name
-              .unwrap_or_else(|| "Everything".to_string()),
-          )
-          .await?;
-
-        log::debug!(
-          "Created master group with id {} and master key with id {}",
-          group_node.id,
-          key_node.id
-        );
-
-        (group_node.id, key_node.id, public_key, master_key_created)
-      }
+    let master_group_elements = self.exec.query(master_group_query).await?;
+    let root_group_id = if let Some(Element::Node(node)) = master_group_elements.first() {
+      node.id
+    } else {
+      log::debug!("Master group not found, creating new master group");
+      let (group_node, _key_node) = identity.create_group("master".to_string()).await?;
+      log::debug!("Created master group with id {}", group_node.id);
+      group_node.id
     };
 
     let owner_user_id = match identity
@@ -288,28 +239,30 @@ where
       }
     };
 
-    let devices = identity.find_root_devices(root_group_id).await?;
-    let device_id = if let Some(did_node) = devices.into_iter().next() {
-      did_node.id
-    } else {
-      let (device_node, _key_node) = identity
-        .create_device(
-          options.device_name.unwrap_or_else(|| "device".to_string()),
+    let device_id_str = options.device_id.clone();
+    let device_id = match identity.find_this_device(root_group_id).await? {
+      Some(did_node) => did_node.id,
+      None => {
+        let (device_node, _key_node) = identity
+          .create_device(
+            options
+              .device_name
+              .clone()
+              .unwrap_or_else(|| options.device_id.clone()),
+            Some(root_group_id),
+            Some(device_id_str),
+            Some(root_group_id),
+          )
+          .await?;
+
+        log::debug!(
+          "Created device with id {} belonging to master group {} and hardware device id {}",
+          device_node.id,
           root_group_id,
-          None,
-        )
-        .await?;
-
-      identity
-        .add_member_of(device_node.id, root_group_id, options.now)
-        .await?;
-
-      log::debug!(
-        "Created device with id {} belonging to master group {}",
-        device_node.id,
-        root_group_id
-      );
-      device_node.id
+          options.device_id
+        );
+        device_node.id
+      }
     };
 
     let _service_id = match identity.find_service_by_name("mises").await? {
@@ -324,11 +277,11 @@ where
     };
 
     Ok(BootstrapResult {
-      root_group: root_group_id,
+      root_group_id,
       master_key_public_key,
       master_key_created,
-      owner_user: owner_user_id,
-      device: device_id,
+      owner_user_id,
+      device_id,
     })
   }
 

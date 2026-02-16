@@ -4,6 +4,7 @@ use mises_core::{
   traits::Repository,
 };
 use mises_graph::KeyValueStoreExecutor;
+use native_authentication::{AndroidText, AuthError, Context, PolicyBuilder, Text, WindowsText};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
@@ -17,6 +18,7 @@ use crate::{
 
 pub async fn token<R, S>(
   repo: &R,
+  device_id: &str,
   store: &S,
   req: mises_proto::TokenRequest,
   _claims: Option<Claims>,
@@ -28,10 +30,10 @@ where
 {
   match req.grant {
     Some(mises_proto::token_request::Grant::Password(password_grant)) => {
-      handle_password_grant(repo, password_grant, issuer).await
+      handle_password_grant(repo, device_id, password_grant, issuer).await
     }
     Some(mises_proto::token_request::Grant::AuthorizationCode(authorization_code)) => {
-      handle_authorization_code_grant(repo, store, authorization_code, issuer).await
+      handle_authorization_code_grant(repo, device_id, store, authorization_code, issuer).await
     }
     Some(mises_proto::token_request::Grant::RefreshToken(_)) => {
       Err(Status::unimplemented("refresh_token grant not implemented"))
@@ -42,12 +44,16 @@ where
     Some(mises_proto::token_request::Grant::DeviceCode(_)) => {
       Err(Status::unimplemented("device_code grant not implemented"))
     }
+    Some(mises_proto::token_request::Grant::DeviceCredentials(device_credentials)) => {
+      handle_device_credentials_grant(repo, device_id, device_credentials, issuer).await
+    }
     None => Err(Status::invalid_argument("grant type is required")),
   }
 }
 
 async fn handle_authorization_code_grant<R, S>(
   repo: &R,
+  device_id: &str,
   store: &S,
   authorization_code: mises_proto::AuthorizationCode,
   issuer: &str,
@@ -108,11 +114,12 @@ where
     }
   }
 
-  let client_node = ensure_application_identity(repo, code_data.client_id).await?;
+  let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
+
+  let client_node = ensure_application_identity(&identity_service, code_data.client_id).await?;
 
   let (access_token_expiry, refresh_token_expiry) = extract_client_token_expiry(&client_node)?;
 
-  let identity_service = IdentityService::new(repo.clone());
   let (_key_node, client_key) = identity_service
     .get_identity_key(code_data.client_id)
     .await
@@ -148,6 +155,7 @@ where
 
 async fn handle_password_grant<R>(
   repo: &R,
+  device_id: &str,
   grant: mises_proto::Password,
   issuer: &str,
 ) -> Result<mises_proto::TokenResponse, Status>
@@ -165,7 +173,7 @@ where
   let access_token_expiry = 900;
   let refresh_token_expiry = 604800;
 
-  let identity_service = IdentityService::new(repo.clone());
+  let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
   let user_node = identity_service
     .authenticate_user(&grant.username, &grant.password)
     .await
@@ -204,6 +212,75 @@ where
     token_type: "Bearer".to_string(),
     expires_in: Some(access_token_expiry as u64),
     refresh_token: Some(refresh_token),
+    id_token: None,
+    scope: grant.scope,
+  })
+}
+
+async fn handle_device_credentials_grant<R>(
+  repo: &R,
+  device_id: &str,
+  grant: mises_proto::DeviceCredentials,
+  issuer: &str,
+) -> Result<mises_proto::TokenResponse, Status>
+where
+  R: Repository + Clone + Send + Sync + 'static,
+{
+  let policy = PolicyBuilder::new()
+    .password(true)
+    .build()
+    .map_err(|_| Status::internal("device auth policy error"))?;
+
+  let text = Text {
+    android: AndroidText {
+      title: "Mises device access".to_string(),
+      subtitle: None,
+      description: None,
+    },
+    apple: "Mises device access".to_string(),
+    windows: WindowsText::new("Mises device access", "Allow Mises to access this device"),
+  };
+
+  let ctx = Context::new(());
+  ctx.authenticate(text, &policy).await.map_err(|e| match e {
+    AuthError::NotSupported => Status::failed_precondition("native authentication not supported"),
+    AuthError::MissingTool => Status::failed_precondition("pkcheck not available"),
+    AuthError::ExecutionError(_) => Status::permission_denied("device authentication failed"),
+  })?;
+
+  let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
+  let master_group = identity_service
+    .get_master_group()
+    .await
+    .map_err(|e| e.to_status())?;
+
+  let device_node = identity_service
+    .find_this_device(master_group.id)
+    .await
+    .map_err(|e| e.to_status())?
+    .ok_or_else(|| Status::failed_precondition("no device identity found"))?;
+
+  let (_key_node, device_key) = identity_service
+    .get_identity_key(device_node.id)
+    .await
+    .map_err(|e| e.to_status())?;
+
+  let access_token_expiry = 900;
+  let scope = grant.scope.as_deref();
+
+  let access_token = generate_access_token(
+    &device_node.id.to_string(),
+    issuer,
+    scope,
+    access_token_expiry,
+    &device_key,
+  )?;
+
+  Ok(mises_proto::TokenResponse {
+    access_token,
+    token_type: "Bearer".to_string(),
+    expires_in: Some(access_token_expiry as u64),
+    refresh_token: None,
     id_token: None,
     scope: grant.scope,
   })

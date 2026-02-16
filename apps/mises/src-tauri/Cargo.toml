@@ -54,7 +54,8 @@ tauri-plugin-log = { version = "2", default-features = false, features = [] }
 tauri-plugin-deep-link = { version = "2", default-features = false, features = [
 ] }
 tauri-plugin-cli = { version = "2", default-features = false, features = [] }
-native-authentication = { path = "../../../crates/native-authentication", default-features = false }
+native-authentication = { path = "../../../crates/native-authentication", default-features = false, features = [
+] }
 
 # workspace
 mises-proto = { path = "../../../crates/proto", default-features = false }

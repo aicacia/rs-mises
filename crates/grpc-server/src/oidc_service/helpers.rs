@@ -100,11 +100,13 @@ pub fn matches_redirect_pattern(redirect_uri: &str, pattern: &str) -> bool {
   true
 }
 
-pub async fn ensure_application_identity<R>(repo: &R, client_uuid: Uuid) -> Result<R::Node, Status>
+pub async fn ensure_application_identity<R>(
+  identity_service: &IdentityService<R>,
+  client_uuid: Uuid,
+) -> Result<R::Node, Status>
 where
   R: Repository + Clone + Send + Sync + 'static,
 {
-  let identity_service = IdentityService::new(repo.clone());
   identity_service
     .get_node_by_id_and_identity_type(client_uuid, IdentityType::Application)
     .await
@@ -121,14 +123,13 @@ where
 }
 
 pub async fn ensure_service_owns_application<R>(
-  repo: &R,
+  identity_service: &IdentityService<R>,
   service_id: Uuid,
   application_id: Uuid,
 ) -> Result<(), Status>
 where
   R: Repository + Clone + Send + Sync + 'static,
 {
-  let identity_service = IdentityService::new(repo.clone());
   let owns = identity_service
     .verify_ownership(service_id, application_id)
     .await

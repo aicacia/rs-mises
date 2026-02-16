@@ -1,6 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"sign_in": "Sign in",
+	"sign_in_with_device": "Sign in with device",
 	"authorize": "Authorize",
 	"errors_name_application": "Application",
 	"errors_name_request": "Request",

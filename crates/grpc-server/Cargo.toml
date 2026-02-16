@@ -36,6 +36,10 @@ getrandom = { workspace = true, features = ["std"] }
 url = { version = "2.5", default-features = false, features = ["std"] }
 uuid = { workspace = true, features = [] }
 
+# Auth
+native-authentication = { path = "../native-authentication", default-features = false, features = [
+] }
+
 # gRPC
 prost-types = { workspace = true, features = [] }
 tonic = { workspace = true, features = [] }
