@@ -4,6 +4,7 @@ use mises_core::{
   model::identity::{IdentityMeta, IdentityType},
   service::identity::IdentityService,
 };
+
 mod common;
 
 use common::{create_identity, make_repo};

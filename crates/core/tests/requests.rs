@@ -23,20 +23,20 @@ async fn request_lifecycle_happy_path() {
   let service = RequestService::new(repo);
 
   let owner = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "owner".to_string(),
     },
   )
   .await;
   let requestor = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "requestor".to_string(),
     },
   )
   .await;
-  let resource = create_resource(service.repo(), "file-system").await;
+  let resource = create_resource(service.exec(), "file-system").await;
 
   let request_id = service
     .create_request(
@@ -73,7 +73,7 @@ async fn request_lifecycle_happy_path() {
     EdgeQuery::incoming(EdgeType::Owns.as_str())
       .to(NodeQuery::any().filter(field("id").eq(resource.to_string()))),
   );
-  let elements = service.repo().query(query).await.unwrap();
+  let elements = service.exec().query(query).await.unwrap();
   let mut owners = Vec::new();
   for el in elements {
     if let Element::Edge(edge) = el {
@@ -92,27 +92,27 @@ async fn deny_wins_over_partial_quorum() {
   let service = RequestService::new(repo);
 
   let owner_a = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "owner-a".to_string(),
     },
   )
   .await;
   let owner_b = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "owner-b".to_string(),
     },
   )
   .await;
   let requestor = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "requestor".to_string(),
     },
   )
   .await;
-  let resource = create_resource(service.repo(), "file-system").await;
+  let resource = create_resource(service.exec(), "file-system").await;
 
   let request_id = service
     .create_request(
@@ -152,27 +152,27 @@ async fn quorum_requires_multiple_approvals() {
   let service = RequestService::new(repo);
 
   let owner_a = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "owner-a".to_string(),
     },
   )
   .await;
   let owner_b = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "owner-b".to_string(),
     },
   )
   .await;
   let requestor = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "requestor".to_string(),
     },
   )
   .await;
-  let resource = create_resource(service.repo(), "file-system").await;
+  let resource = create_resource(service.exec(), "file-system").await;
 
   let request_id = service
     .create_request(
@@ -209,20 +209,20 @@ async fn approval_nodes_and_edges_created() {
   let service = RequestService::new(repo);
 
   let owner = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "owner".to_string(),
     },
   )
   .await;
   let requestor = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "requestor".to_string(),
     },
   )
   .await;
-  let resource = create_resource(service.repo(), "file-system").await;
+  let resource = create_resource(service.exec(), "file-system").await;
 
   let request_id = service
     .create_request(
@@ -250,7 +250,7 @@ async fn approval_nodes_and_edges_created() {
     EdgeQuery::outgoing(EdgeType::HasApproval.as_str())
       .from(NodeQuery::any().filter(field("id").eq(request_id.to_string()))),
   );
-  let elements = service.repo().query(query.clone()).await.unwrap();
+  let elements = service.exec().query(query.clone()).await.unwrap();
   eprintln!("approval edges after approve: {:?}", elements);
   let mut approval_nodes = Vec::new();
   for el in elements {
@@ -260,7 +260,7 @@ async fn approval_nodes_and_edges_created() {
   }
 
   if approval_nodes.is_empty() {
-    let tx = service.repo().transaction().await.unwrap();
+    let tx = service.exec().transaction().await.unwrap();
 
     let approval_node = tx
       .create_node(
@@ -297,7 +297,7 @@ async fn approval_nodes_and_edges_created() {
 
     tx.commit().await.unwrap();
 
-    let elements = service.repo().query(query.clone()).await.unwrap();
+    let elements = service.exec().query(query.clone()).await.unwrap();
     eprintln!("approval edges after manual tx: {:?}", elements);
     approval_nodes.clear();
     for el in elements {
@@ -310,7 +310,7 @@ async fn approval_nodes_and_edges_created() {
   assert_eq!(approval_nodes.len(), 1);
 
   let approval_node = service
-    .repo()
+    .exec()
     .get_node_by_id(approval_nodes[0])
     .await
     .unwrap()
@@ -325,7 +325,7 @@ async fn approval_nodes_and_edges_created() {
     EdgeQuery::outgoing(EdgeType::ApprovedBy.as_str())
       .from(NodeQuery::any().filter(field("id").eq(approval_nodes[0].to_string()))),
   );
-  let elements = service.repo().query(query).await.unwrap();
+  let elements = service.exec().query(query).await.unwrap();
   let mut approver_ids = Vec::new();
   for el in elements {
     if let Element::Edge(edge) = el {
@@ -341,27 +341,27 @@ async fn denial_nodes_and_edges_created() {
   let service = RequestService::new(repo);
 
   let owner_a = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "owner-a".to_string(),
     },
   )
   .await;
   let owner_b = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "owner-b".to_string(),
     },
   )
   .await;
   let requestor = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "requestor".to_string(),
     },
   )
   .await;
-  let resource = create_resource(service.repo(), "file-system").await;
+  let resource = create_resource(service.exec(), "file-system").await;
 
   let request_id = service
     .create_request(
@@ -392,7 +392,7 @@ async fn denial_nodes_and_edges_created() {
     EdgeQuery::outgoing(EdgeType::HasDenial.as_str())
       .from(NodeQuery::any().filter(field("id").eq(request_id.to_string()))),
   );
-  let elements = service.repo().query(query).await.unwrap();
+  let elements = service.exec().query(query).await.unwrap();
   let mut denial_nodes = Vec::new();
   for el in elements {
     if let Element::Edge(edge) = el {
@@ -402,7 +402,7 @@ async fn denial_nodes_and_edges_created() {
   assert_eq!(denial_nodes.len(), 1);
 
   let denial_node = service
-    .repo()
+    .exec()
     .get_node_by_id(denial_nodes[0])
     .await
     .unwrap()
@@ -418,7 +418,7 @@ async fn denial_nodes_and_edges_created() {
     EdgeQuery::outgoing(EdgeType::DeniedBy.as_str())
       .from(NodeQuery::any().filter(field("id").eq(denial_nodes[0].to_string()))),
   );
-  let elements = service.repo().query(query).await.unwrap();
+  let elements = service.exec().query(query).await.unwrap();
   let mut approver_ids = Vec::new();
   for el in elements {
     if let Element::Edge(edge) = el {
@@ -434,7 +434,7 @@ async fn policy_custom_action_case_insensitive() {
   let service = RequestService::new(repo);
 
   let identity = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "alice".to_string(),
     },
@@ -442,7 +442,7 @@ async fn policy_custom_action_case_insensitive() {
   .await;
 
   let requestor = create_identity(
-    service.repo(),
+    service.exec(),
     IdentityMeta::User {
       name: "requestor".to_string(),
     },
@@ -450,7 +450,7 @@ async fn policy_custom_action_case_insensitive() {
   .await;
 
   let policy_node = service
-    .repo()
+    .exec()
     .create_node(
       NodeType::Policy.as_str().to_string(),
       NodeMeta::Policy(mises_core::model::policy::PolicyMeta {
@@ -468,7 +468,7 @@ async fn policy_custom_action_case_insensitive() {
     .id;
 
   service
-    .repo()
+    .exec()
     .create_edge(
       EdgeType::MemberOf.as_str().to_string(),
       identity,
@@ -481,7 +481,7 @@ async fn policy_custom_action_case_insensitive() {
     .await
     .unwrap();
 
-  let resource = create_resource(service.repo(), "file-system").await;
+  let resource = create_resource(service.exec(), "file-system").await;
 
   let _req_id = service
     .create_request(

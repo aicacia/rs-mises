@@ -1,8 +1,7 @@
 #![cfg(feature = "in-memory")]
 
-use std::ops::RangeBounds;
-
 use core::sync::atomic::{AtomicUsize, Ordering};
+use std::ops::RangeBounds;
 
 use mises_graph::{
   EdgeQuery, Element, Executor, IdGenerator, InMemoryKeyValueStore, KeyValueRepository, NodeQuery,

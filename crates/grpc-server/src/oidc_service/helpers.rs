@@ -5,12 +5,13 @@ use tonic::{Request, Status};
 use url::Url;
 use uuid::Uuid;
 
-use crate::{
-  error::ToStatus,
-  jwt::{Claims, extract_and_parse_jwt_claims},
-};
+use crate::{error::ToStatus, jwt::Claims};
 
 pub fn extract_optional_claims<T>(request: &Request<T>) -> Result<Option<Claims>, Status> {
+  if let Some(claims) = request.extensions().get::<Claims>() {
+    return Ok(Some(claims.clone()));
+  }
+
   let Some(auth_header) = request
     .metadata()
     .get("authorization")
@@ -19,9 +20,11 @@ pub fn extract_optional_claims<T>(request: &Request<T>) -> Result<Option<Claims>
     return Ok(None);
   };
 
-  extract_and_parse_jwt_claims(auth_header)
-    .map(Some)
-    .map_err(|_| Status::unauthenticated("invalid bearer token"))
+  if auth_header.trim().is_empty() {
+    return Ok(None);
+  }
+
+  Err(Status::unauthenticated("invalid bearer token"))
 }
 
 pub fn matches_redirect_pattern(redirect_uri: &str, pattern: &str) -> bool {

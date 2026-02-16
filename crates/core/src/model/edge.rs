@@ -1,9 +1,6 @@
-use alloc::{
-  fmt,
-  string::{String, ToString},
-};
+use alloc::string::{String, ToString};
 use core::{
-  fmt::{Display, Formatter},
+  fmt::{self, Display, Formatter},
   str::FromStr,
 };
 

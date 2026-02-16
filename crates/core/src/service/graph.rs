@@ -6,15 +6,13 @@ use alloc::{
   vec::Vec,
 };
 
-use {
-  base64::{Engine, prelude::BASE64_URL_SAFE},
-  chrono::{DateTime, Utc},
-  mises_graph::{
-    EdgeQuery, Element, Executor as MisesGraphExecutor, NodeQuery, Query, Transaction, field,
-  },
-  mises_key::Key,
-  uuid::Uuid,
+use base64::{Engine, prelude::BASE64_URL_SAFE};
+use chrono::{DateTime, Utc};
+use mises_graph::{
+  EdgeQuery, Element, Executor as MisesGraphExecutor, NodeQuery, Query, Transaction, field,
 };
+use mises_key::Key;
+use uuid::Uuid;
 
 use crate::{
   CoreError, InvalidInput, Result,

@@ -2,7 +2,10 @@
 
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use mises_core::{
-  model::{keys::KeyMeta, node::NodeMeta, node::NodeType},
+  model::{
+    keys::KeyMeta,
+    node::{NodeMeta, NodeType},
+  },
   service::graph::{BootstrapOptions, GraphService},
 };
 use mises_graph::{Element, Executor, NodeQuery, Query, field};

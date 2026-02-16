@@ -1,8 +1,10 @@
 #![cfg(feature = "in-memory")]
 
 extern crate alloc;
+
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicU64, Ordering};
+
 use mises_graph::{
   EdgeQuery, Element, Executor, IdGenerator, InMemoryKeyValueStore, KeyValueRepository, NodeQuery,
   Query, field,

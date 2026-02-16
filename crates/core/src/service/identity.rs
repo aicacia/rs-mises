@@ -5,12 +5,10 @@ use alloc::{
   vec::Vec,
 };
 
-use {
-  base64::{Engine, prelude::BASE64_URL_SAFE},
-  mises_graph::{EdgeQuery, Element, Filter, NodeQuery, Query, field},
-  mises_key::Key,
-  uuid::Uuid,
-};
+use base64::{Engine, prelude::BASE64_URL_SAFE};
+use mises_graph::{EdgeQuery, Element, Filter, NodeQuery, Query, field};
+use mises_key::Key;
+use uuid::Uuid;
 
 use crate::{
   CoreError, InvalidInput, Result,
@@ -37,21 +35,6 @@ where
 {
   pub fn new(exec: E) -> Self {
     Self { exec }
-  }
-
-  pub async fn get_identity_type(&self, id: Uuid) -> Result<IdentityType> {
-    let node = self
-      .exec
-      .get_node_by_id(id)
-      .await?
-      .ok_or(CoreError::NotFound)?;
-
-    match &node.metadata {
-      NodeMeta::Identity(identity_meta) => Ok(identity_meta.identity_type()),
-      _ => Err(CoreError::InvalidInput(crate::error::InvalidInput::Other(
-        "node is not an identity".into(),
-      ))),
-    }
   }
 
   pub async fn get_node_by_id_and_identity_type(
@@ -82,19 +65,17 @@ where
   }
 
   pub async fn find_owner(&self, id: Uuid) -> Result<Option<E::Node>> {
-    let query = Query::edges(
-      EdgeQuery::incoming(EdgeType::Owns.as_str())
-        .from(NodeQuery::new(NodeType::Identity.as_str()))
-        .to(NodeQuery::any().filter(field("id").eq(id.to_string()))),
+    let query = Query::nodes(
+      NodeQuery::new(NodeType::Identity.as_str()).include(
+        EdgeQuery::outgoing(EdgeType::Owns.as_str())
+          .to(NodeQuery::any().filter(field("id").eq(id.to_string()))),
+      ),
     );
 
     let elements = self.exec.query(query).await?;
 
     for el in elements {
-      if let Element::Edge(edge) = el
-        && edge.r#type == EdgeType::Owns.as_str()
-        && let Some(node) = self.exec.get_node_by_id(edge.from_id).await?
-      {
+      if let Element::Node(node) = el {
         return Ok(Some(node));
       }
     }
@@ -102,11 +83,11 @@ where
     Ok(None)
   }
 
-  async fn create_key_for_identity(&self) -> Result<E::Node> {
+  async fn create_key_for_identity(&self, identity_id: Uuid) -> Result<E::Node> {
     let master_key = self.get_master_key().await?;
 
-    let identity_counter = self.get_next_identity_counter().await?;
-    let child_path = format!("m/44'/{}'/0'", identity_counter);
+    let identity_index = Self::uuid_to_u32(identity_id);
+    let child_path = format!("m/44'/{}/0", identity_index);
 
     let child_key = master_key
       .child_from_derivation_path(&child_path)
@@ -115,12 +96,8 @@ where
     let kp = child_key.ed25519_keypair()?;
     let public_key = BASE64_URL_SAFE.encode(kp.public.as_bytes());
 
-    let seed_bytes = master_key
-      .seed_bytes()
-      .ok_or(CoreError::other(InvalidInput::Other(
-        "master key missing seed".into(),
-      )))?;
-    let private_key_b64 = BASE64_URL_SAFE.encode(seed_bytes.as_slice());
+    let secret_bytes = child_key.ed25519_secret_bytes()?;
+    let private_key_b64 = BASE64_URL_SAFE.encode(secret_bytes.as_slice());
 
     let key_node = self
       .exec
@@ -166,27 +143,13 @@ where
     )))
   }
 
-  async fn get_next_identity_counter(&self) -> Result<u32> {
-    let query = Query::nodes(NodeQuery::new(NodeType::Key.as_str()));
-
-    let elements = self.exec.query(query).await?;
-    let mut max_counter = 0u32;
-
-    for el in elements {
-      if let Element::Node(node) = el
-        && let NodeMeta::Key(KeyMeta {
-          derivation_path, ..
-        }) = &node.metadata
-        && let Some(counter_str) = derivation_path
-          .strip_prefix("m/44'/")
-          .and_then(|s| s.split('/').next())
-        && let Ok(counter) = counter_str.parse::<u32>()
-      {
-        max_counter = max_counter.max(counter);
-      }
-    }
-
-    Ok(max_counter.saturating_add(1))
+  fn uuid_to_u32(id: Uuid) -> u32 {
+    let bytes = id.as_bytes();
+    let a = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+    let b = u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+    let c = u32::from_be_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
+    let d = u32::from_be_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]);
+    a ^ b ^ c ^ d
   }
 
   pub async fn create_user(
@@ -195,8 +158,6 @@ where
     encrypted_password: String,
     group_id: Option<Uuid>,
   ) -> Result<(E::Node, E::Node)> {
-    let key_node = self.create_key_for_identity().await?;
-
     let user_node = self
       .exec
       .create_node(
@@ -208,6 +169,8 @@ where
         })),
       )
       .await?;
+
+    let key_node = self.create_key_for_identity(user_node.id).await?;
 
     self
       .exec
@@ -462,8 +425,6 @@ where
     root: Uuid,
     group_id: Option<Uuid>,
   ) -> Result<(E::Node, E::Node)> {
-    let key_node = self.create_key_for_identity().await?;
-
     let device_node = self
       .exec
       .create_node(
@@ -474,6 +435,8 @@ where
         })),
       )
       .await?;
+
+    let key_node = self.create_key_for_identity(device_node.id).await?;
 
     self
       .exec
@@ -521,8 +484,6 @@ where
   }
 
   pub async fn create_group(&self, name: String) -> Result<(E::Node, E::Node)> {
-    let key_node = self.create_key_for_identity().await?;
-
     let group_node = self
       .exec
       .create_node(
@@ -530,6 +491,8 @@ where
         NodeMeta::Identity(Box::new(IdentityMeta::Group { name })),
       )
       .await?;
+
+    let key_node = self.create_key_for_identity(group_node.id).await?;
 
     self
       .exec
@@ -552,8 +515,6 @@ where
     name: String,
     group_id: Option<Uuid>,
   ) -> Result<(E::Node, E::Node)> {
-    let key_node = self.create_key_for_identity().await?;
-
     let app_node = self
       .exec
       .create_node(
@@ -564,6 +525,8 @@ where
         })),
       )
       .await?;
+
+    let key_node = self.create_key_for_identity(app_node.id).await?;
 
     self
       .exec
@@ -593,8 +556,6 @@ where
     name: String,
     group_id: Option<Uuid>,
   ) -> Result<(E::Node, E::Node)> {
-    let key_node = self.create_key_for_identity().await?;
-
     let service_node = self
       .exec
       .create_node(
@@ -602,6 +563,8 @@ where
         NodeMeta::Identity(Box::new(IdentityMeta::Service { name })),
       )
       .await?;
+
+    let key_node = self.create_key_for_identity(service_node.id).await?;
 
     self
       .exec

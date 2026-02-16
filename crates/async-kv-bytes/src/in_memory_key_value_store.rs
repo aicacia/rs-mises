@@ -36,11 +36,11 @@ impl InMemoryKeyValueStore {
 }
 
 #[derive(Debug)]
-pub enum InMemoryError {
+pub enum InMemoryKeyValueError {
   UnexpectedError,
 }
 
-impl fmt::Display for InMemoryError {
+impl fmt::Display for InMemoryKeyValueError {
   fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
       Self::UnexpectedError => write!(_f, "An unexpected error occurred"),
@@ -48,11 +48,11 @@ impl fmt::Display for InMemoryError {
   }
 }
 
-impl Error for InMemoryError {}
+impl Error for InMemoryKeyValueError {}
 
 #[async_trait::async_trait]
 impl KeyValueStoreExecutor for InMemoryKeyValueStore {
-  type Error = InMemoryError;
+  type Error = InMemoryKeyValueError;
 
   async fn get<K>(&self, key: K) -> Result<Option<Vec<u8>>, Self::Error>
   where
@@ -155,7 +155,7 @@ impl KeyValueStore for InMemoryKeyValueStore {
 
 #[async_trait::async_trait]
 impl KeyValueStoreExecutor for InMemoryTransaction {
-  type Error = InMemoryError;
+  type Error = InMemoryKeyValueError;
 
   async fn get<K>(&self, key: K) -> Result<Option<Vec<u8>>, Self::Error>
   where

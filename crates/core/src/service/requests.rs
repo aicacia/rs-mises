@@ -30,23 +30,23 @@ enum PolicyDecision {
 }
 
 #[derive(Clone)]
-pub struct RequestService<R>
+pub struct RequestService<E>
 where
-  R: Repository,
+  E: Repository,
 {
-  repo: R,
+  exec: E,
 }
 
-impl<R> RequestService<R>
+impl<E> RequestService<E>
 where
-  R: Repository,
+  E: Repository,
 {
-  pub fn new(repo: R) -> Self {
-    Self { repo }
+  pub fn new(exec: E) -> Self {
+    Self { exec }
   }
 
-  pub fn repo(&self) -> &R {
-    &self.repo
+  pub fn exec(&self) -> &E {
+    &self.exec
   }
 
   pub async fn create_request(&self, requested_for: Uuid, input: RequestInput) -> Result<Uuid> {
@@ -143,7 +143,7 @@ where
       expires_at: request_input.expires_at,
     };
 
-    let tx = self.repo.transaction().await?;
+    let tx = self.exec.transaction().await?;
     let node = tx
       .create_node(
         NodeType::Request.as_str().to_string(),
@@ -186,7 +186,7 @@ where
 
   pub async fn get_request(&self, id: Uuid) -> Result<Request> {
     let node = self
-      .repo
+      .exec
       .get_node_by_id(id)
       .await?
       .ok_or(CoreError::NotFound)?;
@@ -203,7 +203,7 @@ where
         .filter(field("metadata.status").eq(RequestStatus::Pending.as_str())),
     );
 
-    let elements = self.repo.query(query).await?;
+    let elements = self.exec.query(query).await?;
     let mut results = Vec::new();
 
     for el in elements {
@@ -221,7 +221,7 @@ where
     self.ensure_identity_exists(approver_id).await?;
 
     let mut node = self
-      .repo
+      .exec
       .get_node_by_id(id)
       .await?
       .ok_or(CoreError::NotFound)?;
@@ -250,10 +250,10 @@ where
         .from(NodeQuery::any().filter(field("id").eq(node.id.to_string()))),
     );
 
-    let elements = self.repo.query(check_query).await?;
+    let elements = self.exec.query(check_query).await?;
     for el in elements {
       if let Element::Edge(edge) = el
-        && let Some(approval_node) = self.repo.get_node_by_id(edge.to_id).await?
+        && let Some(approval_node) = self.exec.get_node_by_id(edge.to_id).await?
         && let NodeMeta::Approval(approval) = approval_node.metadata
         && approval.approver == approver_id
       {
@@ -263,7 +263,7 @@ where
 
     let now = Utc::now();
 
-    let tx = self.repo.transaction().await?;
+    let tx = self.exec.transaction().await?;
 
     let approval_node = tx
       .create_node(
@@ -328,7 +328,7 @@ where
     self.ensure_identity_exists(approver_id).await?;
 
     let mut node = self
-      .repo
+      .exec
       .get_node_by_id(id)
       .await?
       .ok_or(CoreError::NotFound)?;
@@ -351,7 +351,7 @@ where
 
     let now = Utc::now();
 
-    let tx = self.repo.transaction().await?;
+    let tx = self.exec.transaction().await?;
 
     let denial_node = tx
       .create_node(
@@ -392,7 +392,7 @@ where
 
   pub async fn apply_request(&self, id: Uuid) -> Result<()> {
     let mut node = self
-      .repo
+      .exec
       .get_node_by_id(id)
       .await?
       .ok_or(CoreError::NotFound)?;
@@ -407,7 +407,7 @@ where
     }
 
     let now = Utc::now();
-    let tx = self.repo.transaction().await?;
+    let tx = self.exec.transaction().await?;
 
     let mut resource_id = request.resource_id;
     let mut created_resource = false;
@@ -554,7 +554,7 @@ where
   /// Compute eligible approvers for a stored request.
   pub async fn get_eligible_approvers(&self, id: Uuid) -> Result<Vec<Uuid>> {
     let node = self
-      .repo
+      .exec
       .get_node_by_id(id)
       .await?
       .ok_or(CoreError::NotFound)?;
@@ -595,7 +595,7 @@ where
         .to(NodeQuery::any().filter(field("id").eq(target_id.to_string()))),
     );
 
-    let elements = self.repo.query(query).await?;
+    let elements = self.exec.query(query).await?;
     let mut owners = Vec::new();
 
     for el in elements {
@@ -628,7 +628,7 @@ where
 
   async fn ensure_identity_exists(&self, id: Uuid) -> Result<()> {
     let node = self
-      .repo
+      .exec
       .get_node_by_id(id)
       .await?
       .ok_or(CoreError::NotFound)?;
@@ -643,7 +643,7 @@ where
 
   async fn ensure_resource_exists(&self, id: Uuid) -> Result<()> {
     let node = self
-      .repo
+      .exec
       .get_node_by_id(id)
       .await?
       .ok_or(CoreError::NotFound)?;
@@ -713,14 +713,14 @@ where
           .from(NodeQuery::any().filter(field("id").eq(current.to_string()))),
       );
 
-      let elements = self.repo.query(query).await?;
+      let elements = self.exec.query(query).await?;
       for el in elements {
         if let Element::Edge(edge) = el {
           let next_id = edge.to_id;
           if !visited.contains(&next_id) {
             queue.push(next_id);
           }
-          if let Some(node) = self.repo.get_node_by_id(next_id).await?
+          if let Some(node) = self.exec.get_node_by_id(next_id).await?
             && let NodeMeta::Policy(policy) = node.metadata
           {
             policies.push(policy);

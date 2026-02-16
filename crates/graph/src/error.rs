@@ -39,8 +39,8 @@ impl From<Box<dyn Error + Send + Sync + 'static>> for GraphError {
 }
 
 #[cfg(feature = "in-memory")]
-impl From<mises_async_kv_bytes::in_memory_key_value_store::InMemoryError> for GraphError {
-  fn from(e: mises_async_kv_bytes::in_memory_key_value_store::InMemoryError) -> Self {
+impl From<mises_async_kv_bytes::in_memory_key_value_store::InMemoryKeyValueError> for GraphError {
+  fn from(e: mises_async_kv_bytes::in_memory_key_value_store::InMemoryKeyValueError) -> Self {
     GraphError::Other(Box::new(e))
   }
 }
