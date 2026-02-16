@@ -10,7 +10,7 @@ use tonic::Status;
 
 use crate::{
   error::ToStatus,
-  jwt::{Claims, generate_access_token, generate_refresh_token},
+  jwt::{Claims, generate_access_token, generate_id_token, generate_refresh_token},
   oidc_service::{
     authorization_code::get_and_delete_authorization_code, helpers::ensure_application_identity,
   },
@@ -126,29 +126,50 @@ where
     .map_err(|e| e.to_status())?;
 
   let scope = code_data.scope.as_deref();
+  let client_id_str = code_data.client_id.to_string();
+  let subject_str = code_data.subject.to_string();
+
+  let encoding_key = jsonwebtoken::EncodingKey::from_secret(&client_key);
 
   let access_token = generate_access_token(
-    &code_data.subject.to_string(),
+    &client_id_str,
     issuer,
+    &client_id_str,
     scope,
+    Some(&subject_str),
     access_token_expiry,
-    &client_key,
+    &encoding_key,
   )?;
 
   let refresh_token = generate_refresh_token(
-    &code_data.subject.to_string(),
+    &client_id_str,
     issuer,
+    &client_id_str,
     scope,
+    Some(&subject_str),
     refresh_token_expiry,
-    &client_key,
+    &encoding_key,
   )?;
+
+  let id_token = if scope.is_some_and(|s| s.contains("openid")) {
+    Some(generate_id_token(
+      &subject_str,
+      issuer,
+      &client_id_str,
+      code_data.nonce.as_deref(),
+      access_token_expiry,
+      &encoding_key,
+    )?)
+  } else {
+    None
+  };
 
   Ok(mises_proto::TokenResponse {
     access_token,
     token_type: "Bearer".to_string(),
     expires_in: Some(access_token_expiry as u64),
     refresh_token: Some(refresh_token),
-    id_token: None,
+    id_token,
     scope: code_data.scope,
   })
 }
@@ -173,6 +194,11 @@ where
   let access_token_expiry = 900;
   let refresh_token_expiry = 604800;
 
+  let scope = grant.scope.as_deref();
+  if !scope.is_some_and(|s| s.contains("openid")) {
+    return Err(Status::invalid_argument("scope must include 'openid'"));
+  }
+
   let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
   let user_node = identity_service
     .authenticate_user(&grant.username, &grant.password)
@@ -189,22 +215,36 @@ where
     .await
     .map_err(|e| e.to_status())?;
 
-  let scope = grant.scope.as_deref();
+  let user_id_str = user_id.to_string();
+  let encoding_key = jsonwebtoken::EncodingKey::from_secret(&user_key);
 
   let access_token = generate_access_token(
-    &user_id.to_string(),
+    &user_id_str,
     issuer,
+    &user_id_str,
     scope,
+    None,
     access_token_expiry,
-    &user_key,
+    &encoding_key,
   )?;
 
   let refresh_token = generate_refresh_token(
-    &user_id.to_string(),
+    &user_id_str,
     issuer,
+    &user_id_str,
     scope,
+    None,
     refresh_token_expiry,
-    &user_key,
+    &encoding_key,
+  )?;
+
+  let id_token = generate_id_token(
+    &user_id_str,
+    issuer,
+    &user_id_str,
+    None,
+    access_token_expiry,
+    &encoding_key,
   )?;
 
   Ok(mises_proto::TokenResponse {
@@ -212,7 +252,7 @@ where
     token_type: "Bearer".to_string(),
     expires_in: Some(access_token_expiry as u64),
     refresh_token: Some(refresh_token),
-    id_token: None,
+    id_token: Some(id_token),
     scope: grant.scope,
   })
 }
@@ -267,13 +307,17 @@ where
 
   let access_token_expiry = 900;
   let scope = grant.scope.as_deref();
+  let device_id_str = device_node.id.to_string();
+  let encoding_key = jsonwebtoken::EncodingKey::from_secret(&device_key);
 
   let access_token = generate_access_token(
-    &device_node.id.to_string(),
+    &device_id_str,
     issuer,
+    &device_id_str,
     scope,
+    None,
     access_token_expiry,
-    &device_key,
+    &encoding_key,
   )?;
 
   Ok(mises_proto::TokenResponse {

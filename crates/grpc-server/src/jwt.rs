@@ -19,9 +19,11 @@ pub struct Claims {
 pub fn generate_access_token(
   sub: &str,
   issuer: &str,
+  audience: &str,
   scope: Option<&str>,
+  acting_for: Option<&str>,
   expires_in_seconds: i64,
-  secret: &[u8],
+  secret: &EncodingKey,
 ) -> Result<String, Status> {
   let now = Utc::now();
   let exp = now + Duration::seconds(expires_in_seconds);
@@ -32,25 +34,23 @@ pub fn generate_access_token(
     iat: Some(now.timestamp()),
     exp: Some(exp.timestamp()),
     jti: Some(Uuid::new_v4().to_string()),
-    aud: None,
+    aud: Some(audience.to_string()),
     scope: scope.map(ToString::to_string),
-    acting_for: None,
+    acting_for: acting_for.map(ToString::to_string),
   };
 
-  encode(
-    &Header::default(),
-    &claims,
-    &EncodingKey::from_secret(secret),
-  )
-  .map_err(|e| Status::internal(format!("failed to generate access token: {}", e)))
+  encode(&Header::default(), &claims, secret)
+    .map_err(|e| Status::internal(format!("failed to generate access token: {}", e)))
 }
 
 pub fn generate_refresh_token(
   sub: &str,
   issuer: &str,
+  audience: &str,
   scope: Option<&str>,
+  acting_for: Option<&str>,
   expires_in_seconds: i64,
-  secret: &[u8],
+  secret: &EncodingKey,
 ) -> Result<String, Status> {
   let now = Utc::now();
   let exp = now + Duration::seconds(expires_in_seconds);
@@ -61,15 +61,41 @@ pub fn generate_refresh_token(
     iat: Some(now.timestamp()),
     exp: Some(exp.timestamp()),
     jti: Some(Uuid::new_v4().to_string()),
-    aud: None,
+    aud: Some(audience.to_string()),
     scope: scope.map(ToString::to_string),
+    acting_for: acting_for.map(ToString::to_string),
+  };
+
+  encode(&Header::default(), &claims, secret)
+    .map_err(|e| Status::internal(format!("failed to generate refresh token: {}", e)))
+}
+
+pub fn generate_id_token(
+  sub: &str,
+  issuer: &str,
+  audience: &str,
+  nonce: Option<&str>,
+  expires_in_seconds: i64,
+  secret: &EncodingKey,
+) -> Result<String, Status> {
+  let now = Utc::now();
+  let exp = now + Duration::seconds(expires_in_seconds);
+
+  let mut claims = Claims {
+    sub: sub.to_string(),
+    iss: Some(issuer.to_string()),
+    iat: Some(now.timestamp()),
+    exp: Some(exp.timestamp()),
+    jti: Some(Uuid::new_v4().to_string()),
+    aud: Some(audience.to_string()),
+    scope: None,
     acting_for: None,
   };
 
-  encode(
-    &Header::default(),
-    &claims,
-    &EncodingKey::from_secret(secret),
-  )
-  .map_err(|e| Status::internal(format!("failed to generate refresh token: {}", e)))
+  if let Some(nonce_val) = nonce {
+    claims.scope = Some(format!("nonce:{}", nonce_val));
+  }
+
+  encode(&Header::default(), &claims, secret)
+    .map_err(|e| Status::internal(format!("failed to generate id token: {}", e)))
 }
