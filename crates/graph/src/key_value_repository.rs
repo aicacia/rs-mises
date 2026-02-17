@@ -24,10 +24,6 @@ use crate::{
   types::{Element, Id, Value},
 };
 
-const NODE_PREFIX: &[u8] = b"node:";
-const EDGE_PREFIX: &[u8] = b"edge:";
-const EDGE_FROM_PREFIX: &[u8] = b"edge_from:";
-const EDGE_TO_PREFIX: &[u8] = b"edge_to:";
 const SEPARATOR: u8 = 0;
 
 pub trait IdGenerator<I>: Send + Sync {
@@ -35,68 +31,152 @@ pub trait IdGenerator<I>: Send + Sync {
 }
 
 #[derive(Clone)]
-pub struct KeyValueRepository<I, M, P, G, S>
+pub struct KeyValueRepository<I, M, P, G, SN, SE, SIF, SIT>
 where
   I: Id,
   M: Value,
   P: Value,
   G: IdGenerator<I> + 'static,
-  S: KeyValueStore,
-  GraphError: From<S::Error>,
-  S::Error: Send,
+  SN: KeyValueStore,
+  SE: KeyValueStore,
+  SIF: KeyValueStore,
+  SIT: KeyValueStore,
+  GraphError: From<SN::Error> + From<SE::Error> + From<SIF::Error> + From<SIT::Error>,
+  SN::Error: Send,
+  SE::Error: Send,
+  SIF::Error: Send,
+  SIT::Error: Send,
 {
-  store: Arc<S>,
+  node_store: Arc<SN>,
+  edge_store: Arc<SE>,
+  from_index_store: Arc<SIF>,
+  to_index_store: Arc<SIT>,
   id_gen: Arc<G>,
   _phantom: core::marker::PhantomData<(I, M, P)>,
 }
 
-impl<I, M, P, G, S> KeyValueRepository<I, M, P, G, S>
+impl<I, M, P, G, SN, SE, SIF, SIT> KeyValueRepository<I, M, P, G, SN, SE, SIF, SIT>
 where
   I: Id,
   M: Value,
   P: Value,
   G: IdGenerator<I> + 'static,
-  S: KeyValueStore,
-  GraphError: From<S::Error>,
-  S::Error: Send,
+  SN: KeyValueStore,
+  SE: KeyValueStore,
+  SIF: KeyValueStore,
+  SIT: KeyValueStore,
+  GraphError: From<SN::Error> + From<SE::Error> + From<SIF::Error> + From<SIT::Error>,
+  SN::Error: Send,
+  SE::Error: Send,
+  SIF::Error: Send,
+  SIT::Error: Send,
 {
-  pub fn new(store: S, generator: G) -> Self {
+  pub fn new(
+    node_store: SN,
+    edge_store: SE,
+    from_index_store: SIF,
+    to_index_store: SIT,
+    generator: G,
+  ) -> Self {
     Self {
-      store: Arc::new(store),
+      node_store: Arc::new(node_store),
+      edge_store: Arc::new(edge_store),
+      from_index_store: Arc::new(from_index_store),
+      to_index_store: Arc::new(to_index_store),
       id_gen: Arc::new(generator),
       _phantom: core::marker::PhantomData,
     }
   }
 }
 
-pub struct KeyValueTransaction<I, M, P, G, S>
+#[cfg(feature = "in-memory")]
+impl<I, M, P, G>
+  KeyValueRepository<
+    I,
+    M,
+    P,
+    G,
+    crate::InMemoryKeyValueStore,
+    crate::InMemoryKeyValueStore,
+    crate::InMemoryKeyValueStore,
+    crate::InMemoryKeyValueStore,
+  >
 where
   I: Id,
   M: Value,
   P: Value,
   G: IdGenerator<I> + 'static,
-  S: KeyValueStore,
-  GraphError: From<S::Error>,
-  S::Error: Send,
 {
-  tx: S::Transaction,
+  /// Convenience constructor for an in-memory repository (all stores are `InMemoryKeyValueStore`).
+  pub fn new_in_memory(generator: G) -> Self {
+    Self::new(
+      crate::InMemoryKeyValueStore::new(),
+      crate::InMemoryKeyValueStore::new(),
+      crate::InMemoryKeyValueStore::new(),
+      crate::InMemoryKeyValueStore::new(),
+      generator,
+    )
+  }
+}
+
+pub struct KeyValueTransaction<I, M, P, G, SN, SE, SIF, SIT>
+where
+  I: Id,
+  M: Value,
+  P: Value,
+  G: IdGenerator<I> + 'static,
+  SN: KeyValueStore,
+  SE: KeyValueStore,
+  SIF: KeyValueStore,
+  SIT: KeyValueStore,
+  GraphError: From<<SN::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SE::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SIF::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SIT::Transaction as KeyValueStoreExecutor>::Error>,
+  <SN::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SE::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SIF::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SIT::Transaction as KeyValueStoreExecutor>::Error: Send,
+{
+  node_tx: SN::Transaction,
+  edge_tx: SE::Transaction,
+  from_index_tx: SIF::Transaction,
+  to_index_tx: SIT::Transaction,
   id_gen: Arc<G>,
   _phantom: core::marker::PhantomData<(I, M, P)>,
 }
 
-impl<I, M, P, G, S> KeyValueTransaction<I, M, P, G, S>
+impl<I, M, P, G, SN, SE, SIF, SIT> KeyValueTransaction<I, M, P, G, SN, SE, SIF, SIT>
 where
   I: Id,
   M: Value,
   P: Value,
   G: IdGenerator<I> + 'static,
-  S: KeyValueStore,
-  GraphError: From<S::Error>,
-  S::Error: Send,
+  SN: KeyValueStore,
+  SE: KeyValueStore,
+  SIF: KeyValueStore,
+  SIT: KeyValueStore,
+  GraphError: From<<SN::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SE::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SIF::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SIT::Transaction as KeyValueStoreExecutor>::Error>,
+  <SN::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SE::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SIF::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SIT::Transaction as KeyValueStoreExecutor>::Error: Send,
 {
-  fn new(tx: S::Transaction, id_gen: Arc<G>) -> Self {
+  fn new(
+    node_tx: SN::Transaction,
+    edge_tx: SE::Transaction,
+    from_index_tx: SIF::Transaction,
+    to_index_tx: SIT::Transaction,
+    id_gen: Arc<G>,
+  ) -> Self {
     Self {
-      tx,
+      node_tx,
+      edge_tx,
+      from_index_tx,
+      to_index_tx,
       id_gen,
       _phantom: core::marker::PhantomData,
     }
@@ -105,29 +185,22 @@ where
 
 #[inline]
 fn node_key<I: Id>(id: &I) -> serde_json::Result<Vec<u8>> {
-  let id_bytes = serde_json::to_vec(id)?;
-  let mut key = Vec::with_capacity(NODE_PREFIX.len() + id_bytes.len());
-  key.extend_from_slice(NODE_PREFIX);
-  key.extend_from_slice(&id_bytes);
-  Ok(key)
+  // node store is dedicated — no global prefix needed
+  serde_json::to_vec(id)
 }
 
 #[inline]
 fn edge_key<I: Id>(id: &I) -> serde_json::Result<Vec<u8>> {
-  let id_bytes = serde_json::to_vec(id)?;
-  let mut key = Vec::with_capacity(EDGE_PREFIX.len() + id_bytes.len());
-  key.extend_from_slice(EDGE_PREFIX);
-  key.extend_from_slice(&id_bytes);
-  Ok(key)
+  // edge store is dedicated — no global prefix needed
+  serde_json::to_vec(id)
 }
 
 #[inline]
 fn edge_from_index_key<I: Id>(from_id: &I, edge_id: &I) -> serde_json::Result<Vec<u8>> {
+  // index store is dedicated — encode (node_id, edge_id) without a global prefix
   let from_bytes = serde_json::to_vec(from_id)?;
   let edge_bytes = serde_json::to_vec(edge_id)?;
-  let mut key =
-    Vec::with_capacity(EDGE_FROM_PREFIX.len() + from_bytes.len() + 1 + edge_bytes.len());
-  key.extend_from_slice(EDGE_FROM_PREFIX);
+  let mut key = Vec::with_capacity(from_bytes.len() + 1 + edge_bytes.len());
   key.extend_from_slice(&from_bytes);
   key.push(SEPARATOR);
   key.extend_from_slice(&edge_bytes);
@@ -138,8 +211,7 @@ fn edge_from_index_key<I: Id>(from_id: &I, edge_id: &I) -> serde_json::Result<Ve
 fn edge_to_index_key<I: Id>(to_id: &I, edge_id: &I) -> serde_json::Result<Vec<u8>> {
   let to_bytes = serde_json::to_vec(to_id)?;
   let edge_bytes = serde_json::to_vec(edge_id)?;
-  let mut key = Vec::with_capacity(EDGE_TO_PREFIX.len() + to_bytes.len() + 1 + edge_bytes.len());
-  key.extend_from_slice(EDGE_TO_PREFIX);
+  let mut key = Vec::with_capacity(to_bytes.len() + 1 + edge_bytes.len());
   key.extend_from_slice(&to_bytes);
   key.push(SEPARATOR);
   key.extend_from_slice(&edge_bytes);
@@ -149,8 +221,7 @@ fn edge_to_index_key<I: Id>(to_id: &I, edge_id: &I) -> serde_json::Result<Vec<u8
 #[inline]
 fn edge_from_index_prefix<I: Id>(from_id: &I) -> serde_json::Result<Vec<u8>> {
   let from_bytes = serde_json::to_vec(from_id)?;
-  let mut key = Vec::with_capacity(EDGE_FROM_PREFIX.len() + from_bytes.len() + 1);
-  key.extend_from_slice(EDGE_FROM_PREFIX);
+  let mut key = Vec::with_capacity(from_bytes.len() + 1);
   key.extend_from_slice(&from_bytes);
   key.push(SEPARATOR);
   Ok(key)
@@ -159,8 +230,7 @@ fn edge_from_index_prefix<I: Id>(from_id: &I) -> serde_json::Result<Vec<u8>> {
 #[inline]
 fn edge_to_index_prefix<I: Id>(to_id: &I) -> serde_json::Result<Vec<u8>> {
   let to_bytes = serde_json::to_vec(to_id)?;
-  let mut key = Vec::with_capacity(EDGE_TO_PREFIX.len() + to_bytes.len() + 1);
-  key.extend_from_slice(EDGE_TO_PREFIX);
+  let mut key = Vec::with_capacity(to_bytes.len() + 1);
   key.extend_from_slice(&to_bytes);
   key.push(SEPARATOR);
   Ok(key)
@@ -258,19 +328,31 @@ where
   Ok(())
 }
 
-async fn delete_node<I, P, S>(store: &S, id: I) -> Result<(), GraphError>
+async fn delete_node<I, P, SN, SE, SIF, SIT>(
+  node_store: &SN,
+  edge_store: &SE,
+  from_index_store: &SIF,
+  to_index_store: &SIT,
+  id: I,
+) -> Result<(), GraphError>
 where
   I: Id,
   P: Value,
-  S: KeyValueStoreExecutor,
-  GraphError: From<S::Error>,
-  S::Error: Send,
+  SN: KeyValueStoreExecutor,
+  SE: KeyValueStoreExecutor,
+  SIF: KeyValueStoreExecutor,
+  SIT: KeyValueStoreExecutor,
+  GraphError: From<SN::Error> + From<SE::Error> + From<SIF::Error> + From<SIT::Error>,
+  SN::Error: Send,
+  SE::Error: Send,
+  SIF::Error: Send,
+  SIT::Error: Send,
 {
   let key = node_key(&id)?;
-  if store.get::<&[u8]>(&key).await?.is_none() {
+  if node_store.get::<&[u8]>(&key).await?.is_none() {
     return Err(GraphError::NotFound);
   }
-  store.delete(&key).await.map_err(GraphError::from)?;
+  node_store.delete(&key).await.map_err(GraphError::from)?;
 
   let from_prefix = edge_from_index_prefix(&id)?;
   let to_prefix = edge_to_index_prefix(&id)?;
@@ -279,7 +361,7 @@ where
   let mut index_keys: hashbrown::HashMap<I, Vec<Vec<u8>>> = HashMap::new();
 
   let mut from_edges = Vec::new();
-  scan_prefix(store, from_prefix, |k, v| {
+  scan_prefix(from_index_store, from_prefix, |k, v| {
     if !v.is_empty() {
       from_edges.push((k.clone(), v.clone()));
     }
@@ -294,7 +376,7 @@ where
   }
 
   let mut to_edges = Vec::new();
-  scan_prefix(store, to_prefix, |k, v| {
+  scan_prefix(to_index_store, to_prefix, |k, v| {
     if !v.is_empty() {
       to_edges.push((k.clone(), v.clone()));
     }
@@ -309,12 +391,20 @@ where
   }
 
   for edge_id in edge_ids {
-    match delete_edge::<I, P, S>(store, edge_id.clone()).await {
+    match delete_edge::<I, P, SE, SIF, SIT>(
+      edge_store,
+      from_index_store,
+      to_index_store,
+      edge_id.clone(),
+    )
+    .await
+    {
       Ok(()) => continue,
       Err(GraphError::NotFound) => {
         if let Some(keys) = index_keys.get(&edge_id) {
           for key in keys {
-            let _ = store.delete(key).await;
+            let _ = from_index_store.delete(key).await;
+            let _ = to_index_store.delete(key).await;
           }
         }
 
@@ -323,20 +413,33 @@ where
           Err(e) => return Err(GraphError::SerializationError(e.to_string())),
         };
 
-        for prefix in &[EDGE_FROM_PREFIX, EDGE_TO_PREFIX] {
-          let mut found = Vec::new();
-          if scan_prefix(store, prefix.to_vec(), |k, v| {
-            if v == &edge_id_bytes {
-              found.push(k.clone());
-            }
-            true
-          })
-          .await
-          .is_ok()
-          {
-            for k in found {
-              let _ = store.delete(k).await;
-            }
+        // fallback: remove any index entries whose value equals the edge id (scan both index stores)
+        let mut found = Vec::new();
+        if scan_prefix(from_index_store, vec![], |k, v| {
+          if v == &edge_id_bytes {
+            found.push(k.clone());
+          }
+          true
+        })
+        .await
+        .is_ok()
+        {
+          for k in found.iter() {
+            let _ = from_index_store.delete(k).await;
+          }
+        }
+        let mut found2 = Vec::new();
+        if scan_prefix(to_index_store, vec![], |k, v| {
+          if v == &edge_id_bytes {
+            found2.push(k.clone());
+          }
+          true
+        })
+        .await
+        .is_ok()
+        {
+          for k in found2.iter() {
+            let _ = to_index_store.delete(k).await;
           }
         }
       }
@@ -347,8 +450,11 @@ where
   Ok(())
 }
 
-async fn create_edge<I, P, G, S>(
-  store: &S,
+async fn create_edge<I, P, G, SN, SE, SIF, SIT>(
+  node_store: &SN,
+  edge_store: &SE,
+  from_index_store: &SIF,
+  to_index_store: &SIT,
   id_gen: &G,
   r#type: String,
   from_id: I,
@@ -359,14 +465,21 @@ where
   I: Id,
   P: Value,
   G: IdGenerator<I>,
-  S: KeyValueStoreExecutor,
-  GraphError: From<S::Error>,
-  S::Error: Send,
+  SN: KeyValueStoreExecutor,
+  SE: KeyValueStoreExecutor,
+  SIF: KeyValueStoreExecutor,
+  SIT: KeyValueStoreExecutor,
+  GraphError: From<SN::Error> + From<SE::Error> + From<SIF::Error> + From<SIT::Error>,
+  SN::Error: Send,
+  SE::Error: Send,
+  SIF::Error: Send,
+  SIT::Error: Send,
 {
   let from_key = node_key(&from_id)?;
   let to_key = node_key(&to_id)?;
 
-  if store.get::<&[u8]>(&from_key).await?.is_none() || store.get::<&[u8]>(&to_key).await?.is_none()
+  if node_store.get::<&[u8]>(&from_key).await?.is_none()
+    || node_store.get::<&[u8]>(&to_key).await?.is_none()
   {
     return Err(GraphError::NotFound);
   }
@@ -387,24 +500,30 @@ where
   let value =
     serde_json::to_vec(&edge).map_err(|e| GraphError::SerializationError(e.to_string()))?;
 
-  store.put(key.clone(), value).await?;
+  edge_store
+    .put(key.clone(), value)
+    .await
+    .map_err(GraphError::from)?;
 
   let edge_id_bytes =
     serde_json::to_vec(&edge.id).map_err(|e| GraphError::SerializationError(e.to_string()))?;
   let from_index_key = edge_from_index_key(&edge.from_id, &edge.id)?;
   let to_index_key = edge_to_index_key(&edge.to_id, &edge.id)?;
 
-  if let Err(e) = store
+  if let Err(e) = from_index_store
     .put(from_index_key.clone(), edge_id_bytes.clone())
     .await
   {
-    let _ = store.delete(&key).await;
+    let _ = edge_store.delete(&key).await;
     return Err(GraphError::from(e));
   }
 
-  if let Err(e) = store.put(to_index_key.clone(), edge_id_bytes.clone()).await {
-    let _ = store.delete(&key).await;
-    let _ = store.delete(&from_index_key).await;
+  if let Err(e) = to_index_store
+    .put(to_index_key.clone(), edge_id_bytes.clone())
+    .await
+  {
+    let _ = edge_store.delete(&key).await;
+    let _ = from_index_store.delete(&from_index_key).await;
     return Err(GraphError::from(e));
   }
 
@@ -448,16 +567,25 @@ where
   Ok(())
 }
 
-async fn delete_edge<I, P, S>(store: &S, id: I) -> Result<(), GraphError>
+async fn delete_edge<I, P, SE, SIF, SIT>(
+  edge_store: &SE,
+  from_index_store: &SIF,
+  to_index_store: &SIT,
+  id: I,
+) -> Result<(), GraphError>
 where
   I: Id,
   P: Value,
-  S: KeyValueStoreExecutor,
-  GraphError: From<S::Error>,
-  S::Error: Send,
+  SE: KeyValueStoreExecutor,
+  SIF: KeyValueStoreExecutor,
+  SIT: KeyValueStoreExecutor,
+  GraphError: From<SE::Error> + From<SIF::Error> + From<SIT::Error>,
+  SE::Error: Send,
+  SIF::Error: Send,
+  SIT::Error: Send,
 {
   let key = edge_key(&id)?;
-  let existing = store
+  let existing = edge_store
     .get(&key)
     .await
     .map_err(GraphError::from)?
@@ -466,15 +594,15 @@ where
     serde_json::from_slice(&existing).map_err(|e| GraphError::SerializationError(e.to_string()))?;
   let from_index_key = edge_from_index_key(&edge.from_id, &edge.id)?;
   let to_index_key = edge_to_index_key(&edge.to_id, &edge.id)?;
-  store
+  from_index_store
     .delete(&from_index_key)
     .await
     .map_err(GraphError::from)?;
-  store
+  to_index_store
     .delete(&to_index_key)
     .await
     .map_err(GraphError::from)?;
-  store.delete(&key).await.map_err(GraphError::from)?;
+  edge_store.delete(&key).await.map_err(GraphError::from)?;
   Ok(())
 }
 async fn get_node_by_id<I, M, S>(store: &S, id: I) -> Result<Option<Node<I, M>>, GraphError>
@@ -754,7 +882,8 @@ where
   let mut node_count = 0;
   let mut ids = BTreeSet::new();
 
-  scan_prefix(store, NODE_PREFIX.to_vec(), |_, data| {
+  // scan entire dedicated node store
+  scan_prefix(store, vec![], |_, data| {
     if enforce_limit && node_count >= max_nodes {
       return false;
     }
@@ -858,17 +987,23 @@ where
   Ok(nodes_needed)
 }
 
-async fn edges_by_node<I, P, S>(
-  store: &S,
+async fn edges_by_node<I, P, SE, SIF, SIT>(
+  edge_store: &SE,
+  from_index_store: &SIF,
+  to_index_store: &SIT,
   node_id: &I,
   direction: EdgeDirection,
 ) -> Result<Vec<Edge<I, P>>, GraphError>
 where
   I: Id,
   P: Value,
-  S: mises_async_kv_bytes::KeyValueStoreExecutor,
-  GraphError: From<S::Error>,
-  S::Error: Send,
+  SE: mises_async_kv_bytes::KeyValueStoreExecutor,
+  SIF: mises_async_kv_bytes::KeyValueStoreExecutor,
+  SIT: mises_async_kv_bytes::KeyValueStoreExecutor,
+  GraphError: From<SE::Error> + From<SIF::Error> + From<SIT::Error>,
+  SE::Error: Send,
+  SIF::Error: Send,
+  SIT::Error: Send,
 {
   let mut edge_ids = Vec::new();
 
@@ -876,7 +1011,7 @@ where
     EdgeDirection::Out => {
       let from_prefix = edge_from_index_prefix(node_id)?;
       let mut from_edges = Vec::new();
-      scan_prefix(store, from_prefix, |k, v| {
+      scan_prefix(from_index_store, from_prefix, |k, v| {
         if !v.is_empty() {
           from_edges.push((k.clone(), v.clone()));
         }
@@ -892,7 +1027,7 @@ where
     EdgeDirection::In => {
       let to_prefix = edge_to_index_prefix(node_id)?;
       let mut to_edges = Vec::new();
-      scan_prefix(store, to_prefix, |k, v| {
+      scan_prefix(to_index_store, to_prefix, |k, v| {
         if !v.is_empty() {
           to_edges.push((k.clone(), v.clone()));
         }
@@ -908,7 +1043,7 @@ where
     EdgeDirection::Both => {
       let from_prefix = edge_from_index_prefix(node_id)?;
       let mut from_edges = Vec::new();
-      scan_prefix(store, from_prefix, |k, v| {
+      scan_prefix(from_index_store, from_prefix, |k, v| {
         if !v.is_empty() {
           from_edges.push((k.clone(), v.clone()));
         }
@@ -925,7 +1060,7 @@ where
 
       let to_prefix = edge_to_index_prefix(node_id)?;
       let mut to_edges = Vec::new();
-      scan_prefix(store, to_prefix, |k, v| {
+      scan_prefix(to_index_store, to_prefix, |k, v| {
         if !v.is_empty() {
           to_edges.push((k.clone(), v.clone()));
         }
@@ -944,7 +1079,7 @@ where
 
   let mut edges = Vec::with_capacity(edge_ids.len());
   for edge_id in edge_ids {
-    if let Ok(Some(edge)) = get_edge_by_id::<I, P, S>(store, edge_id).await {
+    if let Ok(Some(edge)) = get_edge_by_id::<I, P, SE>(edge_store, edge_id).await {
       edges.push(edge);
     }
   }
@@ -960,17 +1095,26 @@ fn should_stop_collecting(out_len: usize, global_limit: Option<usize>) -> bool {
   }
 }
 
-async fn run_query<I, M, P, S>(
-  store: &S,
+async fn run_query<I, M, P, SN, SE, SIF, SIT>(
+  node_store: &SN,
+  edge_store: &SE,
+  from_index_store: &SIF,
+  to_index_store: &SIT,
   query: Query,
 ) -> Result<Vec<Element<Node<I, M>, Edge<I, P>>>, GraphError>
 where
   I: Id,
   M: Value,
   P: Value,
-  S: KeyValueStoreExecutor,
-  GraphError: From<S::Error>,
-  S::Error: Send,
+  SN: KeyValueStoreExecutor,
+  SE: KeyValueStoreExecutor,
+  SIF: KeyValueStoreExecutor,
+  SIT: KeyValueStoreExecutor,
+  GraphError: From<SN::Error> + From<SE::Error> + From<SIF::Error> + From<SIT::Error>,
+  SN::Error: Send,
+  SE::Error: Send,
+  SIF::Error: Send,
+  SIT::Error: Send,
 {
   let mut out = Vec::new();
   let global_limit = query.options.limit;
@@ -984,7 +1128,8 @@ where
 
     let mut nodes = Vec::with_capacity(core::cmp::min(16, max_nodes));
 
-    scan_prefix(store, NODE_PREFIX.to_vec(), |_, data| {
+    // scan the dedicated node store (no in-store prefix required)
+    scan_prefix(node_store, vec![], |_, data| {
       if enforce_limit && node_count >= max_nodes {
         return false;
       }
@@ -1015,7 +1160,14 @@ where
             break;
           }
 
-          let edges = edges_by_node::<I, P, S>(store, &n.id, ie.direction.clone()).await?;
+          let edges = edges_by_node::<I, P, SE, SIF, SIT>(
+            edge_store,
+            from_index_store,
+            to_index_store,
+            &n.id,
+            ie.direction.clone(),
+          )
+          .await?;
 
           for e in edges {
             if should_stop_collecting(out.len(), global_limit) {
@@ -1042,7 +1194,7 @@ where
               if let Some(other_node) = node_cache.get(other_id) {
                 nodes_for_match.push(other_node.clone());
               } else if let Ok(Some(other_node)) =
-                get_node_by_id::<I, M, S>(store, other_id.clone()).await
+                get_node_by_id::<I, M, SN>(node_store, other_id.clone()).await
               {
                 let _ = node_cache.insert(other_node.id.clone(), other_node.clone());
                 nodes_for_match.push(other_node);
@@ -1076,11 +1228,11 @@ where
       }
 
       let from_ids = match &qe.from {
-        Some(from_q) => Some(collect_node_ids_for_query::<I, M, S>(store, from_q).await?),
+        Some(from_q) => Some(collect_node_ids_for_query::<I, M, SN>(node_store, from_q).await?),
         None => None,
       };
       let to_ids = match &qe.to {
-        Some(to_q) => Some(collect_node_ids_for_query::<I, M, S>(store, to_q).await?),
+        Some(to_q) => Some(collect_node_ids_for_query::<I, M, SN>(node_store, to_q).await?),
         None => None,
       };
 
@@ -1092,15 +1244,19 @@ where
 
       let edge_ids = match (from_ids.as_ref(), to_ids.as_ref()) {
         (Some(from_set), Some(to_set)) => {
-          let mut from_edges = collect_edge_ids_by_node_ids::<I, S>(store, from_set, true).await?;
-          let to_edges = collect_edge_ids_by_node_ids::<I, S>(store, to_set, false).await?;
+          let mut from_edges =
+            collect_edge_ids_by_node_ids::<I, SIF>(from_index_store, from_set, true).await?;
+          let to_edges =
+            collect_edge_ids_by_node_ids::<I, SIT>(to_index_store, to_set, false).await?;
           from_edges.retain(|edge_id| to_edges.contains(edge_id));
           from_edges
         }
         (Some(from_set), None) => {
-          collect_edge_ids_by_node_ids::<I, S>(store, from_set, true).await?
+          collect_edge_ids_by_node_ids::<I, SIF>(from_index_store, from_set, true).await?
         }
-        (None, Some(to_set)) => collect_edge_ids_by_node_ids::<I, S>(store, to_set, false).await?,
+        (None, Some(to_set)) => {
+          collect_edge_ids_by_node_ids::<I, SIT>(to_index_store, to_set, false).await?
+        }
         (None, None) => BTreeSet::new(),
       };
 
@@ -1108,12 +1264,11 @@ where
         if edge_count >= max_edges {
           break;
         }
-
         if should_stop_collecting(out.len(), global_limit) {
           break;
         }
 
-        if let Ok(Some(edge)) = get_edge_by_id::<I, P, S>(store, edge_id).await {
+        if let Ok(Some(edge)) = get_edge_by_id::<I, P, SE>(edge_store, edge_id).await {
           if let Some(t) = &qe.edge_type
             && &edge.r#type != t
           {
@@ -1129,7 +1284,8 @@ where
           }
 
           let nodes_for_match =
-            get_nodes_for_edge_match(store, &edge, &qe, &mut node_cache).await?;
+            get_nodes_for_edge_match::<I, M, P, SN>(node_store, &edge, &qe, &mut node_cache)
+              .await?;
 
           if !edge_matches_query(nodes_for_match.as_slice(), &edge, &qe) {
             continue;
@@ -1142,7 +1298,8 @@ where
     } else {
       let mut prefilter_count = 0;
       let mut edges = Vec::new();
-      scan_prefix(store, EDGE_PREFIX.to_vec(), |_, data| {
+      // scan the dedicated edge store (no in-store prefix required)
+      scan_prefix(edge_store, vec![], |_, data| {
         let edge = match serde_json::from_slice::<Edge<I, P>>(data) {
           Ok(edge) => edge,
           Err(_) => return true,
@@ -1178,12 +1335,12 @@ where
         if edge_count >= max_edges {
           break;
         }
-
         if should_stop_collecting(out.len(), global_limit) {
           break;
         }
 
-        let nodes_for_match = get_nodes_for_edge_match(store, &edge, &qe, &mut node_cache).await?;
+        let nodes_for_match =
+          get_nodes_for_edge_match::<I, M, P, SN>(node_store, &edge, &qe, &mut node_cache).await?;
 
         if !edge_matches_query(nodes_for_match.as_slice(), &edge, &qe) {
           continue;
@@ -1202,15 +1359,21 @@ where
   Ok(out)
 }
 #[async_trait]
-impl<I, M, P, G, S> Executor for KeyValueRepository<I, M, P, G, S>
+impl<I, M, P, G, SN, SE, SIF, SIT> Executor for KeyValueRepository<I, M, P, G, SN, SE, SIF, SIT>
 where
   I: Id,
   M: Value,
   P: Value,
   G: IdGenerator<I>,
-  S: KeyValueStore,
-  GraphError: From<S::Error>,
-  S::Error: Send,
+  SN: KeyValueStore,
+  SE: KeyValueStore,
+  SIF: KeyValueStore,
+  SIT: KeyValueStore,
+  GraphError: From<SN::Error> + From<SE::Error> + From<SIF::Error> + From<SIT::Error>,
+  SN::Error: Send,
+  SE::Error: Send,
+  SIF::Error: Send,
+  SIT::Error: Send,
 {
   type Id = I;
 
@@ -1225,7 +1388,7 @@ where
     r#type: String,
     metadata: Self::NodeMeta,
   ) -> Result<Self::Node, GraphError> {
-    create_node::<I, M, G, S>(&*self.store, &*self.id_gen, r#type, metadata).await
+    create_node::<I, M, G, _>(&*self.node_store, &*self.id_gen, r#type, metadata).await
   }
 
   async fn update_node(
@@ -1234,11 +1397,18 @@ where
     metadata: Self::NodeMeta,
     expected_updated_at: Option<chrono::DateTime<chrono::Utc>>,
   ) -> Result<(), GraphError> {
-    update_node::<I, M, S>(&*self.store, id, metadata, expected_updated_at).await
+    update_node::<I, M, _>(&*self.node_store, id, metadata, expected_updated_at).await
   }
 
   async fn delete_node(&self, id: Self::Id) -> Result<(), GraphError> {
-    delete_node::<I, P, S>(&*self.store, id).await
+    delete_node::<I, P, _, _, _, _>(
+      &*self.node_store,
+      &*self.edge_store,
+      &*self.from_index_store,
+      &*self.to_index_store,
+      id,
+    )
+    .await
   }
 
   async fn create_edge(
@@ -1248,8 +1418,11 @@ where
     to_id: Self::Id,
     properties: Self::EdgeProps,
   ) -> Result<Self::Edge, GraphError> {
-    create_edge::<I, P, G, S>(
-      &*self.store,
+    create_edge::<I, P, G, _, _, _, _>(
+      &*self.node_store,
+      &*self.edge_store,
+      &*self.from_index_store,
+      &*self.to_index_store,
       &*self.id_gen,
       r#type,
       from_id,
@@ -1265,62 +1438,133 @@ where
     properties: Self::EdgeProps,
     expected_updated_at: Option<chrono::DateTime<chrono::Utc>>,
   ) -> Result<(), GraphError> {
-    update_edge::<I, P, S>(&*self.store, id, properties, expected_updated_at).await
+    update_edge::<I, P, _>(&*self.edge_store, id, properties, expected_updated_at).await
   }
 
   async fn delete_edge(&self, id: Self::Id) -> Result<(), GraphError> {
-    delete_edge::<I, P, S>(&*self.store, id).await
+    delete_edge::<I, P, _, _, _>(
+      &*self.edge_store,
+      &*self.from_index_store,
+      &*self.to_index_store,
+      id,
+    )
+    .await
   }
 
   async fn get_node_by_id(&self, id: Self::Id) -> Result<Option<Self::Node>, GraphError> {
-    get_node_by_id::<I, M, S>(&*self.store, id).await
+    get_node_by_id::<I, M, _>(&*self.node_store, id).await
   }
 
   async fn get_edge_by_id(&self, id: Self::Id) -> Result<Option<Self::Edge>, GraphError> {
-    get_edge_by_id::<I, P, S>(&*self.store, id).await
+    get_edge_by_id::<I, P, _>(&*self.edge_store, id).await
   }
 
   async fn query(&self, query: Query) -> Result<Vec<Element<Self::Node, Self::Edge>>, GraphError> {
-    run_query::<I, M, P, S>(&*self.store, query).await
+    run_query::<I, M, P, _, _, _, _>(
+      &*self.node_store,
+      &*self.edge_store,
+      &*self.from_index_store,
+      &*self.to_index_store,
+      query,
+    )
+    .await
   }
 }
 
 #[async_trait]
-impl<I, M, P, G, S> Transaction for KeyValueTransaction<I, M, P, G, S>
+impl<I, M, P, G, SN, SE, SIF, SIT> Transaction for KeyValueTransaction<I, M, P, G, SN, SE, SIF, SIT>
 where
   I: Id,
   M: Value,
   P: Value,
   G: IdGenerator<I>,
-  S: KeyValueStore + 'static,
-  GraphError: From<S::Error>,
-  S::Error: Send,
-  S::Transaction: KeyValueStoreTransaction + 'static,
-  GraphError: From<<S::Transaction as KeyValueStoreExecutor>::Error>,
-  <S::Transaction as KeyValueStoreExecutor>::Error: Send,
+  SN: KeyValueStore + 'static,
+  SE: KeyValueStore + 'static,
+  SIF: KeyValueStore + 'static,
+  SIT: KeyValueStore + 'static,
+  SN::Transaction: KeyValueStoreTransaction + 'static,
+  SE::Transaction: KeyValueStoreTransaction + 'static,
+  SIF::Transaction: KeyValueStoreTransaction + 'static,
+  SIT::Transaction: KeyValueStoreTransaction + 'static,
+  GraphError: From<<SN::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SE::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SIF::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SIT::Transaction as KeyValueStoreExecutor>::Error>,
+  <SN::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SE::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SIF::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SIT::Transaction as KeyValueStoreExecutor>::Error: Send,
 {
   async fn commit(mut self) -> Result<(), GraphError> {
-    self.tx.commit().await.map_err(GraphError::from)
+    // attempt to commit all sub-transactions; return first error encountered
+    self.node_tx.commit().await.map_err(GraphError::from)?;
+    self.edge_tx.commit().await.map_err(GraphError::from)?;
+    self
+      .from_index_tx
+      .commit()
+      .await
+      .map_err(GraphError::from)?;
+    self.to_index_tx.commit().await.map_err(GraphError::from)?;
+    Ok(())
   }
 
   async fn rollback(mut self) -> Result<(), GraphError> {
-    self.tx.rollback().await.map_err(GraphError::from)
+    // attempt to rollback all sub-transactions; return first error encountered
+    let mut first_err: Option<GraphError> = None;
+    if let Err(e) = self.node_tx.rollback().await.map_err(GraphError::from) {
+      first_err = Some(e);
+    }
+    if let Err(e) = self.edge_tx.rollback().await.map_err(GraphError::from) {
+      if first_err.is_none() {
+        first_err = Some(e);
+      }
+    }
+    if let Err(e) = self
+      .from_index_tx
+      .rollback()
+      .await
+      .map_err(GraphError::from)
+    {
+      if first_err.is_none() {
+        first_err = Some(e);
+      }
+    }
+    if let Err(e) = self.to_index_tx.rollback().await.map_err(GraphError::from) {
+      if first_err.is_none() {
+        first_err = Some(e);
+      }
+    }
+    if let Some(e) = first_err {
+      Err(e)
+    } else {
+      Ok(())
+    }
   }
 }
 
 #[async_trait]
-impl<I, M, P, G, S> Executor for KeyValueTransaction<I, M, P, G, S>
+impl<I, M, P, G, SN, SE, SIF, SIT> Executor for KeyValueTransaction<I, M, P, G, SN, SE, SIF, SIT>
 where
   I: Id,
   M: Value,
   P: Value,
   G: IdGenerator<I>,
-  S: KeyValueStore,
-  GraphError: From<S::Error>,
-  S::Error: Send,
-  S::Transaction: KeyValueStoreTransaction,
-  GraphError: From<<S::Transaction as KeyValueStoreExecutor>::Error>,
-  <S::Transaction as KeyValueStoreExecutor>::Error: Send,
+  SN: KeyValueStore,
+  SE: KeyValueStore,
+  SIF: KeyValueStore,
+  SIT: KeyValueStore,
+  SN::Transaction: KeyValueStoreTransaction,
+  SE::Transaction: KeyValueStoreTransaction,
+  SIF::Transaction: KeyValueStoreTransaction,
+  SIT::Transaction: KeyValueStoreTransaction,
+  GraphError: From<<SN::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SE::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SIF::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SIT::Transaction as KeyValueStoreExecutor>::Error>,
+  <SN::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SE::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SIF::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SIT::Transaction as KeyValueStoreExecutor>::Error: Send,
 {
   type Id = I;
 
@@ -1335,7 +1579,7 @@ where
     r#type: String,
     metadata: Self::NodeMeta,
   ) -> Result<Self::Node, GraphError> {
-    create_node(&self.tx, &*self.id_gen, r#type, metadata).await
+    create_node::<I, M, G, _>(&self.node_tx, &*self.id_gen, r#type, metadata).await
   }
 
   async fn update_node(
@@ -1344,11 +1588,18 @@ where
     metadata: Self::NodeMeta,
     expected_updated_at: Option<chrono::DateTime<chrono::Utc>>,
   ) -> Result<(), GraphError> {
-    update_node(&self.tx, id, metadata, expected_updated_at).await
+    update_node::<I, M, _>(&self.node_tx, id, metadata, expected_updated_at).await
   }
 
   async fn delete_node(&self, id: Self::Id) -> Result<(), GraphError> {
-    delete_node::<I, P, _>(&self.tx, id).await
+    delete_node::<I, P, _, _, _, _>(
+      &self.node_tx,
+      &self.edge_tx,
+      &self.from_index_tx,
+      &self.to_index_tx,
+      id,
+    )
+    .await
   }
 
   async fn create_edge(
@@ -1358,7 +1609,18 @@ where
     to_id: Self::Id,
     properties: Self::EdgeProps,
   ) -> Result<Self::Edge, GraphError> {
-    create_edge(&self.tx, &*self.id_gen, r#type, from_id, to_id, properties).await
+    create_edge::<I, P, G, _, _, _, _>(
+      &self.node_tx,
+      &self.edge_tx,
+      &self.from_index_tx,
+      &self.to_index_tx,
+      &*self.id_gen,
+      r#type,
+      from_id,
+      to_id,
+      properties,
+    )
+    .await
   }
 
   async fn update_edge(
@@ -1367,44 +1629,76 @@ where
     properties: Self::EdgeProps,
     expected_updated_at: Option<chrono::DateTime<chrono::Utc>>,
   ) -> Result<(), GraphError> {
-    update_edge(&self.tx, id, properties, expected_updated_at).await
+    update_edge::<I, P, _>(&self.edge_tx, id, properties, expected_updated_at).await
   }
 
   async fn delete_edge(&self, id: Self::Id) -> Result<(), GraphError> {
-    delete_edge::<I, P, _>(&self.tx, id).await
+    delete_edge::<I, P, _, _, _>(&self.edge_tx, &self.from_index_tx, &self.to_index_tx, id).await
   }
 
   async fn get_node_by_id(&self, id: Self::Id) -> Result<Option<Self::Node>, GraphError> {
-    get_node_by_id(&self.tx, id).await
+    get_node_by_id::<I, M, _>(&self.node_tx, id).await
   }
 
   async fn get_edge_by_id(&self, id: Self::Id) -> Result<Option<Self::Edge>, GraphError> {
-    get_edge_by_id(&self.tx, id).await
+    get_edge_by_id::<I, P, _>(&self.edge_tx, id).await
   }
 
   async fn query(&self, query: Query) -> Result<Vec<Element<Self::Node, Self::Edge>>, GraphError> {
-    run_query(&self.tx, query).await
+    run_query::<I, M, P, _, _, _, _>(
+      &self.node_tx,
+      &self.edge_tx,
+      &self.from_index_tx,
+      &self.to_index_tx,
+      query,
+    )
+    .await
   }
 }
 
 #[async_trait]
-impl<I, M, P, G, S> Repository for KeyValueRepository<I, M, P, G, S>
+impl<I, M, P, G, SN, SE, SIF, SIT> Repository for KeyValueRepository<I, M, P, G, SN, SE, SIF, SIT>
 where
   I: Id,
   M: Value,
   P: Value,
   G: IdGenerator<I>,
-  S: KeyValueStore + 'static,
-  GraphError: From<S::Error>,
-  S::Error: Send,
-  GraphError: From<<S::Transaction as KeyValueStoreExecutor>::Error>,
-  <S::Transaction as KeyValueStoreExecutor>::Error: Send,
+  SN: KeyValueStore + 'static,
+  SE: KeyValueStore + 'static,
+  SIF: KeyValueStore + 'static,
+  SIT: KeyValueStore + 'static,
+  SN::Transaction: KeyValueStoreTransaction + 'static,
+  SE::Transaction: KeyValueStoreTransaction + 'static,
+  SIF::Transaction: KeyValueStoreTransaction + 'static,
+  SIT::Transaction: KeyValueStoreTransaction + 'static,
+  GraphError: From<SN::Error> + From<SE::Error> + From<SIF::Error> + From<SIT::Error>,
+  SN::Error: Send,
+  SE::Error: Send,
+  SIF::Error: Send,
+  SIT::Error: Send,
+  GraphError: From<<SN::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SE::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SIF::Transaction as KeyValueStoreExecutor>::Error>
+    + From<<SIT::Transaction as KeyValueStoreExecutor>::Error>,
+  <SN::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SE::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SIF::Transaction as KeyValueStoreExecutor>::Error: Send,
+  <SIT::Transaction as KeyValueStoreExecutor>::Error: Send,
 {
-  type Transaction = KeyValueTransaction<I, M, P, G, S>;
+  type Transaction = KeyValueTransaction<I, M, P, G, SN, SE, SIF, SIT>;
 
   async fn transaction(&self) -> Result<Self::Transaction, GraphError> {
-    let tx = self.store.transaction().await?;
-    Ok(KeyValueTransaction::new(tx, self.id_gen.clone()))
+    let node_tx = self.node_store.transaction().await?;
+    let edge_tx = self.edge_store.transaction().await?;
+    let from_index_tx = self.from_index_store.transaction().await?;
+    let to_index_tx = self.to_index_store.transaction().await?;
+    Ok(KeyValueTransaction::new(
+      node_tx,
+      edge_tx,
+      from_index_tx,
+      to_index_tx,
+      self.id_gen.clone(),
+    ))
   }
 }
 

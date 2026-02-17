@@ -9,7 +9,7 @@ use tonic::transport::Server;
 use tracing_subscriber::layer::SubscriberExt;
 
 use mises_core::service::graph::{BootstrapOptionsBuilder, GraphService};
-use mises_graph::{InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
+use mises_graph::{InMemoryKeyValueRepository, InMemoryKeyValueStore, UuidGenerator};
 use mises_grpc_server::{
   ConfigurationService, OidcService,
   oidc_service_server::OidcServiceServer,
@@ -116,8 +116,8 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
   let uds = UnixListener::bind(bind_path)?;
   let uds_stream = UnixListenerStream::new(uds);
 
-  let store = InMemoryKeyValueStore::new();
-  let repo = KeyValueRepository::new(store.clone(), UuidGenerator::new());
+  // use helper to create an in-memory key/value repository
+  let repo = InMemoryKeyValueRepository::new_in_memory(UuidGenerator::new());
 
   let graph_service = GraphService::new(repo.clone());
 
@@ -142,11 +142,14 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
     .build_v1()
     .map_err(|e| io::Error::other(format!("failed to build reflection service: {}", e)))?;
 
+  // keep a separate generic store for services that previously used the single store
+  let service_store = InMemoryKeyValueStore::new();
+
   let server_result = Server::builder()
     .add_service(OidcServiceServer::new(OidcService::new(
       repo.clone(),
       device_id.clone(),
-      store.clone(),
+      service_store.clone(),
       issuer.clone(),
       None,
       config.sign_in_url.clone(),

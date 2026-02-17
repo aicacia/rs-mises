@@ -164,7 +164,7 @@ where
     &self,
     _request: Request<()>,
   ) -> Result<Response<mises_proto::OpenIdConfiguration>, Status> {
-    get_open_id_configuration::<R, S>(
+    get_open_id_configuration::<R>(
       &self.repo,
       &self.device_id,
       self.issuer.to_owned(),

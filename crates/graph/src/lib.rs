@@ -176,3 +176,19 @@ mod in_memory_wrapper {
 
 #[cfg(feature = "in-memory")]
 pub use in_memory_wrapper::{InMemoryKeyValueStore, InMemoryTransaction};
+
+#[cfg(feature = "in-memory")]
+/// Helper alias for a `KeyValueRepository` where all underlying stores are
+/// `InMemoryKeyValueStore`.
+///
+/// Usage: `InMemoryKeyValueRepository<Id, Model, Props, IdGen>`
+pub type InMemoryKeyValueRepository<I, M, P, G> = crate::key_value_repository::KeyValueRepository<
+  I,
+  M,
+  P,
+  G,
+  InMemoryKeyValueStore,
+  InMemoryKeyValueStore,
+  InMemoryKeyValueStore,
+  InMemoryKeyValueStore,
+>;

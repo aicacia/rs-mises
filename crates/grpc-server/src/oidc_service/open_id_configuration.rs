@@ -8,11 +8,10 @@ use mises_core::{
   service::identity::IdentityService,
   traits::Repository,
 };
-use mises_graph::KeyValueStoreExecutor;
 
 use crate::oidc_service::constants;
 
-pub async fn get_open_id_configuration<R, S>(
+pub async fn get_open_id_configuration<R>(
   repo: &R,
   device_id: &str,
   issuer: String,
@@ -20,7 +19,6 @@ pub async fn get_open_id_configuration<R, S>(
 ) -> Result<mises_proto::OpenIdConfiguration, Status>
 where
   R: Repository + Clone + Send + Sync + 'static,
-  S: KeyValueStoreExecutor,
 {
   let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
   let applications = identity_service

@@ -4,8 +4,8 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use std::ops::RangeBounds;
 
 use mises_graph::{
-  EdgeQuery, Element, Executor, IdGenerator, InMemoryKeyValueStore, KeyValueRepository, NodeQuery,
-  Query, Repository, Transaction, field,
+  EdgeQuery, Element, Executor, IdGenerator, InMemoryKeyValueRepository, InMemoryKeyValueStore,
+  KeyValueRepository, NodeQuery, Query, Repository, Transaction, field,
 };
 
 struct UsizeIdGenerator {
@@ -26,17 +26,18 @@ impl IdGenerator<usize> for UsizeIdGenerator {
   }
 }
 
-type Repo = KeyValueRepository<
-  usize,
-  serde_json::Value,
-  serde_json::Value,
-  UsizeIdGenerator,
-  InMemoryKeyValueStore,
->;
+type Repo =
+  InMemoryKeyValueRepository<usize, serde_json::Value, serde_json::Value, UsizeIdGenerator>;
 
 #[tokio::test]
 async fn create_and_get_node_edge() {
-  let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
+  let repo = Repo::new(
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    UsizeIdGenerator::new(),
+  );
 
   let node = repo
     .create_node("User".into(), serde_json::json!({"name": "Alice"}))
@@ -64,7 +65,13 @@ async fn create_and_get_node_edge() {
 
 #[tokio::test]
 async fn transactions_commit_and_rollback() {
-  let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
+  let repo = Repo::new(
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    UsizeIdGenerator::new(),
+  );
   let tx = repo.transaction().await.unwrap();
 
   let node = tx
@@ -86,7 +93,13 @@ async fn transactions_commit_and_rollback() {
 
 #[tokio::test]
 async fn query_nodes_and_edges() {
-  let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
+  let repo = Repo::new(
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    UsizeIdGenerator::new(),
+  );
   let n1 = repo
     .create_node("User".into(), serde_json::json!({"name": "A"}))
     .await
@@ -116,7 +129,13 @@ async fn query_nodes_and_edges() {
 
 #[tokio::test]
 async fn query_with_predicates_and_include_edges() {
-  let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
+  let repo = Repo::new(
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    UsizeIdGenerator::new(),
+  );
   let key = repo
     .create_node("Key".into(), serde_json::json!({"type": "master"}))
     .await
@@ -173,7 +192,13 @@ async fn query_with_predicates_and_include_edges() {
 
 #[tokio::test]
 async fn get_json_field_handles_enum_wrapped_metadata() {
-  let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
+  let repo = Repo::new(
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    UsizeIdGenerator::new(),
+  );
 
   let n = repo
     .create_node("Key".into(), serde_json::json!({"Key": {"type": "master"}}))
@@ -192,7 +217,13 @@ async fn get_json_field_handles_enum_wrapped_metadata() {
 
 #[tokio::test]
 async fn get_json_field_non_object_metadata_no_match() {
-  let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
+  let repo = Repo::new(
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    UsizeIdGenerator::new(),
+  );
 
   let n = repo
     .create_node("User".into(), serde_json::json!("just-a-string"))
@@ -211,7 +242,13 @@ async fn get_json_field_non_object_metadata_no_match() {
 
 #[tokio::test]
 async fn exists_predicate_null_not_exists() {
-  let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
+  let repo = Repo::new(
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    UsizeIdGenerator::new(),
+  );
 
   let n = repo
     .create_node(
@@ -253,17 +290,18 @@ async fn in_memory_get_batch_returns_correct_order() {
 async fn create_edge_cleanup_on_partial_failure() {
   use core::sync::atomic::{AtomicUsize, Ordering};
 
+  #[derive(Clone)]
   struct FailingStore {
-    inner: InMemoryKeyValueStore,
-    counter: AtomicUsize,
+    inner: std::sync::Arc<InMemoryKeyValueStore>,
+    counter: std::sync::Arc<AtomicUsize>,
     fail_on: usize,
   }
 
   impl FailingStore {
     fn new(fail_on: usize) -> Self {
       Self {
-        inner: InMemoryKeyValueStore::new(),
-        counter: AtomicUsize::new(0),
+        inner: std::sync::Arc::new(InMemoryKeyValueStore::new()),
+        counter: std::sync::Arc::new(AtomicUsize::new(0)),
         fail_on,
       }
     }
@@ -326,7 +364,16 @@ async fn create_edge_cleanup_on_partial_failure() {
     serde_json::Value,
     UsizeIdGenerator,
     FailingStore,
-  >::new(store, UsizeIdGenerator::new());
+    FailingStore,
+    FailingStore,
+    FailingStore,
+  >::new(
+    store.clone(),
+    store.clone(),
+    store.clone(),
+    store.clone(),
+    UsizeIdGenerator::new(),
+  );
 
   let n1 = repo
     .create_node("User".into(), serde_json::json!({"name": "A"}))
@@ -355,7 +402,13 @@ async fn create_edge_cleanup_on_partial_failure() {
 #[tokio::test]
 async fn update_node_and_edge_conflict_and_success() {
   use mises_graph::GraphError;
-  let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
+  let repo = Repo::new(
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    UsizeIdGenerator::new(),
+  );
 
   let n = repo
     .create_node("User".into(), serde_json::json!({"name": "C"}))
@@ -416,7 +469,13 @@ async fn update_node_and_edge_conflict_and_success() {
 
 #[tokio::test]
 async fn delete_node_cascade_removes_edges() {
-  let repo = Repo::new(InMemoryKeyValueStore::new(), UsizeIdGenerator::new());
+  let repo = Repo::new(
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    InMemoryKeyValueStore::new(),
+    UsizeIdGenerator::new(),
+  );
   let a = repo
     .create_node("User".into(), serde_json::json!({"name": "A"}))
     .await
@@ -450,8 +509,18 @@ async fn delete_node_cascade_removes_edges() {
 async fn delete_node_handles_missing_main_edge_cleanup() {
   use mises_graph::KeyValueStoreExecutor;
 
-  let store = InMemoryKeyValueStore::new();
-  let repo = Repo::new(store.clone(), UsizeIdGenerator::new());
+  // separate backing stores
+  let node_store = InMemoryKeyValueStore::new();
+  let edge_store = InMemoryKeyValueStore::new();
+  let from_index_store = InMemoryKeyValueStore::new();
+  let to_index_store = InMemoryKeyValueStore::new();
+  let repo = Repo::new(
+    node_store.clone(),
+    edge_store.clone(),
+    from_index_store.clone(),
+    to_index_store.clone(),
+    UsizeIdGenerator::new(),
+  );
 
   let a = repo
     .create_node("User".into(), serde_json::json!({"name": "A"}))
@@ -472,18 +541,17 @@ async fn delete_node_handles_missing_main_edge_cleanup() {
     .await
     .unwrap();
 
-  let mut main_key = b"edge:".to_vec();
+  // remove the main edge entry directly from the edge store
   let id_bytes = serde_json::to_vec(&e.id).unwrap();
-  main_key.extend_from_slice(&id_bytes);
-  store.delete(main_key).await.unwrap();
+  edge_store.delete(id_bytes.clone()).await.unwrap();
 
   assert!(repo.get_edge_by_id(e.id).await.unwrap().is_none());
 
-  let mut from_prefix = b"edge_from:".to_vec();
-  from_prefix.extend_from_slice(&serde_json::to_vec(&a.id).unwrap());
+  // ensure index still contains the from entry for the missing main edge
+  let mut from_prefix = serde_json::to_vec(&a.id).unwrap();
   from_prefix.push(0);
   let mut matches = Vec::new();
-  store
+  from_index_store
     .scan(from_prefix.., |k, v| {
       matches.push((k.clone(), v.clone()));
       true
@@ -498,16 +566,24 @@ async fn delete_node_handles_missing_main_edge_cleanup() {
 
   repo.delete_node(a.id).await.unwrap();
 
-  let mut all_from_entries = Vec::new();
-  store
-    .scan(b"edge_from:".to_vec().., |k, v| {
-      all_from_entries.push((k.clone(), v.clone()));
+  // confirm no index entries remain for that edge id
+  let mut all_index_entries = Vec::new();
+  from_index_store
+    .scan(vec![].., |k, v| {
+      all_index_entries.push((k.clone(), v.clone()));
+      true
+    })
+    .await
+    .unwrap();
+  to_index_store
+    .scan(vec![].., |k, v| {
+      all_index_entries.push((k.clone(), v.clone()));
       true
     })
     .await
     .unwrap();
   assert!(
-    !all_from_entries
+    !all_index_entries
       .iter()
       .any(|(_, v)| v == &serde_json::to_vec(&e.id).unwrap())
   );

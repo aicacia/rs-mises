@@ -32,7 +32,13 @@ async fn edge_query_filters_by_node_id() {
     serde_json::Value,
     U64Generator,
     InMemoryKeyValueStore,
+    InMemoryKeyValueStore,
+    InMemoryKeyValueStore,
+    InMemoryKeyValueStore,
   > = KeyValueRepository::new(
+    mises_graph::InMemoryKeyValueStore::new(),
+    mises_graph::InMemoryKeyValueStore::new(),
+    mises_graph::InMemoryKeyValueStore::new(),
     mises_graph::InMemoryKeyValueStore::new(),
     U64Generator::new(),
   );
