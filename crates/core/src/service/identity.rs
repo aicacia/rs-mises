@@ -103,7 +103,7 @@ where
 
     let identity_index = Self::uuid_to_u32(identity_id);
     let type_index = identity_type.as_u32();
-    let child_path = format!("m/44'/{}/{}", type_index, identity_index);
+    let child_path = format!("m/44'/0/{}/{}", type_index, identity_index);
 
     let child_key = master_key
       .child_from_derivation_path(&child_path)
@@ -358,7 +358,6 @@ where
   }
 
   pub async fn get_master_group(&self) -> Result<E::Node> {
-    // Get the master key node ID
     let query = Query::nodes(
       NodeQuery::new(NodeType::Key.as_str()).filter(field("metadata.derivation_path").eq("m/44'")),
     );
@@ -377,7 +376,6 @@ where
         "master key not found".into(),
       )))?;
 
-    // Find the group that owns the master key
     let owner_query = Query::nodes(
       NodeQuery::new(NodeType::Identity.as_str())
         .filter(field("metadata.type").eq(IdentityType::Group.as_str()))

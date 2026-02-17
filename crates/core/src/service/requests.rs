@@ -10,8 +10,7 @@ use mises_graph::{EdgeQuery, Element, Executor, NodeQuery, Query, Transaction, f
 use uuid::Uuid;
 
 use crate::{
-  Result,
-  error::{CoreError, InvalidInput},
+  CoreError, InvalidInput, Result,
   model::{
     edge::{EdgeProps, EdgeType},
     node::{NodeMeta, NodeType},
@@ -551,7 +550,6 @@ where
     Ok((approvers_vec, quorum))
   }
 
-  /// Compute eligible approvers for a stored request.
   pub async fn get_eligible_approvers(&self, id: Uuid) -> Result<Vec<Uuid>> {
     let node = self
       .exec

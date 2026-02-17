@@ -1,11 +1,8 @@
 use std::{collections::HashMap, fmt, time::Duration};
 
 use serde::{Deserialize, Serialize};
-
 use tauri::{AppHandle, Emitter, async_runtime};
-
 use tokio::{sync::mpsc, time::timeout};
-
 use uuid::Uuid;
 
 use crate::background::ClientRequest;

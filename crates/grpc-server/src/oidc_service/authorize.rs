@@ -1,12 +1,13 @@
+use tonic::Status;
+use url::Url;
+use uuid::Uuid;
+
 use mises_core::{
   model::{identity::IdentityMeta, node::NodeMeta},
   service::identity::IdentityService,
   traits::Repository,
 };
 use mises_graph::KeyValueStoreExecutor;
-use tonic::Status;
-use url::Url;
-use uuid::Uuid;
 
 use crate::{
   jwt::Claims,

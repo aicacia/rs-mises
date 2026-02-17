@@ -11,20 +11,6 @@ import { Empty } from "./google/protobuf/empty";
 
 export const protobufPackage = "mises";
 
-export interface BootstrapRequest {
-  rootGroupName: string;
-  ownerName: string;
-  deviceName: string;
-}
-
-export interface BootstrapResponse {
-  rootGroup: string;
-  masterKeyCreated: boolean;
-  masterKeyPublicKey: string;
-  ownerUser: string;
-  device: string;
-}
-
 export interface AuthorizeRequest {
   clientId: string;
   responseType: string;
@@ -83,6 +69,7 @@ export interface Password {
 }
 
 export interface DeviceCredentials {
+  clientId: string;
   scope?: string | undefined;
 }
 
@@ -315,169 +302,13 @@ export interface Jwks {
   keys: Jwk[];
 }
 
-function createBaseBootstrapRequest(): BootstrapRequest {
-  return { rootGroupName: "", ownerName: "", deviceName: "" };
+export interface Configuration {
+  issuer: string;
+  deviceId: string;
+  serviceId: string;
+  clientId: string;
+  publicUri?: string | undefined;
 }
-
-export const BootstrapRequest: MessageFns<BootstrapRequest> = {
-  encode(message: BootstrapRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.rootGroupName !== "") {
-      writer.uint32(10).string(message.rootGroupName);
-    }
-    if (message.ownerName !== "") {
-      writer.uint32(18).string(message.ownerName);
-    }
-    if (message.deviceName !== "") {
-      writer.uint32(26).string(message.deviceName);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): BootstrapRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseBootstrapRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.rootGroupName = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.ownerName = reader.string();
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.deviceName = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<BootstrapRequest>): BootstrapRequest {
-    return BootstrapRequest.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<BootstrapRequest>): BootstrapRequest {
-    const message = createBaseBootstrapRequest();
-    message.rootGroupName = object.rootGroupName ?? "";
-    message.ownerName = object.ownerName ?? "";
-    message.deviceName = object.deviceName ?? "";
-    return message;
-  },
-};
-
-function createBaseBootstrapResponse(): BootstrapResponse {
-  return { rootGroup: "", masterKeyCreated: false, masterKeyPublicKey: "", ownerUser: "", device: "" };
-}
-
-export const BootstrapResponse: MessageFns<BootstrapResponse> = {
-  encode(message: BootstrapResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.rootGroup !== "") {
-      writer.uint32(10).string(message.rootGroup);
-    }
-    if (message.masterKeyCreated !== false) {
-      writer.uint32(16).bool(message.masterKeyCreated);
-    }
-    if (message.masterKeyPublicKey !== "") {
-      writer.uint32(26).string(message.masterKeyPublicKey);
-    }
-    if (message.ownerUser !== "") {
-      writer.uint32(34).string(message.ownerUser);
-    }
-    if (message.device !== "") {
-      writer.uint32(42).string(message.device);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): BootstrapResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseBootstrapResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.rootGroup = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 16) {
-            break;
-          }
-
-          message.masterKeyCreated = reader.bool();
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.masterKeyPublicKey = reader.string();
-          continue;
-        }
-        case 4: {
-          if (tag !== 34) {
-            break;
-          }
-
-          message.ownerUser = reader.string();
-          continue;
-        }
-        case 5: {
-          if (tag !== 42) {
-            break;
-          }
-
-          message.device = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<BootstrapResponse>): BootstrapResponse {
-    return BootstrapResponse.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<BootstrapResponse>): BootstrapResponse {
-    const message = createBaseBootstrapResponse();
-    message.rootGroup = object.rootGroup ?? "";
-    message.masterKeyCreated = object.masterKeyCreated ?? false;
-    message.masterKeyPublicKey = object.masterKeyPublicKey ?? "";
-    message.ownerUser = object.ownerUser ?? "";
-    message.device = object.device ?? "";
-    return message;
-  },
-};
 
 function createBaseAuthorizeRequest(): AuthorizeRequest {
   return {
@@ -1180,13 +1011,16 @@ export const Password: MessageFns<Password> = {
 };
 
 function createBaseDeviceCredentials(): DeviceCredentials {
-  return { scope: undefined };
+  return { clientId: "", scope: undefined };
 }
 
 export const DeviceCredentials: MessageFns<DeviceCredentials> = {
   encode(message: DeviceCredentials, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.clientId !== "") {
+      writer.uint32(10).string(message.clientId);
+    }
     if (message.scope !== undefined) {
-      writer.uint32(26).string(message.scope);
+      writer.uint32(18).string(message.scope);
     }
     return writer;
   },
@@ -1198,8 +1032,16 @@ export const DeviceCredentials: MessageFns<DeviceCredentials> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 3: {
-          if (tag !== 26) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
             break;
           }
 
@@ -1220,6 +1062,7 @@ export const DeviceCredentials: MessageFns<DeviceCredentials> = {
   },
   fromPartial(object: DeepPartial<DeviceCredentials>): DeviceCredentials {
     const message = createBaseDeviceCredentials();
+    message.clientId = object.clientId ?? "";
     message.scope = object.scope ?? undefined;
     return message;
   },
@@ -3689,29 +3532,99 @@ export const Jwks: MessageFns<Jwks> = {
   },
 };
 
-export type BootstrapServiceDefinition = typeof BootstrapServiceDefinition;
-export const BootstrapServiceDefinition = {
-  name: "BootstrapService",
-  fullName: "mises.BootstrapService",
-  methods: {
-    bootstrap: {
-      name: "Bootstrap",
-      requestType: BootstrapRequest,
-      requestStream: false,
-      responseType: BootstrapResponse,
-      responseStream: false,
-      options: {},
-    },
+function createBaseConfiguration(): Configuration {
+  return { issuer: "", deviceId: "", serviceId: "", clientId: "", publicUri: undefined };
+}
+
+export const Configuration: MessageFns<Configuration> = {
+  encode(message: Configuration, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.issuer !== "") {
+      writer.uint32(10).string(message.issuer);
+    }
+    if (message.deviceId !== "") {
+      writer.uint32(18).string(message.deviceId);
+    }
+    if (message.serviceId !== "") {
+      writer.uint32(26).string(message.serviceId);
+    }
+    if (message.clientId !== "") {
+      writer.uint32(34).string(message.clientId);
+    }
+    if (message.publicUri !== undefined) {
+      writer.uint32(42).string(message.publicUri);
+    }
+    return writer;
   },
-} as const;
 
-export interface BootstrapServiceImplementation<CallContextExt = {}> {
-  bootstrap(request: BootstrapRequest, context: CallContext & CallContextExt): Promise<DeepPartial<BootstrapResponse>>;
-}
+  decode(input: BinaryReader | Uint8Array, length?: number): Configuration {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseConfiguration();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
 
-export interface BootstrapServiceClient<CallOptionsExt = {}> {
-  bootstrap(request: DeepPartial<BootstrapRequest>, options?: CallOptions & CallOptionsExt): Promise<BootstrapResponse>;
-}
+          message.issuer = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.deviceId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.serviceId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.publicUri = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<Configuration>): Configuration {
+    return Configuration.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<Configuration>): Configuration {
+    const message = createBaseConfiguration();
+    message.issuer = object.issuer ?? "";
+    message.deviceId = object.deviceId ?? "";
+    message.serviceId = object.serviceId ?? "";
+    message.clientId = object.clientId ?? "";
+    message.publicUri = object.publicUri ?? undefined;
+    return message;
+  },
+};
 
 /** ---- OIDC service and messages ---- */
 export type OidcServiceDefinition = typeof OidcServiceDefinition;
@@ -3915,6 +3828,30 @@ export interface OidcServiceClient<CallOptionsExt = {}> {
     options?: CallOptions & CallOptionsExt,
   ): Promise<OpenIdConfiguration>;
   getJwks(request: DeepPartial<Empty>, options?: CallOptions & CallOptionsExt): Promise<Jwks>;
+}
+
+export type ConfigurationServiceDefinition = typeof ConfigurationServiceDefinition;
+export const ConfigurationServiceDefinition = {
+  name: "ConfigurationService",
+  fullName: "mises.ConfigurationService",
+  methods: {
+    get: {
+      name: "Get",
+      requestType: Empty,
+      requestStream: false,
+      responseType: Configuration,
+      responseStream: false,
+      options: {},
+    },
+  },
+} as const;
+
+export interface ConfigurationServiceImplementation<CallContextExt = {}> {
+  get(request: Empty, context: CallContext & CallContextExt): Promise<DeepPartial<Configuration>>;
+}
+
+export interface ConfigurationServiceClient<CallOptionsExt = {}> {
+  get(request: DeepPartial<Empty>, options?: CallOptions & CallOptionsExt): Promise<Configuration>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

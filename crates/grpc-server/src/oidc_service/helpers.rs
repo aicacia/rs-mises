@@ -1,9 +1,10 @@
-use mises_core::{
-  CoreError, model::identity::IdentityType, service::identity::IdentityService, traits::Repository,
-};
 use tonic::{Request, Status};
 use url::Url;
 use uuid::Uuid;
+
+use mises_core::{
+  CoreError, model::identity::IdentityType, service::identity::IdentityService, traits::Repository,
+};
 
 use crate::{error::ToStatus, jwt::Claims};
 

@@ -102,6 +102,7 @@ pub struct BootstrapResult {
   pub master_key_created: bool,
   pub owner_user_id: Uuid,
   pub device_id: Uuid,
+  pub service_id: Uuid,
 }
 
 #[derive(Clone)]
@@ -158,7 +159,6 @@ where
   {
     let identity = IdentityService::new(self.exec.clone(), options.device_id.clone());
 
-    // Get or create master key
     let (master_key, seed_bytes, master_key_created): (Key, Vec<u8>, bool) =
       self.get_or_create_master_key().await?;
     let kp = master_key.ed25519_keypair()?;
@@ -167,7 +167,6 @@ where
     if master_key_created {
       log::debug!("A new master key was created");
 
-      // Create the master key node directly - this is foundational
       let tx = self.exec.transaction().await?;
 
       let _key_node = tx
@@ -184,7 +183,6 @@ where
       tx.commit().await?;
     }
 
-    // Get or create the root group
     let master_group_query = Query::nodes(
       NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
         field("metadata.type")
@@ -265,7 +263,7 @@ where
       }
     };
 
-    let _service_id = match identity.find_service_by_name("mises").await? {
+    let service_id = match identity.find_service_by_name("mises").await? {
       Some(service_node) => service_node.id,
       None => {
         let (service_node, _key_node) = identity.create_service("mises".to_owned(), None).await?;
@@ -282,6 +280,7 @@ where
       master_key_created,
       owner_user_id,
       device_id,
+      service_id,
     })
   }
 

@@ -1,7 +1,8 @@
-use mises_async_kv_bytes::KeyValueStoreExecutor;
 use serde::{Deserialize, Serialize};
 use tonic::Status;
 use uuid::Uuid;
+
+use mises_async_kv_bytes::KeyValueStoreExecutor;
 
 const AUTHORIZATION_CODE_PREFIX: &[u8] = b"oidc:authorization_code:";
 const AUTHORIZATION_CODE_LENGTH: usize = 32;

@@ -11,12 +11,19 @@
 				v.minLength(1, m.errors_message_password_min_length({ characters: 1 }))
 			)
 		});
+
+	export interface SignInProps {
+		configuration: Configuration;
+	}
 </script>
 
 <script lang="ts">
 	import { createForm } from '@aicacia/svelte-forms';
 	import Issues from '$lib/common/components/Issues.svelte';
 	import { oidcClient } from '$lib/common/util/grpcClient';
+	import type { Configuration } from '$lib/proto/mises';
+
+	const { configuration }: SignInProps = $props();
 
 	const form = createForm(SignInSchema(), {
 		username: '',
@@ -45,6 +52,7 @@
 	async function onDeviceSubmit() {
 		const token = await oidcClient().token({
 			deviceCredentials: {
+				clientId: configuration.clientId,
 				scope: 'openid'
 			}
 		});
@@ -53,7 +61,7 @@
 	}
 </script>
 
-<form on:submit={onSubmit} class="flex flex-col">
+<form onsubmit={onSubmit} class="flex flex-col">
 	<label class="flex flex-col">
 		{m.signin_username_label()}
 		<input
@@ -79,4 +87,4 @@
 	<input class="btn primary mt-4" type="submit" value={m.sign_in()} />
 </form>
 
-<button class="btn secondary mt-4" on:click={onDeviceSubmit}>{m.sign_in_with_device()}</button>
+<button class="btn secondary mt-4" onclick={onDeviceSubmit}>{m.sign_in_with_device()}</button>

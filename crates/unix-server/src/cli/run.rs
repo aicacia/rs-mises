@@ -2,16 +2,19 @@ use std::{io, os::unix::fs::FileTypeExt, path::Path, str::FromStr, sync::Arc, ti
 
 use clap::{CommandFactory, Parser};
 use clap_complete::generate;
-use mises_core::service::graph::{BootstrapOptionsBuilder, GraphService};
-use mises_graph::{InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
-use mises_grpc_server::{
-  OidcService, oidc_service_server::OidcServiceServer, proto::FILE_DESCRIPTOR_SET,
-};
 use tokio::{fs, net::UnixListener};
 use tokio_stream::wrappers::UnixListenerStream;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Server;
 use tracing_subscriber::layer::SubscriberExt;
+
+use mises_core::service::graph::{BootstrapOptionsBuilder, GraphService};
+use mises_graph::{InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
+use mises_grpc_server::{
+  ConfigurationService, OidcService,
+  oidc_service_server::OidcServiceServer,
+  proto::{FILE_DESCRIPTOR_SET, configuration_service_server::ConfigurationServiceServer},
+};
 
 use crate::{
   cli::args::{CliArgs, CliCommand},
@@ -120,6 +123,7 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
 
   let device_id = machine_uid::get()
     .map_err(|e| io::Error::other(format!("failed to get machine UID: {}", e)))?;
+  let issuer = bind_path.to_string_lossy().to_string();
 
   graph_service
     .bootstrap(
@@ -141,11 +145,17 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
   let server_result = Server::builder()
     .add_service(OidcServiceServer::new(OidcService::new(
       repo.clone(),
-      device_id,
+      device_id.clone(),
       store.clone(),
-      bind_path.to_string_lossy().to_string(),
+      issuer.clone(),
       None,
       config.sign_in_url.clone(),
+    )))
+    .add_service(ConfigurationServiceServer::new(ConfigurationService::new(
+      repo.clone(),
+      device_id.clone(),
+      issuer,
+      None,
     )))
     .add_service(reflection_service)
     .serve_with_incoming_shutdown(uds_stream, cancellation_token.cancelled())

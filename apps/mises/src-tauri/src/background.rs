@@ -321,7 +321,6 @@ async fn forward_grpc_request(
     return Err(format!("failed to send header frame: {}", e));
   }
 
-  // If grpc-status is in headers, this is a trailers-only response
   if has_grpc_status {
     log::debug!(
       "request {}: trailers-only response detected (grpc-status in headers)",

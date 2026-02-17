@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 use mises_core::model::{
   edge::EdgeProps,
   identity::IdentityMeta,
@@ -5,7 +7,6 @@ use mises_core::model::{
   resource::ResourceMeta,
 };
 use mises_graph::{Executor, InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
-use uuid::Uuid;
 
 pub type Repo = KeyValueRepository<Uuid, NodeMeta, EdgeProps, UuidGenerator, InMemoryKeyValueStore>;
 
@@ -13,6 +14,7 @@ pub fn make_repo() -> Repo {
   KeyValueRepository::new(InMemoryKeyValueStore::new(), UuidGenerator::new())
 }
 
+#[allow(dead_code)]
 pub async fn create_identity(repo: &Repo, meta: IdentityMeta) -> Uuid {
   repo
     .create_node(
@@ -24,6 +26,7 @@ pub async fn create_identity(repo: &Repo, meta: IdentityMeta) -> Uuid {
     .id
 }
 
+#[allow(dead_code)]
 pub async fn create_resource(repo: &Repo, r#type: &str) -> Uuid {
   repo
     .create_node(

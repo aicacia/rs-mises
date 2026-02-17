@@ -1,8 +1,9 @@
+use uuid::Uuid;
+
 use mises_graph::{
   Edge as MisesGraphEdge, Executor as MisesGraphExecutor, Node as MisesGraphNode,
   Repository as MisesGraphRepository,
 };
-use uuid::Uuid;
 
 use crate::model::{edge::EdgeProps, node::NodeMeta};
 

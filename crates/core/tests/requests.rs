@@ -6,12 +6,10 @@ use mises_core::{
     identity::IdentityMeta,
     node::{NodeMeta, NodeType},
     requests::{RequestInput, RequestOwnership, RequestStatus, Scope},
-    resource::ResourceMeta,
   },
   service::requests::RequestService,
 };
 use mises_graph::{EdgeQuery, Element, Executor, NodeQuery, Query, Repository, Transaction, field};
-use uuid::Uuid;
 
 mod common;
 
@@ -26,6 +24,8 @@ async fn request_lifecycle_happy_path() {
     service.exec(),
     IdentityMeta::User {
       name: "owner".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -33,6 +33,8 @@ async fn request_lifecycle_happy_path() {
     service.exec(),
     IdentityMeta::User {
       name: "requestor".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -95,6 +97,8 @@ async fn deny_wins_over_partial_quorum() {
     service.exec(),
     IdentityMeta::User {
       name: "owner-a".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -102,6 +106,8 @@ async fn deny_wins_over_partial_quorum() {
     service.exec(),
     IdentityMeta::User {
       name: "owner-b".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -109,6 +115,8 @@ async fn deny_wins_over_partial_quorum() {
     service.exec(),
     IdentityMeta::User {
       name: "requestor".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -155,6 +163,8 @@ async fn quorum_requires_multiple_approvals() {
     service.exec(),
     IdentityMeta::User {
       name: "owner-a".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -162,6 +172,8 @@ async fn quorum_requires_multiple_approvals() {
     service.exec(),
     IdentityMeta::User {
       name: "owner-b".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -169,6 +181,8 @@ async fn quorum_requires_multiple_approvals() {
     service.exec(),
     IdentityMeta::User {
       name: "requestor".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -212,6 +226,8 @@ async fn approval_nodes_and_edges_created() {
     service.exec(),
     IdentityMeta::User {
       name: "owner".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -219,6 +235,8 @@ async fn approval_nodes_and_edges_created() {
     service.exec(),
     IdentityMeta::User {
       name: "requestor".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -344,6 +362,8 @@ async fn denial_nodes_and_edges_created() {
     service.exec(),
     IdentityMeta::User {
       name: "owner-a".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -351,6 +371,8 @@ async fn denial_nodes_and_edges_created() {
     service.exec(),
     IdentityMeta::User {
       name: "owner-b".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -358,6 +380,8 @@ async fn denial_nodes_and_edges_created() {
     service.exec(),
     IdentityMeta::User {
       name: "requestor".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -437,6 +461,8 @@ async fn policy_custom_action_case_insensitive() {
     service.exec(),
     IdentityMeta::User {
       name: "alice".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;
@@ -445,6 +471,8 @@ async fn policy_custom_action_case_insensitive() {
     service.exec(),
     IdentityMeta::User {
       name: "requestor".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
     },
   )
   .await;

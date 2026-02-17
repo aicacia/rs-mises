@@ -14,18 +14,20 @@ pub mod types;
 #[cfg(feature = "uuid")]
 pub mod uuid_generator;
 
-pub use crate::edge::Edge;
-pub use crate::error::GraphError;
-pub use crate::key_value_repository::{IdGenerator, KeyValueRepository, KeyValueTransaction};
-pub use crate::node::Node;
-pub use crate::query::{
-  ComparisonOp, EdgeDirection, EdgeQuery, Field, Filter, NodeQuery, Predicate, Query, QueryOptions,
-  field,
-};
-pub use crate::repository::{Executor, Repository, Transaction};
-pub use crate::types::{Element, Id, Value};
 #[cfg(feature = "uuid")]
 pub use crate::uuid_generator::UuidGenerator;
+pub use crate::{
+  edge::Edge,
+  error::GraphError,
+  key_value_repository::{IdGenerator, KeyValueRepository, KeyValueTransaction},
+  node::Node,
+  query::{
+    ComparisonOp, EdgeDirection, EdgeQuery, Field, Filter, NodeQuery, Predicate, Query,
+    QueryOptions, field,
+  },
+  repository::{Executor, Repository, Transaction},
+  types::{Element, Id, Value},
+};
 pub use mises_async_kv_bytes::{KeyValueStore, KeyValueStoreExecutor, KeyValueStoreTransaction};
 
 #[cfg(feature = "in-memory")]

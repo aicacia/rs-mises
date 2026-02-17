@@ -1,12 +1,13 @@
+use native_authentication::{AndroidText, AuthError, Context, PolicyBuilder, Text, WindowsText};
+use sha2::{Digest, Sha256};
+use tonic::Status;
+
 use mises_core::{
   model::{identity::IdentityMeta, node::NodeMeta},
   service::identity::IdentityService,
   traits::Repository,
 };
 use mises_graph::KeyValueStoreExecutor;
-use native_authentication::{AndroidText, AuthError, Context, PolicyBuilder, Text, WindowsText};
-use sha2::{Digest, Sha256};
-use tonic::Status;
 
 use crate::{
   error::ToStatus,
@@ -306,6 +307,7 @@ where
     .map_err(|e| e.to_status())?;
 
   let access_token_expiry = 900;
+  let refresh_token_expiry = 604800;
   let scope = grant.scope.as_deref();
   let device_id_str = device_node.id.to_string();
   let encoding_key = jsonwebtoken::EncodingKey::from_secret(&device_key);
@@ -320,12 +322,35 @@ where
     &encoding_key,
   )?;
 
+  let refresh_token = generate_refresh_token(
+    &device_id_str,
+    issuer,
+    &device_id_str,
+    scope,
+    None,
+    refresh_token_expiry,
+    &encoding_key,
+  )?;
+
+  let id_token = if scope.is_some_and(|s| s.contains("openid")) {
+    Some(generate_id_token(
+      &device_id_str,
+      issuer,
+      &device_id_str,
+      None,
+      access_token_expiry,
+      &encoding_key,
+    )?)
+  } else {
+    None
+  };
+
   Ok(mises_proto::TokenResponse {
     access_token,
     token_type: "Bearer".to_string(),
     expires_in: Some(access_token_expiry as u64),
-    refresh_token: None,
-    id_token: None,
+    refresh_token: Some(refresh_token),
+    id_token,
     scope: grant.scope,
   })
 }
