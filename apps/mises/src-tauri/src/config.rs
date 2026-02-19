@@ -6,6 +6,12 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
   pub socket_path: PathBuf,
   pub daemon_path: Option<PathBuf>,
+  #[serde(default = "default_grpc_port")]
+  pub grpc_port: u16,
+}
+
+fn default_grpc_port() -> u16 {
+  50051
 }
 
 impl Default for Config {
@@ -13,6 +19,7 @@ impl Default for Config {
     Self {
       socket_path: PathBuf::from("../../../mises.sock"),
       daemon_path: None,
+      grpc_port: 50051,
     }
   }
 }

@@ -26,151 +26,50 @@ use crate::{
 
 const SEPARATOR: u8 = 0;
 
-pub trait IdGenerator<I>: Send + Sync {
+pub trait IdGenerator<I>: Send + Sync + Clone {
   fn next(&self) -> I;
 }
 
+pub trait KeyValueRepositoryStore: Send + Sync {
+  type Id: Id;
+  type NodeMeta: Value;
+  type EdgeProps: Value;
+  type Store: KeyValueStore;
+  type IdGen: IdGenerator<Self::Id> + 'static;
+
+  fn node_store(&self) -> &Self::Store;
+  fn edge_store(&self) -> &Self::Store;
+  fn from_index_store(&self) -> &Self::Store;
+  fn to_index_store(&self) -> &Self::Store;
+  fn id_gen(&self) -> &Self::IdGen;
+}
+
 #[derive(Clone)]
-pub struct KeyValueRepository<I, M, P, G, SN, SE, SIF, SIT>
-where
-  I: Id,
-  M: Value,
-  P: Value,
-  G: IdGenerator<I> + 'static,
-  SN: KeyValueStore,
-  SE: KeyValueStore,
-  SIF: KeyValueStore,
-  SIT: KeyValueStore,
-  GraphError: From<SN::Error> + From<SE::Error> + From<SIF::Error> + From<SIT::Error>,
-  SN::Error: Send,
-  SE::Error: Send,
-  SIF::Error: Send,
-  SIT::Error: Send,
-{
-  node_store: Arc<SN>,
-  edge_store: Arc<SE>,
-  from_index_store: Arc<SIF>,
-  to_index_store: Arc<SIT>,
-  id_gen: Arc<G>,
-  _phantom: core::marker::PhantomData<(I, M, P)>,
+pub struct KeyValueRepository<S: KeyValueRepositoryStore> {
+  store: S,
 }
 
-impl<I, M, P, G, SN, SE, SIF, SIT> KeyValueRepository<I, M, P, G, SN, SE, SIF, SIT>
-where
-  I: Id,
-  M: Value,
-  P: Value,
-  G: IdGenerator<I> + 'static,
-  SN: KeyValueStore,
-  SE: KeyValueStore,
-  SIF: KeyValueStore,
-  SIT: KeyValueStore,
-  GraphError: From<SN::Error> + From<SE::Error> + From<SIF::Error> + From<SIT::Error>,
-  SN::Error: Send,
-  SE::Error: Send,
-  SIF::Error: Send,
-  SIT::Error: Send,
-{
-  pub fn new(
-    node_store: SN,
-    edge_store: SE,
-    from_index_store: SIF,
-    to_index_store: SIT,
-    generator: G,
-  ) -> Self {
-    Self {
-      node_store: Arc::new(node_store),
-      edge_store: Arc::new(edge_store),
-      from_index_store: Arc::new(from_index_store),
-      to_index_store: Arc::new(to_index_store),
-      id_gen: Arc::new(generator),
-      _phantom: core::marker::PhantomData,
-    }
+impl<S: KeyValueRepositoryStore> KeyValueRepository<S> {
+  pub fn new(store: S) -> Self {
+    Self { store }
   }
 }
 
-#[cfg(feature = "in-memory")]
-impl<I, M, P, G>
-  KeyValueRepository<
-    I,
-    M,
-    P,
-    G,
-    crate::InMemoryKeyValueStore,
-    crate::InMemoryKeyValueStore,
-    crate::InMemoryKeyValueStore,
-    crate::InMemoryKeyValueStore,
-  >
-where
-  I: Id,
-  M: Value,
-  P: Value,
-  G: IdGenerator<I> + 'static,
-{
-  /// Convenience constructor for an in-memory repository (all stores are `InMemoryKeyValueStore`).
-  pub fn new_in_memory(generator: G) -> Self {
-    Self::new(
-      crate::InMemoryKeyValueStore::new(),
-      crate::InMemoryKeyValueStore::new(),
-      crate::InMemoryKeyValueStore::new(),
-      crate::InMemoryKeyValueStore::new(),
-      generator,
-    )
-  }
+pub struct KeyValueTransaction<S: KeyValueRepositoryStore> {
+  node_tx: <S::Store as KeyValueStore>::Transaction,
+  edge_tx: <S::Store as KeyValueStore>::Transaction,
+  from_index_tx: <S::Store as KeyValueStore>::Transaction,
+  to_index_tx: <S::Store as KeyValueStore>::Transaction,
+  id_gen: Arc<S::IdGen>,
 }
 
-pub struct KeyValueTransaction<I, M, P, G, SN, SE, SIF, SIT>
-where
-  I: Id,
-  M: Value,
-  P: Value,
-  G: IdGenerator<I> + 'static,
-  SN: KeyValueStore,
-  SE: KeyValueStore,
-  SIF: KeyValueStore,
-  SIT: KeyValueStore,
-  GraphError: From<<SN::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SE::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SIF::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SIT::Transaction as KeyValueStoreExecutor>::Error>,
-  <SN::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SE::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SIF::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SIT::Transaction as KeyValueStoreExecutor>::Error: Send,
-{
-  node_tx: SN::Transaction,
-  edge_tx: SE::Transaction,
-  from_index_tx: SIF::Transaction,
-  to_index_tx: SIT::Transaction,
-  id_gen: Arc<G>,
-  _phantom: core::marker::PhantomData<(I, M, P)>,
-}
-
-impl<I, M, P, G, SN, SE, SIF, SIT> KeyValueTransaction<I, M, P, G, SN, SE, SIF, SIT>
-where
-  I: Id,
-  M: Value,
-  P: Value,
-  G: IdGenerator<I> + 'static,
-  SN: KeyValueStore,
-  SE: KeyValueStore,
-  SIF: KeyValueStore,
-  SIT: KeyValueStore,
-  GraphError: From<<SN::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SE::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SIF::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SIT::Transaction as KeyValueStoreExecutor>::Error>,
-  <SN::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SE::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SIF::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SIT::Transaction as KeyValueStoreExecutor>::Error: Send,
-{
+impl<S: KeyValueRepositoryStore> KeyValueTransaction<S> {
   fn new(
-    node_tx: SN::Transaction,
-    edge_tx: SE::Transaction,
-    from_index_tx: SIF::Transaction,
-    to_index_tx: SIT::Transaction,
-    id_gen: Arc<G>,
+    node_tx: <S::Store as KeyValueStore>::Transaction,
+    edge_tx: <S::Store as KeyValueStore>::Transaction,
+    from_index_tx: <S::Store as KeyValueStore>::Transaction,
+    to_index_tx: <S::Store as KeyValueStore>::Transaction,
+    id_gen: Arc<S::IdGen>,
   ) -> Self {
     Self {
       node_tx,
@@ -178,7 +77,6 @@ where
       from_index_tx,
       to_index_tx,
       id_gen,
-      _phantom: core::marker::PhantomData,
     }
   }
 }
@@ -1359,36 +1257,29 @@ where
   Ok(out)
 }
 #[async_trait]
-impl<I, M, P, G, SN, SE, SIF, SIT> Executor for KeyValueRepository<I, M, P, G, SN, SE, SIF, SIT>
+impl<S: KeyValueRepositoryStore> Executor for KeyValueRepository<S>
 where
-  I: Id,
-  M: Value,
-  P: Value,
-  G: IdGenerator<I>,
-  SN: KeyValueStore,
-  SE: KeyValueStore,
-  SIF: KeyValueStore,
-  SIT: KeyValueStore,
-  GraphError: From<SN::Error> + From<SE::Error> + From<SIF::Error> + From<SIT::Error>,
-  SN::Error: Send,
-  SE::Error: Send,
-  SIF::Error: Send,
-  SIT::Error: Send,
+  GraphError: From<<S::Store as KeyValueStoreExecutor>::Error>,
+  <S::Store as KeyValueStoreExecutor>::Error: Send,
 {
-  type Id = I;
-
-  type NodeMeta = M;
-  type EdgeProps = P;
-
-  type Node = Node<I, M>;
-  type Edge = Edge<I, P>;
+  type Id = S::Id;
+  type NodeMeta = S::NodeMeta;
+  type EdgeProps = S::EdgeProps;
+  type Node = Node<S::Id, S::NodeMeta>;
+  type Edge = Edge<S::Id, S::EdgeProps>;
 
   async fn create_node(
     &self,
     r#type: String,
     metadata: Self::NodeMeta,
   ) -> Result<Self::Node, GraphError> {
-    create_node::<I, M, G, _>(&*self.node_store, &*self.id_gen, r#type, metadata).await
+    create_node::<S::Id, S::NodeMeta, S::IdGen, _>(
+      self.store.node_store(),
+      self.store.id_gen(),
+      r#type,
+      metadata,
+    )
+    .await
   }
 
   async fn update_node(
@@ -1397,15 +1288,16 @@ where
     metadata: Self::NodeMeta,
     expected_updated_at: Option<chrono::DateTime<chrono::Utc>>,
   ) -> Result<(), GraphError> {
-    update_node::<I, M, _>(&*self.node_store, id, metadata, expected_updated_at).await
+    update_node::<S::Id, S::NodeMeta, _>(self.store.node_store(), id, metadata, expected_updated_at)
+      .await
   }
 
   async fn delete_node(&self, id: Self::Id) -> Result<(), GraphError> {
-    delete_node::<I, P, _, _, _, _>(
-      &*self.node_store,
-      &*self.edge_store,
-      &*self.from_index_store,
-      &*self.to_index_store,
+    delete_node::<S::Id, S::EdgeProps, _, _, _, _>(
+      self.store.node_store(),
+      self.store.edge_store(),
+      self.store.from_index_store(),
+      self.store.to_index_store(),
       id,
     )
     .await
@@ -1418,12 +1310,12 @@ where
     to_id: Self::Id,
     properties: Self::EdgeProps,
   ) -> Result<Self::Edge, GraphError> {
-    create_edge::<I, P, G, _, _, _, _>(
-      &*self.node_store,
-      &*self.edge_store,
-      &*self.from_index_store,
-      &*self.to_index_store,
-      &*self.id_gen,
+    create_edge::<S::Id, S::EdgeProps, S::IdGen, _, _, _, _>(
+      self.store.node_store(),
+      self.store.edge_store(),
+      self.store.from_index_store(),
+      self.store.to_index_store(),
+      self.store.id_gen(),
       r#type,
       from_id,
       to_id,
@@ -1438,33 +1330,39 @@ where
     properties: Self::EdgeProps,
     expected_updated_at: Option<chrono::DateTime<chrono::Utc>>,
   ) -> Result<(), GraphError> {
-    update_edge::<I, P, _>(&*self.edge_store, id, properties, expected_updated_at).await
+    update_edge::<S::Id, S::EdgeProps, _>(
+      self.store.edge_store(),
+      id,
+      properties,
+      expected_updated_at,
+    )
+    .await
   }
 
   async fn delete_edge(&self, id: Self::Id) -> Result<(), GraphError> {
-    delete_edge::<I, P, _, _, _>(
-      &*self.edge_store,
-      &*self.from_index_store,
-      &*self.to_index_store,
+    delete_edge::<S::Id, S::EdgeProps, _, _, _>(
+      self.store.edge_store(),
+      self.store.from_index_store(),
+      self.store.to_index_store(),
       id,
     )
     .await
   }
 
   async fn get_node_by_id(&self, id: Self::Id) -> Result<Option<Self::Node>, GraphError> {
-    get_node_by_id::<I, M, _>(&*self.node_store, id).await
+    get_node_by_id::<S::Id, S::NodeMeta, _>(self.store.node_store(), id).await
   }
 
   async fn get_edge_by_id(&self, id: Self::Id) -> Result<Option<Self::Edge>, GraphError> {
-    get_edge_by_id::<I, P, _>(&*self.edge_store, id).await
+    get_edge_by_id::<S::Id, S::EdgeProps, _>(self.store.edge_store(), id).await
   }
 
   async fn query(&self, query: Query) -> Result<Vec<Element<Self::Node, Self::Edge>>, GraphError> {
-    run_query::<I, M, P, _, _, _, _>(
-      &*self.node_store,
-      &*self.edge_store,
-      &*self.from_index_store,
-      &*self.to_index_store,
+    run_query::<S::Id, S::NodeMeta, S::EdgeProps, _, _, _, _>(
+      self.store.node_store(),
+      self.store.edge_store(),
+      self.store.from_index_store(),
+      self.store.to_index_store(),
       query,
     )
     .await
@@ -1472,31 +1370,14 @@ where
 }
 
 #[async_trait]
-impl<I, M, P, G, SN, SE, SIF, SIT> Transaction for KeyValueTransaction<I, M, P, G, SN, SE, SIF, SIT>
+impl<S: KeyValueRepositoryStore> Transaction for KeyValueTransaction<S>
 where
-  I: Id,
-  M: Value,
-  P: Value,
-  G: IdGenerator<I>,
-  SN: KeyValueStore + 'static,
-  SE: KeyValueStore + 'static,
-  SIF: KeyValueStore + 'static,
-  SIT: KeyValueStore + 'static,
-  SN::Transaction: KeyValueStoreTransaction + 'static,
-  SE::Transaction: KeyValueStoreTransaction + 'static,
-  SIF::Transaction: KeyValueStoreTransaction + 'static,
-  SIT::Transaction: KeyValueStoreTransaction + 'static,
-  GraphError: From<<SN::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SE::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SIF::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SIT::Transaction as KeyValueStoreExecutor>::Error>,
-  <SN::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SE::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SIF::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SIT::Transaction as KeyValueStoreExecutor>::Error: Send,
+  S::Store: 'static,
+  <S::Store as KeyValueStore>::Transaction: KeyValueStoreTransaction + 'static,
+  GraphError: From<<<S::Store as KeyValueStore>::Transaction as KeyValueStoreExecutor>::Error>,
+  <<S::Store as KeyValueStore>::Transaction as KeyValueStoreExecutor>::Error: Send,
 {
   async fn commit(mut self) -> Result<(), GraphError> {
-    // attempt to commit all sub-transactions; return first error encountered
     self.node_tx.commit().await.map_err(GraphError::from)?;
     self.edge_tx.commit().await.map_err(GraphError::from)?;
     self
@@ -1509,7 +1390,6 @@ where
   }
 
   async fn rollback(mut self) -> Result<(), GraphError> {
-    // attempt to rollback all sub-transactions; return first error encountered
     let mut first_err: Option<GraphError> = None;
     if let Err(e) = self.node_tx.rollback().await.map_err(GraphError::from) {
       first_err = Some(e);
@@ -1533,52 +1413,29 @@ where
     {
       first_err = Some(e);
     }
-    if let Some(e) = first_err {
-      Err(e)
-    } else {
-      Ok(())
-    }
+    first_err.map_or(Ok(()), Err)
   }
 }
 
 #[async_trait]
-impl<I, M, P, G, SN, SE, SIF, SIT> Executor for KeyValueTransaction<I, M, P, G, SN, SE, SIF, SIT>
+impl<S: KeyValueRepositoryStore> Executor for KeyValueTransaction<S>
 where
-  I: Id,
-  M: Value,
-  P: Value,
-  G: IdGenerator<I>,
-  SN: KeyValueStore,
-  SE: KeyValueStore,
-  SIF: KeyValueStore,
-  SIT: KeyValueStore,
-  SN::Transaction: KeyValueStoreTransaction,
-  SE::Transaction: KeyValueStoreTransaction,
-  SIF::Transaction: KeyValueStoreTransaction,
-  SIT::Transaction: KeyValueStoreTransaction,
-  GraphError: From<<SN::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SE::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SIF::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SIT::Transaction as KeyValueStoreExecutor>::Error>,
-  <SN::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SE::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SIF::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SIT::Transaction as KeyValueStoreExecutor>::Error: Send,
+  GraphError: From<<<S::Store as KeyValueStore>::Transaction as KeyValueStoreExecutor>::Error>,
+  <<S::Store as KeyValueStore>::Transaction as KeyValueStoreExecutor>::Error: Send,
 {
-  type Id = I;
-
-  type NodeMeta = M;
-  type EdgeProps = P;
-
-  type Node = Node<I, M>;
-  type Edge = Edge<I, P>;
+  type Id = S::Id;
+  type NodeMeta = S::NodeMeta;
+  type EdgeProps = S::EdgeProps;
+  type Node = Node<S::Id, S::NodeMeta>;
+  type Edge = Edge<S::Id, S::EdgeProps>;
 
   async fn create_node(
     &self,
     r#type: String,
     metadata: Self::NodeMeta,
   ) -> Result<Self::Node, GraphError> {
-    create_node::<I, M, G, _>(&self.node_tx, &*self.id_gen, r#type, metadata).await
+    create_node::<S::Id, S::NodeMeta, S::IdGen, _>(&self.node_tx, &*self.id_gen, r#type, metadata)
+      .await
   }
 
   async fn update_node(
@@ -1587,11 +1444,11 @@ where
     metadata: Self::NodeMeta,
     expected_updated_at: Option<chrono::DateTime<chrono::Utc>>,
   ) -> Result<(), GraphError> {
-    update_node::<I, M, _>(&self.node_tx, id, metadata, expected_updated_at).await
+    update_node::<S::Id, S::NodeMeta, _>(&self.node_tx, id, metadata, expected_updated_at).await
   }
 
   async fn delete_node(&self, id: Self::Id) -> Result<(), GraphError> {
-    delete_node::<I, P, _, _, _, _>(
+    delete_node::<S::Id, S::EdgeProps, _, _, _, _>(
       &self.node_tx,
       &self.edge_tx,
       &self.from_index_tx,
@@ -1608,7 +1465,7 @@ where
     to_id: Self::Id,
     properties: Self::EdgeProps,
   ) -> Result<Self::Edge, GraphError> {
-    create_edge::<I, P, G, _, _, _, _>(
+    create_edge::<S::Id, S::EdgeProps, S::IdGen, _, _, _, _>(
       &self.node_tx,
       &self.edge_tx,
       &self.from_index_tx,
@@ -1628,23 +1485,29 @@ where
     properties: Self::EdgeProps,
     expected_updated_at: Option<chrono::DateTime<chrono::Utc>>,
   ) -> Result<(), GraphError> {
-    update_edge::<I, P, _>(&self.edge_tx, id, properties, expected_updated_at).await
+    update_edge::<S::Id, S::EdgeProps, _>(&self.edge_tx, id, properties, expected_updated_at).await
   }
 
   async fn delete_edge(&self, id: Self::Id) -> Result<(), GraphError> {
-    delete_edge::<I, P, _, _, _>(&self.edge_tx, &self.from_index_tx, &self.to_index_tx, id).await
+    delete_edge::<S::Id, S::EdgeProps, _, _, _>(
+      &self.edge_tx,
+      &self.from_index_tx,
+      &self.to_index_tx,
+      id,
+    )
+    .await
   }
 
   async fn get_node_by_id(&self, id: Self::Id) -> Result<Option<Self::Node>, GraphError> {
-    get_node_by_id::<I, M, _>(&self.node_tx, id).await
+    get_node_by_id::<S::Id, S::NodeMeta, _>(&self.node_tx, id).await
   }
 
   async fn get_edge_by_id(&self, id: Self::Id) -> Result<Option<Self::Edge>, GraphError> {
-    get_edge_by_id::<I, P, _>(&self.edge_tx, id).await
+    get_edge_by_id::<S::Id, S::EdgeProps, _>(&self.edge_tx, id).await
   }
 
   async fn query(&self, query: Query) -> Result<Vec<Element<Self::Node, Self::Edge>>, GraphError> {
-    run_query::<I, M, P, _, _, _, _>(
+    run_query::<S::Id, S::NodeMeta, S::EdgeProps, _, _, _, _>(
       &self.node_tx,
       &self.edge_tx,
       &self.from_index_tx,
@@ -1656,47 +1519,28 @@ where
 }
 
 #[async_trait]
-impl<I, M, P, G, SN, SE, SIF, SIT> Repository for KeyValueRepository<I, M, P, G, SN, SE, SIF, SIT>
+impl<S: KeyValueRepositoryStore> Repository for KeyValueRepository<S>
 where
-  I: Id,
-  M: Value,
-  P: Value,
-  G: IdGenerator<I>,
-  SN: KeyValueStore + 'static,
-  SE: KeyValueStore + 'static,
-  SIF: KeyValueStore + 'static,
-  SIT: KeyValueStore + 'static,
-  SN::Transaction: KeyValueStoreTransaction + 'static,
-  SE::Transaction: KeyValueStoreTransaction + 'static,
-  SIF::Transaction: KeyValueStoreTransaction + 'static,
-  SIT::Transaction: KeyValueStoreTransaction + 'static,
-  GraphError: From<SN::Error> + From<SE::Error> + From<SIF::Error> + From<SIT::Error>,
-  SN::Error: Send,
-  SE::Error: Send,
-  SIF::Error: Send,
-  SIT::Error: Send,
-  GraphError: From<<SN::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SE::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SIF::Transaction as KeyValueStoreExecutor>::Error>
-    + From<<SIT::Transaction as KeyValueStoreExecutor>::Error>,
-  <SN::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SE::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SIF::Transaction as KeyValueStoreExecutor>::Error: Send,
-  <SIT::Transaction as KeyValueStoreExecutor>::Error: Send,
+  S::Store: 'static,
+  <S::Store as KeyValueStore>::Transaction: KeyValueStoreTransaction + 'static,
+  GraphError: From<<S::Store as KeyValueStoreExecutor>::Error>
+    + From<<<S::Store as KeyValueStore>::Transaction as KeyValueStoreExecutor>::Error>,
+  <S::Store as KeyValueStoreExecutor>::Error: Send,
+  <<S::Store as KeyValueStore>::Transaction as KeyValueStoreExecutor>::Error: Send,
 {
-  type Transaction = KeyValueTransaction<I, M, P, G, SN, SE, SIF, SIT>;
+  type Transaction = KeyValueTransaction<S>;
 
   async fn transaction(&self) -> Result<Self::Transaction, GraphError> {
-    let node_tx = self.node_store.transaction().await?;
-    let edge_tx = self.edge_store.transaction().await?;
-    let from_index_tx = self.from_index_store.transaction().await?;
-    let to_index_tx = self.to_index_store.transaction().await?;
+    let node_tx = self.store.node_store().transaction().await?;
+    let edge_tx = self.store.edge_store().transaction().await?;
+    let from_index_tx = self.store.from_index_store().transaction().await?;
+    let to_index_tx = self.store.to_index_store().transaction().await?;
     Ok(KeyValueTransaction::new(
       node_tx,
       edge_tx,
       from_index_tx,
       to_index_tx,
-      self.id_gen.clone(),
+      Arc::new(self.store.id_gen().clone()),
     ))
   }
 }

@@ -19,6 +19,10 @@ mises-async-kv-bytes = { path = "../async-kv-bytes", default-features = false, f
 ] }
 
 # Crypto
+ed25519-dalek = { version = "2.2", default-features = false, features = [
+  "alloc",
+  "pkcs8",
+] }
 jsonwebtoken = { version = "10.3.0", default-features = false, features = [
   "rust_crypto",
 ] }

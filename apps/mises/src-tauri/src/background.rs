@@ -1,4 +1,7 @@
-use std::{collections::HashMap, convert::Infallible, fmt::Write as FmtWrite, io, path::Path};
+use std::{
+  collections::HashMap, convert::Infallible, fmt::Write as FmtWrite, io, net::TcpListener,
+  path::Path,
+};
 
 use bytes::Bytes;
 use http::{Method, Request, Version};
@@ -24,12 +27,23 @@ use crate::{
   config::Config,
 };
 
+pub struct GrpcConnection {
+  pub channel: Channel,
+  pub port: u16,
+}
+
 pub struct ClientRequest {
   pub request_id: Uuid,
   pub path: String,
   pub metadata: HashMap<String, Vec<MetadataValue>>,
   pub body: Vec<u8>,
   pub sender: mpsc::Sender<Result<Frame, GrpcError>>,
+}
+
+fn get_random_available_port() -> io::Result<u16> {
+  let listener = TcpListener::bind("127.0.0.1:0")?;
+  let addr = listener.local_addr()?;
+  Ok(addr.port())
 }
 
 pub async fn start_background(
@@ -39,10 +53,10 @@ pub async fn start_background(
 ) {
   log::debug!("starting background client task");
 
-  let channel = match ensure_daemon_and_connect(&config, cancellation_token.clone()).await {
-    Ok(channel) => {
-      log::info!("connected to mises daemon");
-      channel
+  let grpc_connection = match ensure_daemon_and_connect(&config, cancellation_token.clone()).await {
+    Ok(connection) => {
+      log::info!("connected to mises daemon on port {}", connection.port);
+      connection
     }
     Err(e) => {
       log::error!(
@@ -53,7 +67,7 @@ pub async fn start_background(
     }
   };
 
-  match init_client_identity(channel.clone()).await {
+  match init_client_identity(grpc_connection.channel.clone()).await {
     Ok(()) => {
       log::debug!("client identity initialized");
     }
@@ -63,7 +77,14 @@ pub async fn start_background(
   }
 
   log::info!("starting client request handler loop");
-  match async_runtime::spawn(start_client(receiver, channel, cancellation_token.clone())).await {
+  match async_runtime::spawn(start_client(
+    receiver,
+    grpc_connection.channel,
+    grpc_connection.port,
+    cancellation_token.clone(),
+  ))
+  .await
+  {
     Ok(()) => {
       log::info!("client request handler loop exited normally");
     }
@@ -78,7 +99,7 @@ pub async fn start_background(
 async fn ensure_daemon_and_connect(
   config: &Config,
   cancellation_token: CancellationToken,
-) -> Result<Channel, String> {
+) -> Result<GrpcConnection, String> {
   let socket_path = &config.socket_path;
 
   if fs::metadata(socket_path).await.is_ok() {
@@ -124,15 +145,21 @@ async fn start_daemon(
   Ok(())
 }
 
-async fn connect_unix_socket(socket_path: &Path) -> Result<Channel, String> {
+async fn connect_unix_socket(socket_path: &Path) -> Result<GrpcConnection, String> {
   let path = socket_path.to_path_buf();
+  let grpc_port =
+    get_random_available_port().map_err(|e| format!("failed to get random port: {}", e))?;
 
-  let channel = Endpoint::try_from("http://[::]:50051")
-    .map_err(|e| format!("invalid endpoint: {}", e))?
+  let uri_string = format!("http://[::]:{}", grpc_port);
+  let uri: Uri = uri_string
+    .parse()
+    .map_err(|e| format!("invalid URI: {}", e))?;
+
+  let channel = Endpoint::from(uri)
     .connect_with_connector(service_fn(move |_: Uri| {
       let p = path.clone();
       async move {
-        tokio::net::UnixStream::connect(p)
+        tokio::net::UnixStream::connect(&p)
           .await
           .map(hyper_util::rt::tokio::TokioIo::new)
       }
@@ -140,7 +167,10 @@ async fn connect_unix_socket(socket_path: &Path) -> Result<Channel, String> {
     .await
     .map_err(|e| format!("connection failed: {}", e))?;
 
-  Ok(channel)
+  Ok(GrpcConnection {
+    channel,
+    port: grpc_port,
+  })
 }
 
 async fn init_client_identity(_channel: Channel) -> io::Result<()> {
@@ -150,6 +180,7 @@ async fn init_client_identity(_channel: Channel) -> io::Result<()> {
 async fn start_client(
   mut receiver: mpsc::UnboundedReceiver<ClientRequest>,
   channel: Channel,
+  grpc_port: u16,
   cancellation_token: CancellationToken,
 ) {
   loop {
@@ -181,6 +212,7 @@ async fn start_client(
               &path,
               metadata,
               body,
+              grpc_port,
               sender,
             )
             .await
@@ -233,6 +265,7 @@ async fn forward_grpc_request(
   path: &str,
   metadata: HashMap<String, Vec<MetadataValue>>,
   body: Vec<u8>,
+  grpc_port: u16,
   sender: mpsc::Sender<Result<Frame, GrpcError>>,
 ) -> Result<(), String> {
   let metadata_map = build_metadata_map(metadata)?;
@@ -243,9 +276,10 @@ async fn forward_grpc_request(
     path
   );
 
+  let authority = format!("[::]:{}", grpc_port);
   let uri = Uri::builder()
     .scheme("http")
-    .authority("[::]:50051")
+    .authority(authority.as_str())
     .path_and_query(path)
     .build()
     .map_err(|e| format!("invalid URI: {}", e))?;

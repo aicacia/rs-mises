@@ -1,3 +1,4 @@
+use ed25519_dalek::{SecretKey, SigningKey, pkcs8::EncodePrivateKey};
 use native_authentication::{AndroidText, AuthError, Context, PolicyBuilder, Text, WindowsText};
 use sha2::{Digest, Sha256};
 use tonic::Status;
@@ -16,6 +17,20 @@ use crate::{
     authorization_code::get_and_delete_authorization_code, helpers::ensure_application_identity,
   },
 };
+
+fn encoding_key_from_ed25519_secret(
+  secret_bytes: &[u8],
+) -> Result<jsonwebtoken::EncodingKey, Status> {
+  let secret_key: SecretKey = secret_bytes
+    .try_into()
+    .map_err(|_| Status::internal("invalid ed25519 private key length"))?;
+  let signing_key = SigningKey::from_bytes(&secret_key);
+  let pkcs8 = signing_key.to_pkcs8_der().map_err(|e| {
+    log::error!("failed to encode ed25519 private key as pkcs8: {}", e);
+    Status::internal("invalid ed25519 private key format")
+  })?;
+  Ok(jsonwebtoken::EncodingKey::from_ed_der(pkcs8.as_bytes()))
+}
 
 pub async fn token<R, S>(
   repo: &R,
@@ -136,7 +151,7 @@ where
   let client_id_str = code_data.client_id.to_string();
   let subject_str = code_data.subject.to_string();
 
-  let encoding_key = jsonwebtoken::EncodingKey::from_ec_der(&client_key_bytes);
+  let encoding_key = encoding_key_from_ed25519_secret(&client_key_bytes)?;
 
   let access_token = generate_access_token(
     &kid,
@@ -232,7 +247,7 @@ where
   })?;
 
   let user_id_str = user_id.to_string();
-  let encoding_key = jsonwebtoken::EncodingKey::from_ec_der(&user_key_bytes);
+  let encoding_key = encoding_key_from_ed25519_secret(&user_key_bytes)?;
 
   let access_token = generate_access_token(
     &kid,
@@ -334,7 +349,7 @@ where
   let refresh_token_expiry = 604800;
   let scope = grant.scope.as_deref();
   let device_id_str = device_node.id.to_string();
-  let encoding_key = jsonwebtoken::EncodingKey::from_ec_der(&device_key_bytes);
+  let encoding_key = encoding_key_from_ed25519_secret(&device_key_bytes)?;
 
   let access_token = generate_access_token(
     &kid,

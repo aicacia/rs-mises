@@ -1,5 +1,7 @@
 use chrono::{Duration, Utc};
-use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, decode_header, encode};
+use jsonwebtoken::{
+  Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, decode_header, encode,
+};
 use serde::{Deserialize, Serialize};
 use tonic::{Request, Status};
 use uuid::Uuid;
@@ -44,6 +46,7 @@ pub fn generate_access_token(
 
   encode(
     &Header {
+      alg: Algorithm::EdDSA,
       kid: Some(kid.to_string()),
       ..Default::default()
     },
@@ -79,6 +82,7 @@ pub fn generate_refresh_token(
 
   encode(
     &Header {
+      alg: Algorithm::EdDSA,
       kid: Some(kid.to_string()),
       ..Default::default()
     },
@@ -117,6 +121,7 @@ pub fn generate_id_token(
 
   encode(
     &Header {
+      alg: Algorithm::EdDSA,
       kid: Some(kid.to_string()),
       ..Default::default()
     },
@@ -186,9 +191,9 @@ where
     }
   };
 
-  let decoding_key = DecodingKey::from_ec_der(&public_key);
+  let decoding_key = DecodingKey::from_ed_der(&public_key);
 
-  let token_data = decode::<Claims>(token, &decoding_key, &Validation::default())
+  let token_data = decode::<Claims>(token, &decoding_key, &Validation::new(Algorithm::EdDSA))
     .map_err(|_| Status::unauthenticated("invalid token signature"))?;
 
   Ok(Some(token_data.claims))

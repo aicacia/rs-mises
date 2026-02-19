@@ -1,21 +1,22 @@
 #![cfg(feature = "in-memory")]
 
 use core::sync::atomic::{AtomicUsize, Ordering};
-use std::ops::RangeBounds;
+use std::{ops::RangeBounds, sync::Arc};
 
 use mises_graph::{
   EdgeQuery, Element, Executor, IdGenerator, InMemoryKeyValueRepository, InMemoryKeyValueStore,
-  KeyValueRepository, NodeQuery, Query, Repository, Transaction, field,
+  NodeQuery, Query, Repository, Transaction, field,
 };
 
+#[derive(Clone)]
 struct UsizeIdGenerator {
-  counter: AtomicUsize,
+  counter: Arc<AtomicUsize>,
 }
 
 impl UsizeIdGenerator {
   fn new() -> Self {
     Self {
-      counter: AtomicUsize::default(),
+      counter: Arc::new(AtomicUsize::default()),
     }
   }
 }
@@ -31,13 +32,7 @@ type Repo =
 
 #[tokio::test]
 async fn create_and_get_node_edge() {
-  let repo = Repo::new(
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    UsizeIdGenerator::new(),
-  );
+  let repo = Repo::new_in_memory(UsizeIdGenerator::new());
 
   let node = repo
     .create_node("User".into(), serde_json::json!({"name": "Alice"}))
@@ -65,13 +60,7 @@ async fn create_and_get_node_edge() {
 
 #[tokio::test]
 async fn transactions_commit_and_rollback() {
-  let repo = Repo::new(
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    UsizeIdGenerator::new(),
-  );
+  let repo = Repo::new_in_memory(UsizeIdGenerator::new());
   let tx = repo.transaction().await.unwrap();
 
   let node = tx
@@ -93,13 +82,7 @@ async fn transactions_commit_and_rollback() {
 
 #[tokio::test]
 async fn query_nodes_and_edges() {
-  let repo = Repo::new(
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    UsizeIdGenerator::new(),
-  );
+  let repo = Repo::new_in_memory(UsizeIdGenerator::new());
   let n1 = repo
     .create_node("User".into(), serde_json::json!({"name": "A"}))
     .await
@@ -129,13 +112,7 @@ async fn query_nodes_and_edges() {
 
 #[tokio::test]
 async fn query_with_predicates_and_include_edges() {
-  let repo = Repo::new(
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    UsizeIdGenerator::new(),
-  );
+  let repo = Repo::new_in_memory(UsizeIdGenerator::new());
   let key = repo
     .create_node("Key".into(), serde_json::json!({"type": "master"}))
     .await
@@ -192,13 +169,7 @@ async fn query_with_predicates_and_include_edges() {
 
 #[tokio::test]
 async fn get_json_field_handles_enum_wrapped_metadata() {
-  let repo = Repo::new(
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    UsizeIdGenerator::new(),
-  );
+  let repo = Repo::new_in_memory(UsizeIdGenerator::new());
 
   let n = repo
     .create_node("Key".into(), serde_json::json!({"Key": {"type": "master"}}))
@@ -217,13 +188,7 @@ async fn get_json_field_handles_enum_wrapped_metadata() {
 
 #[tokio::test]
 async fn get_json_field_non_object_metadata_no_match() {
-  let repo = Repo::new(
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    UsizeIdGenerator::new(),
-  );
+  let repo = Repo::new_in_memory(UsizeIdGenerator::new());
 
   let n = repo
     .create_node("User".into(), serde_json::json!("just-a-string"))
@@ -242,13 +207,7 @@ async fn get_json_field_non_object_metadata_no_match() {
 
 #[tokio::test]
 async fn exists_predicate_null_not_exists() {
-  let repo = Repo::new(
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    UsizeIdGenerator::new(),
-  );
+  let repo = Repo::new_in_memory(UsizeIdGenerator::new());
 
   let n = repo
     .create_node(
@@ -358,22 +317,46 @@ async fn create_edge_cleanup_on_partial_failure() {
 
   let fail_on_put = 4;
   let store = FailingStore::new(fail_on_put);
-  let repo = mises_graph::KeyValueRepository::<
-    usize,
-    serde_json::Value,
-    serde_json::Value,
-    UsizeIdGenerator,
-    FailingStore,
-    FailingStore,
-    FailingStore,
-    FailingStore,
-  >::new(
-    store.clone(),
-    store.clone(),
-    store.clone(),
-    store.clone(),
-    UsizeIdGenerator::new(),
-  );
+  use mises_graph::key_value_repository::KeyValueRepositoryStore;
+
+  #[derive(Clone)]
+  struct FailingRepositoryStore {
+    store: FailingStore,
+    id_gen: UsizeIdGenerator,
+  }
+
+  impl KeyValueRepositoryStore for FailingRepositoryStore {
+    type Id = usize;
+    type NodeMeta = serde_json::Value;
+    type EdgeProps = serde_json::Value;
+    type Store = FailingStore;
+    type IdGen = UsizeIdGenerator;
+
+    fn node_store(&self) -> &Self::Store {
+      &self.store
+    }
+
+    fn edge_store(&self) -> &Self::Store {
+      &self.store
+    }
+
+    fn from_index_store(&self) -> &Self::Store {
+      &self.store
+    }
+
+    fn to_index_store(&self) -> &Self::Store {
+      &self.store
+    }
+
+    fn id_gen(&self) -> &Self::IdGen {
+      &self.id_gen
+    }
+  }
+
+  let repo = mises_graph::KeyValueRepository::new(FailingRepositoryStore {
+    store: store.clone(),
+    id_gen: UsizeIdGenerator::new(),
+  });
 
   let n1 = repo
     .create_node("User".into(), serde_json::json!({"name": "A"}))
@@ -402,13 +385,7 @@ async fn create_edge_cleanup_on_partial_failure() {
 #[tokio::test]
 async fn update_node_and_edge_conflict_and_success() {
   use mises_graph::GraphError;
-  let repo = Repo::new(
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    UsizeIdGenerator::new(),
-  );
+  let repo = Repo::new_in_memory(UsizeIdGenerator::new());
 
   let n = repo
     .create_node("User".into(), serde_json::json!({"name": "C"}))
@@ -469,13 +446,7 @@ async fn update_node_and_edge_conflict_and_success() {
 
 #[tokio::test]
 async fn delete_node_cascade_removes_edges() {
-  let repo = Repo::new(
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    UsizeIdGenerator::new(),
-  );
+  let repo = Repo::new_in_memory(UsizeIdGenerator::new());
   let a = repo
     .create_node("User".into(), serde_json::json!({"name": "A"}))
     .await
@@ -508,19 +479,57 @@ async fn delete_node_cascade_removes_edges() {
 #[tokio::test]
 async fn delete_node_handles_missing_main_edge_cleanup() {
   use mises_graph::KeyValueStoreExecutor;
+  use mises_graph::key_value_repository::KeyValueRepositoryStore;
 
-  // separate backing stores
-  let node_store = InMemoryKeyValueStore::new();
-  let edge_store = InMemoryKeyValueStore::new();
-  let from_index_store = InMemoryKeyValueStore::new();
-  let to_index_store = InMemoryKeyValueStore::new();
-  let repo = Repo::new(
-    node_store.clone(),
-    edge_store.clone(),
-    from_index_store.clone(),
-    to_index_store.clone(),
-    UsizeIdGenerator::new(),
-  );
+  // Create a custom store for testing
+  #[derive(Clone)]
+  struct TestStore {
+    node_store: InMemoryKeyValueStore,
+    edge_store: InMemoryKeyValueStore,
+    from_index_store: InMemoryKeyValueStore,
+    to_index_store: InMemoryKeyValueStore,
+    id_gen: UsizeIdGenerator,
+  }
+
+  impl KeyValueRepositoryStore for TestStore {
+    type Id = usize;
+    type NodeMeta = serde_json::Value;
+    type EdgeProps = serde_json::Value;
+    type Store = InMemoryKeyValueStore;
+    type IdGen = UsizeIdGenerator;
+
+    fn node_store(&self) -> &Self::Store {
+      &self.node_store
+    }
+
+    fn edge_store(&self) -> &Self::Store {
+      &self.edge_store
+    }
+
+    fn from_index_store(&self) -> &Self::Store {
+      &self.from_index_store
+    }
+
+    fn to_index_store(&self) -> &Self::Store {
+      &self.to_index_store
+    }
+
+    fn id_gen(&self) -> &Self::IdGen {
+      &self.id_gen
+    }
+  }
+
+  let test_store = TestStore {
+    node_store: InMemoryKeyValueStore::new(),
+    edge_store: InMemoryKeyValueStore::new(),
+    from_index_store: InMemoryKeyValueStore::new(),
+    to_index_store: InMemoryKeyValueStore::new(),
+    id_gen: UsizeIdGenerator::new(),
+  };
+  let edge_store = test_store.edge_store().clone();
+  let from_index_store = test_store.from_index_store().clone();
+  let to_index_store = test_store.to_index_store().clone();
+  let repo = mises_graph::KeyValueRepository::new(test_store);
 
   let a = repo
     .create_node("User".into(), serde_json::json!({"name": "A"}))
@@ -543,16 +552,16 @@ async fn delete_node_handles_missing_main_edge_cleanup() {
 
   // remove the main edge entry directly from the edge store
   let id_bytes = serde_json::to_vec(&e.id).unwrap();
-  edge_store.delete(id_bytes.clone()).await.unwrap();
+  edge_store.delete(id_bytes).await.unwrap();
 
   assert!(repo.get_edge_by_id(e.id).await.unwrap().is_none());
 
   // ensure index still contains the from entry for the missing main edge
   let mut from_prefix = serde_json::to_vec(&a.id).unwrap();
   from_prefix.push(0);
-  let mut matches = Vec::new();
+  let mut matches: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
   from_index_store
-    .scan(from_prefix.., |k, v| {
+    .scan(from_prefix.., |k: &Vec<u8>, v: &Vec<u8>| {
       matches.push((k.clone(), v.clone()));
       true
     })
@@ -567,16 +576,16 @@ async fn delete_node_handles_missing_main_edge_cleanup() {
   repo.delete_node(a.id).await.unwrap();
 
   // confirm no index entries remain for that edge id
-  let mut all_index_entries = Vec::new();
+  let mut all_index_entries: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
   from_index_store
-    .scan(vec![].., |k, v| {
+    .scan(vec![].., |k: &Vec<u8>, v: &Vec<u8>| {
       all_index_entries.push((k.clone(), v.clone()));
       true
     })
     .await
     .unwrap();
   to_index_store
-    .scan(vec![].., |k, v| {
+    .scan(vec![].., |k: &Vec<u8>, v: &Vec<u8>| {
       all_index_entries.push((k.clone(), v.clone()));
       true
     })

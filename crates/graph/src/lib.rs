@@ -178,17 +178,103 @@ mod in_memory_wrapper {
 pub use in_memory_wrapper::{InMemoryKeyValueStore, InMemoryTransaction};
 
 #[cfg(feature = "in-memory")]
-/// Helper alias for a `KeyValueRepository` where all underlying stores are
-/// `InMemoryKeyValueStore`.
+mod in_memory_repository {
+  use super::*;
+  use core::marker::PhantomData;
+
+  /// Concrete implementation of `KeyValueRepositoryStore` for in-memory storage.
+  #[derive(Clone)]
+  pub struct InMemoryRepositoryStore<I, M, P, G>
+  where
+    I: Id,
+    M: Value,
+    P: Value,
+    G: IdGenerator<I>,
+  {
+    node_store: InMemoryKeyValueStore,
+    edge_store: InMemoryKeyValueStore,
+    from_index_store: InMemoryKeyValueStore,
+    to_index_store: InMemoryKeyValueStore,
+    id_gen: G,
+    _phantom: PhantomData<(I, M, P)>,
+  }
+
+  impl<I, M, P, G> InMemoryRepositoryStore<I, M, P, G>
+  where
+    I: Id,
+    M: Value,
+    P: Value,
+    G: IdGenerator<I>,
+  {
+    pub fn new(id_gen: G) -> Self {
+      Self {
+        node_store: InMemoryKeyValueStore::new(),
+        edge_store: InMemoryKeyValueStore::new(),
+        from_index_store: InMemoryKeyValueStore::new(),
+        to_index_store: InMemoryKeyValueStore::new(),
+        id_gen,
+        _phantom: PhantomData,
+      }
+    }
+  }
+
+  impl<I, M, P, G> key_value_repository::KeyValueRepositoryStore
+    for InMemoryRepositoryStore<I, M, P, G>
+  where
+    I: Id,
+    M: Value,
+    P: Value,
+    G: IdGenerator<I> + 'static,
+  {
+    type Id = I;
+    type NodeMeta = M;
+    type EdgeProps = P;
+    type Store = InMemoryKeyValueStore;
+    type IdGen = G;
+
+    fn node_store(&self) -> &Self::Store {
+      &self.node_store
+    }
+
+    fn edge_store(&self) -> &Self::Store {
+      &self.edge_store
+    }
+
+    fn from_index_store(&self) -> &Self::Store {
+      &self.from_index_store
+    }
+
+    fn to_index_store(&self) -> &Self::Store {
+      &self.to_index_store
+    }
+
+    fn id_gen(&self) -> &Self::IdGen {
+      &self.id_gen
+    }
+  }
+}
+
+#[cfg(feature = "in-memory")]
+pub use in_memory_repository::InMemoryRepositoryStore;
+
+#[cfg(feature = "in-memory")]
+impl<I, M, P, G> KeyValueRepository<InMemoryRepositoryStore<I, M, P, G>>
+where
+  I: Id,
+  M: Value,
+  P: Value,
+  G: IdGenerator<I> + 'static,
+{
+  /// Create a new in-memory repository with the given ID generator.
+  pub fn new_in_memory(id_gen: G) -> Self {
+    let store = InMemoryRepositoryStore::new(id_gen);
+    Self::new(store)
+  }
+}
+
+#[cfg(feature = "in-memory")]
+/// Helper alias for an in-memory `KeyValueRepository`.
 ///
-/// Usage: `InMemoryKeyValueRepository<Id, Model, Props, IdGen>`
-pub type InMemoryKeyValueRepository<I, M, P, G> = crate::key_value_repository::KeyValueRepository<
-  I,
-  M,
-  P,
-  G,
-  InMemoryKeyValueStore,
-  InMemoryKeyValueStore,
-  InMemoryKeyValueStore,
-  InMemoryKeyValueStore,
->;
+/// Usage: `InMemoryKeyValueRepository::<IdType, MetaType, PropsType, GeneratorType>::new_in_memory(gen)`
+pub type InMemoryKeyValueRepository<I, M, P, G> =
+  KeyValueRepository<InMemoryRepositoryStore<I, M, P, G>>;

@@ -5,10 +5,7 @@ extern crate alloc;
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicU64, Ordering};
 
-use mises_graph::{
-  EdgeQuery, Element, Executor, IdGenerator, InMemoryKeyValueStore, KeyValueRepository, NodeQuery,
-  Query, field,
-};
+use mises_graph::{EdgeQuery, Element, Executor, IdGenerator, NodeQuery, Query, field};
 use serde_json::json;
 
 #[derive(Clone)]
@@ -26,22 +23,9 @@ impl IdGenerator<u64> for U64Generator {
 
 #[tokio::test]
 async fn edge_query_filters_by_node_id() {
-  let repo: KeyValueRepository<
-    u64,
-    serde_json::Value,
-    serde_json::Value,
-    U64Generator,
-    InMemoryKeyValueStore,
-    InMemoryKeyValueStore,
-    InMemoryKeyValueStore,
-    InMemoryKeyValueStore,
-  > = KeyValueRepository::new(
-    mises_graph::InMemoryKeyValueStore::new(),
-    mises_graph::InMemoryKeyValueStore::new(),
-    mises_graph::InMemoryKeyValueStore::new(),
-    mises_graph::InMemoryKeyValueStore::new(),
-    U64Generator::new(),
-  );
+  use mises_graph::InMemoryKeyValueRepository;
+  type Repo = InMemoryKeyValueRepository<u64, serde_json::Value, serde_json::Value, U64Generator>;
+  let repo = Repo::new_in_memory(U64Generator::new());
 
   let n1 = repo
     .create_node("identity".to_string(), json!({ "name": "n1" }))
