@@ -1,4 +1,4 @@
-use tonic::{Request, Status};
+use tonic::Status;
 use url::Url;
 use uuid::Uuid;
 
@@ -6,27 +6,7 @@ use mises_core::{
   CoreError, model::identity::IdentityType, service::identity::IdentityService, traits::Repository,
 };
 
-use crate::{error::ToStatus, jwt::Claims};
-
-pub fn extract_optional_claims<T>(request: &Request<T>) -> Result<Option<Claims>, Status> {
-  if let Some(claims) = request.extensions().get::<Claims>() {
-    return Ok(Some(claims.clone()));
-  }
-
-  let Some(auth_header) = request
-    .metadata()
-    .get("authorization")
-    .and_then(|v| v.to_str().ok())
-  else {
-    return Ok(None);
-  };
-
-  if auth_header.trim().is_empty() {
-    return Ok(None);
-  }
-
-  Err(Status::unauthenticated("invalid bearer token"))
-}
+use crate::error::ToStatus;
 
 pub fn matches_redirect_pattern(redirect_uri: &str, pattern: &str) -> bool {
   if pattern == redirect_uri {

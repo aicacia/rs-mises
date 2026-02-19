@@ -11,6 +11,21 @@ import { Empty } from "./google/protobuf/empty";
 
 export const protobufPackage = "mises";
 
+export enum Permission {
+  ALL = 0,
+  CLIENT_ALL = 1,
+  CLIENT_CREATE = 2,
+  CLIENT_READ = 3,
+  CLIENT_UPDATE = 4,
+  CLIENT_DELETE = 5,
+  USER_ALL = 6,
+  USER_CREATE = 7,
+  USER_READ = 8,
+  USER_UPDATE = 9,
+  USER_DELETE = 10,
+  UNRECOGNIZED = -1,
+}
+
 export interface AuthorizeRequest {
   clientId: string;
   responseType: string;
@@ -103,7 +118,7 @@ export interface IntrospectRequest {
   clientSecret?: string | undefined;
 }
 
-export interface IntrospectResponse {
+export interface Claims {
   active: boolean;
   scope?: string | undefined;
   clientId?: string | undefined;
@@ -208,13 +223,9 @@ export interface EndSessionResponse {
   redirectUri?: string | undefined;
 }
 
-export interface UserInfoRequest {
-  /** access token is typically provided in Authorization header; allow explicit token here */
-  accessToken?: string | undefined;
-}
-
 export interface UserInfo {
   sub: string;
+  permissions: Permission[];
   name?: string | undefined;
   givenName?: string | undefined;
   familyName?: string | undefined;
@@ -1434,7 +1445,7 @@ export const IntrospectRequest: MessageFns<IntrospectRequest> = {
   },
 };
 
-function createBaseIntrospectResponse(): IntrospectResponse {
+function createBaseClaims(): Claims {
   return {
     active: false,
     scope: undefined,
@@ -1452,8 +1463,8 @@ function createBaseIntrospectResponse(): IntrospectResponse {
   };
 }
 
-export const IntrospectResponse: MessageFns<IntrospectResponse> = {
-  encode(message: IntrospectResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const Claims: MessageFns<Claims> = {
+  encode(message: Claims, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.active !== false) {
       writer.uint32(8).bool(message.active);
     }
@@ -1496,10 +1507,10 @@ export const IntrospectResponse: MessageFns<IntrospectResponse> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): IntrospectResponse {
+  decode(input: BinaryReader | Uint8Array, length?: number): Claims {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseIntrospectResponse();
+    const message = createBaseClaims();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1616,11 +1627,11 @@ export const IntrospectResponse: MessageFns<IntrospectResponse> = {
     return message;
   },
 
-  create(base?: DeepPartial<IntrospectResponse>): IntrospectResponse {
-    return IntrospectResponse.fromPartial(base ?? {});
+  create(base?: DeepPartial<Claims>): Claims {
+    return Claims.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<IntrospectResponse>): IntrospectResponse {
-    const message = createBaseIntrospectResponse();
+  fromPartial(object: DeepPartial<Claims>): Claims {
+    const message = createBaseClaims();
     message.active = object.active ?? false;
     message.scope = object.scope ?? undefined;
     message.clientId = object.clientId ?? undefined;
@@ -2588,55 +2599,10 @@ export const EndSessionResponse: MessageFns<EndSessionResponse> = {
   },
 };
 
-function createBaseUserInfoRequest(): UserInfoRequest {
-  return { accessToken: undefined };
-}
-
-export const UserInfoRequest: MessageFns<UserInfoRequest> = {
-  encode(message: UserInfoRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.accessToken !== undefined) {
-      writer.uint32(10).string(message.accessToken);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): UserInfoRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseUserInfoRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.accessToken = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<UserInfoRequest>): UserInfoRequest {
-    return UserInfoRequest.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<UserInfoRequest>): UserInfoRequest {
-    const message = createBaseUserInfoRequest();
-    message.accessToken = object.accessToken ?? undefined;
-    return message;
-  },
-};
-
 function createBaseUserInfo(): UserInfo {
   return {
     sub: "",
+    permissions: [],
     name: undefined,
     givenName: undefined,
     familyName: undefined,
@@ -2652,26 +2618,31 @@ export const UserInfo: MessageFns<UserInfo> = {
     if (message.sub !== "") {
       writer.uint32(10).string(message.sub);
     }
+    writer.uint32(18).fork();
+    for (const v of message.permissions) {
+      writer.int32(v);
+    }
+    writer.join();
     if (message.name !== undefined) {
-      writer.uint32(18).string(message.name);
+      writer.uint32(26).string(message.name);
     }
     if (message.givenName !== undefined) {
-      writer.uint32(26).string(message.givenName);
+      writer.uint32(34).string(message.givenName);
     }
     if (message.familyName !== undefined) {
-      writer.uint32(34).string(message.familyName);
+      writer.uint32(42).string(message.familyName);
     }
     if (message.preferredUsername !== undefined) {
-      writer.uint32(42).string(message.preferredUsername);
+      writer.uint32(50).string(message.preferredUsername);
     }
     if (message.email !== undefined) {
-      writer.uint32(50).string(message.email);
+      writer.uint32(58).string(message.email);
     }
     if (message.emailVerified !== undefined) {
-      writer.uint32(56).bool(message.emailVerified);
+      writer.uint32(64).bool(message.emailVerified);
     }
     if (message.picture !== undefined) {
-      writer.uint32(66).string(message.picture);
+      writer.uint32(74).string(message.picture);
     }
     return writer;
   },
@@ -2692,19 +2663,29 @@ export const UserInfo: MessageFns<UserInfo> = {
           continue;
         }
         case 2: {
-          if (tag !== 18) {
-            break;
+          if (tag === 16) {
+            message.permissions.push(reader.int32() as any);
+
+            continue;
           }
 
-          message.name = reader.string();
-          continue;
+          if (tag === 18) {
+            const end2 = reader.uint32() + reader.pos;
+            while (reader.pos < end2) {
+              message.permissions.push(reader.int32() as any);
+            }
+
+            continue;
+          }
+
+          break;
         }
         case 3: {
           if (tag !== 26) {
             break;
           }
 
-          message.givenName = reader.string();
+          message.name = reader.string();
           continue;
         }
         case 4: {
@@ -2712,7 +2693,7 @@ export const UserInfo: MessageFns<UserInfo> = {
             break;
           }
 
-          message.familyName = reader.string();
+          message.givenName = reader.string();
           continue;
         }
         case 5: {
@@ -2720,7 +2701,7 @@ export const UserInfo: MessageFns<UserInfo> = {
             break;
           }
 
-          message.preferredUsername = reader.string();
+          message.familyName = reader.string();
           continue;
         }
         case 6: {
@@ -2728,19 +2709,27 @@ export const UserInfo: MessageFns<UserInfo> = {
             break;
           }
 
-          message.email = reader.string();
+          message.preferredUsername = reader.string();
           continue;
         }
         case 7: {
-          if (tag !== 56) {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.email = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
             break;
           }
 
           message.emailVerified = reader.bool();
           continue;
         }
-        case 8: {
-          if (tag !== 66) {
+        case 9: {
+          if (tag !== 74) {
             break;
           }
 
@@ -2762,6 +2751,7 @@ export const UserInfo: MessageFns<UserInfo> = {
   fromPartial(object: DeepPartial<UserInfo>): UserInfo {
     const message = createBaseUserInfo();
     message.sub = object.sub ?? "";
+    message.permissions = object.permissions?.map((e) => e) || [];
     message.name = object.name ?? undefined;
     message.givenName = object.givenName ?? undefined;
     message.familyName = object.familyName ?? undefined;
@@ -3664,7 +3654,7 @@ export const OidcServiceDefinition = {
       name: "Introspect",
       requestType: IntrospectRequest,
       requestStream: false,
-      responseType: IntrospectResponse,
+      responseType: Claims,
       responseStream: false,
       options: {},
     },
@@ -3716,7 +3706,7 @@ export const OidcServiceDefinition = {
     /** UserInfo */
     getUserInfo: {
       name: "GetUserInfo",
-      requestType: UserInfoRequest,
+      requestType: Empty,
       requestStream: false,
       responseType: UserInfo,
       responseStream: false,
@@ -3753,10 +3743,7 @@ export interface OidcServiceImplementation<CallContextExt = {}> {
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<DeviceAuthorizeResponse>>;
   /** Introspection */
-  introspect(
-    request: IntrospectRequest,
-    context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<IntrospectResponse>>;
+  introspect(request: IntrospectRequest, context: CallContext & CallContextExt): Promise<DeepPartial<Claims>>;
   /** Revocation (returns empty on success) */
   revoke(request: RevokeRequest, context: CallContext & CallContextExt): Promise<DeepPartial<Empty>>;
   /** Pushed Authorization Request */
@@ -3777,7 +3764,7 @@ export interface OidcServiceImplementation<CallContextExt = {}> {
     context: CallContext & CallContextExt,
   ): Promise<DeepPartial<EndSessionResponse>>;
   /** UserInfo */
-  getUserInfo(request: UserInfoRequest, context: CallContext & CallContextExt): Promise<DeepPartial<UserInfo>>;
+  getUserInfo(request: Empty, context: CallContext & CallContextExt): Promise<DeepPartial<UserInfo>>;
   /** Provider metadata and keys */
   getOpenIdConfiguration(
     request: Empty,
@@ -3797,10 +3784,7 @@ export interface OidcServiceClient<CallOptionsExt = {}> {
     options?: CallOptions & CallOptionsExt,
   ): Promise<DeviceAuthorizeResponse>;
   /** Introspection */
-  introspect(
-    request: DeepPartial<IntrospectRequest>,
-    options?: CallOptions & CallOptionsExt,
-  ): Promise<IntrospectResponse>;
+  introspect(request: DeepPartial<IntrospectRequest>, options?: CallOptions & CallOptionsExt): Promise<Claims>;
   /** Revocation (returns empty on success) */
   revoke(request: DeepPartial<RevokeRequest>, options?: CallOptions & CallOptionsExt): Promise<Empty>;
   /** Pushed Authorization Request */
@@ -3821,7 +3805,7 @@ export interface OidcServiceClient<CallOptionsExt = {}> {
     options?: CallOptions & CallOptionsExt,
   ): Promise<EndSessionResponse>;
   /** UserInfo */
-  getUserInfo(request: DeepPartial<UserInfoRequest>, options?: CallOptions & CallOptionsExt): Promise<UserInfo>;
+  getUserInfo(request: DeepPartial<Empty>, options?: CallOptions & CallOptionsExt): Promise<UserInfo>;
   /** Provider metadata and keys */
   getOpenIdConfiguration(
     request: DeepPartial<Empty>,

@@ -34,8 +34,6 @@ export function createTauriTransport({
 	responseTimeoutMs = 60000
 }: TauriTransportOptions = {}): Transport {
 	return async function* transportTransport({ body, metadata, method }) {
-		console.debug('[tauri-transport] start', { path: method.path, metadata });
-
 		const chunks: Uint8Array[] = [];
 		let totalLength = 0;
 		for await (const chunk of body) {
@@ -49,11 +47,6 @@ export function createTauriTransport({
 			offset += chunk.length;
 		}
 
-		console.debug('[tauri-transport] request body built', {
-			length: requestBody.length,
-			chunks: chunks.length
-		});
-
 		const queue: Array<Result<Frame, Error>> = [];
 		let wake: (() => void) | null = null;
 
@@ -65,7 +58,6 @@ export function createTauriTransport({
 		const unlistenPromise = listen('grpc-response', async (event: Event<TransportEventPayload>) => {
 			try {
 				const payload = event.payload;
-				console.debug('[tauri-transport] grpc-response event', payload);
 				if (!payload || payload.request_id === undefined) {
 					console.debug('[tauri-transport] missing payload or request_id');
 					return;
@@ -104,29 +96,29 @@ export function createTauriTransport({
 			}
 		});
 
+		const transportMetadata: TransportMetadata = {};
+		for (const [key, values] of metadata) {
+			transportMetadata[key] = values;
+		}
+
 		const requestId = invoke<string>('grpc', {
 			body: requestBody,
 			path: method.path,
-			metadata
+			metadata: transportMetadata
 		});
-		requestId
-			.then((id) => console.debug('[tauri-transport] invoke returned request id', id))
-			.catch((e) => console.debug('[tauri-transport] invoke error', e));
+		requestId.catch((e) => console.error('[tauri-transport] invoke error', e));
 
 		try {
 			while (true) {
 				if (queue.length === 0) {
-					console.debug('[tauri-transport] queue empty, waiting for frames');
 					await new Promise<void>((resolve) => {
 						const id = setTimeout(() => {
 							if (wake) {
 								wake = null;
 							}
-							requestId
-								.then((rid) =>
-									console.debug('[tauri-transport] timeout waiting for frames', { requestId: rid })
-								)
-								.catch(() => {});
+							requestId.then((requestId) =>
+								console.error('[tauri-transport] timeout waiting for frames', requestId)
+							);
 						}, responseTimeoutMs);
 
 						wake = () => {
@@ -145,16 +137,6 @@ export function createTauriTransport({
 				yield frame;
 
 				if (frame.type === 'trailer') {
-					try {
-						const status = frame.trailer.get && frame.trailer.get('grpc-status');
-						const msg = frame.trailer.get && frame.trailer.get('grpc-message');
-						console.debug('[tauri-transport] trailer received, ending stream', status, msg);
-					} catch (e) {
-						console.debug(
-							'[tauri-transport] trailer received, ending stream (failed to read trailer)',
-							e
-						);
-					}
 					break;
 				}
 			}

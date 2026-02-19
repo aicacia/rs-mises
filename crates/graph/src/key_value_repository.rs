@@ -1514,25 +1514,24 @@ where
     if let Err(e) = self.node_tx.rollback().await.map_err(GraphError::from) {
       first_err = Some(e);
     }
-    if let Err(e) = self.edge_tx.rollback().await.map_err(GraphError::from) {
-      if first_err.is_none() {
-        first_err = Some(e);
-      }
+    if let Err(e) = self.edge_tx.rollback().await.map_err(GraphError::from)
+      && first_err.is_none()
+    {
+      first_err = Some(e);
     }
     if let Err(e) = self
       .from_index_tx
       .rollback()
       .await
       .map_err(GraphError::from)
+      && first_err.is_none()
     {
-      if first_err.is_none() {
-        first_err = Some(e);
-      }
+      first_err = Some(e);
     }
-    if let Err(e) = self.to_index_tx.rollback().await.map_err(GraphError::from) {
-      if first_err.is_none() {
-        first_err = Some(e);
-      }
+    if let Err(e) = self.to_index_tx.rollback().await.map_err(GraphError::from)
+      && first_err.is_none()
+    {
+      first_err = Some(e);
     }
     if let Some(e) = first_err {
       Err(e)

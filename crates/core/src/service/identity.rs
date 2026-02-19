@@ -230,7 +230,7 @@ where
     Ok(())
   }
 
-  pub async fn get_identity_key(&self, identity_id: Uuid) -> Result<(E::Node, Vec<u8>)> {
+  pub async fn get_identity_key(&self, identity_id: Uuid) -> Result<KeyMeta> {
     let query = Query::nodes(
       NodeQuery::new(NodeType::Key.as_str()).include(
         EdgeQuery::outgoing(EdgeType::Owns.as_str())
@@ -242,10 +242,9 @@ where
 
     for el in elements {
       if let Element::Node(key_node) = el
-        && let NodeMeta::Key(key_meta) = &key_node.metadata
+        && let NodeMeta::Key(key_meta) = key_node.metadata
       {
-        let private_key_bytes = key_meta.decode_private_key()?;
-        return Ok((key_node, private_key_bytes));
+        return Ok(key_meta);
       }
     }
 

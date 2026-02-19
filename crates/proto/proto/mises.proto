@@ -15,7 +15,7 @@ service OidcService {
     rpc DeviceAuthorize (DeviceAuthorizeRequest) returns (DeviceAuthorizeResponse);
 
     // Introspection
-    rpc Introspect (IntrospectRequest) returns (IntrospectResponse);
+    rpc Introspect (IntrospectRequest) returns (Claims);
 
     // Revocation (returns empty on success)
     rpc Revoke (RevokeRequest) returns (google.protobuf.Empty);
@@ -33,7 +33,7 @@ service OidcService {
     rpc EndSession (EndSessionRequest) returns (EndSessionResponse);
 
     // UserInfo
-    rpc GetUserInfo (UserInfoRequest) returns (UserInfo);
+    rpc GetUserInfo (google.protobuf.Empty) returns (UserInfo);
 
     // Provider metadata and keys
     rpc GetOpenIdConfiguration (google.protobuf.Empty) returns (OpenIdConfiguration);
@@ -134,7 +134,7 @@ message IntrospectRequest {
     optional string client_secret = 4;
 }
 
-message IntrospectResponse {
+message Claims {
     bool active = 1;
     optional string scope = 2;
     optional string client_id = 3;
@@ -232,20 +232,32 @@ message EndSessionResponse {
     optional string redirect_uri = 1;
 }
 
-message UserInfoRequest {
-    // access token is typically provided in Authorization header; allow explicit token here
-    optional string access_token = 1;
+enum Permission {
+    ALL = 0;
+
+    CLIENT_ALL = 1;
+    CLIENT_CREATE = 2;
+    CLIENT_READ = 3;
+    CLIENT_UPDATE = 4;
+    CLIENT_DELETE = 5;
+
+    USER_ALL = 6;
+    USER_CREATE = 7;
+    USER_READ = 8;
+    USER_UPDATE = 9;
+    USER_DELETE = 10;
 }
 
 message UserInfo {
     string sub = 1;
-    optional string name = 2;
-    optional string given_name = 3;
-    optional string family_name = 4;
-    optional string preferred_username = 5;
-    optional string email = 6;
-    optional bool email_verified = 7;
-    optional string picture = 8;
+    repeated Permission permissions = 2;
+    optional string name = 3;
+    optional string given_name = 4;
+    optional string family_name = 5;
+    optional string preferred_username = 6;
+    optional string email = 7;
+    optional bool email_verified = 8;
+    optional string picture = 9;
 }
 
 message OpenIdConfiguration {

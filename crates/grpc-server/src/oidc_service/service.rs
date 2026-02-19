@@ -4,9 +4,12 @@ use url::Url;
 use mises_core::{service::graph::GraphService, traits::Repository};
 use mises_graph::KeyValueStoreExecutor;
 
-use crate::oidc_service::{
-  authorize::authorize, client_register::client_register, helpers::extract_optional_claims,
-  open_id_configuration::get_open_id_configuration, token::token,
+use crate::{
+  jwt::extract_optional_claims,
+  oidc_service::{
+    authorize::authorize, client_register::client_register,
+    open_id_configuration::get_open_id_configuration, token::token, user_info::get_user_info,
+  },
 };
 
 pub struct OidcService<R, S>
@@ -58,7 +61,7 @@ where
   ) -> Result<Response<mises_proto::AuthorizeResponse>, Status> {
     log::debug!("authorize request: {:?}", request);
 
-    let claims = extract_optional_claims(&request)?;
+    let claims = extract_optional_claims(&request, &self.repo).await?;
 
     authorize(
       &self.repo,
@@ -85,7 +88,7 @@ where
   ) -> Result<Response<mises_proto::TokenResponse>, Status> {
     log::debug!("Token request: {:?}", request);
 
-    let claims = extract_optional_claims(&request)?;
+    let claims = extract_optional_claims(&request, &self.repo).await?;
 
     token(
       &self.repo,
@@ -102,7 +105,7 @@ where
   async fn introspect(
     &self,
     _request: Request<mises_proto::IntrospectRequest>,
-  ) -> Result<Response<mises_proto::IntrospectResponse>, Status> {
+  ) -> Result<Response<mises_proto::Claims>, Status> {
     Err(Status::unimplemented("introspect not implemented"))
   }
 
@@ -133,7 +136,7 @@ where
   ) -> Result<Response<mises_proto::Client>, Status> {
     log::debug!("client_register request: {:?}", request);
 
-    let claims = extract_optional_claims(&request)?;
+    let claims = extract_optional_claims(&request, &self.repo).await?;
 
     if claims.is_none() {
       return Err(Status::unauthenticated(
@@ -155,9 +158,15 @@ where
 
   async fn get_user_info(
     &self,
-    _request: Request<mises_proto::UserInfoRequest>,
+    request: Request<()>,
   ) -> Result<Response<mises_proto::UserInfo>, Status> {
-    Err(Status::unimplemented("get_user_info not implemented"))
+    log::debug!("get_user_info request: {:?}", request);
+
+    let claims = extract_optional_claims(&request, &self.repo).await?;
+
+    get_user_info(&self.repo, &self.device_id, claims)
+      .await
+      .map(Response::new)
   }
 
   async fn get_open_id_configuration(

@@ -121,18 +121,25 @@ where
 
   let (access_token_expiry, refresh_token_expiry) = extract_client_token_expiry(&client_node)?;
 
-  let (_key_node, client_key) = identity_service
+  let kid = code_data.client_id.to_string();
+  let client_key = identity_service
     .get_identity_key(code_data.client_id)
     .await
     .map_err(|e| e.to_status())?;
+
+  let client_key_bytes = client_key.decode_private_key().map_err(|e| {
+    log::error!("failed to decode client private key: {}", e);
+    Status::internal("invalid client private key format")
+  })?;
 
   let scope = code_data.scope.as_deref();
   let client_id_str = code_data.client_id.to_string();
   let subject_str = code_data.subject.to_string();
 
-  let encoding_key = jsonwebtoken::EncodingKey::from_secret(&client_key);
+  let encoding_key = jsonwebtoken::EncodingKey::from_ec_der(&client_key_bytes);
 
   let access_token = generate_access_token(
+    &kid,
     &client_id_str,
     issuer,
     &client_id_str,
@@ -143,6 +150,7 @@ where
   )?;
 
   let refresh_token = generate_refresh_token(
+    &kid,
     &client_id_str,
     issuer,
     &client_id_str,
@@ -154,6 +162,7 @@ where
 
   let id_token = if scope.is_some_and(|s| s.contains("openid")) {
     Some(generate_id_token(
+      &kid,
       &subject_str,
       issuer,
       &client_id_str,
@@ -211,15 +220,22 @@ where
 
   let user_id = user_node.id;
 
-  let (_key_node, user_key) = identity_service
+  let kid = user_id.to_string();
+  let user_key = identity_service
     .get_identity_key(user_id)
     .await
     .map_err(|e| e.to_status())?;
 
+  let user_key_bytes = user_key.decode_private_key().map_err(|e| {
+    log::error!("failed to decode user private key: {}", e);
+    Status::internal("invalid user private key format")
+  })?;
+
   let user_id_str = user_id.to_string();
-  let encoding_key = jsonwebtoken::EncodingKey::from_secret(&user_key);
+  let encoding_key = jsonwebtoken::EncodingKey::from_ec_der(&user_key_bytes);
 
   let access_token = generate_access_token(
+    &kid,
     &user_id_str,
     issuer,
     &user_id_str,
@@ -230,6 +246,7 @@ where
   )?;
 
   let refresh_token = generate_refresh_token(
+    &kid,
     &user_id_str,
     issuer,
     &user_id_str,
@@ -240,6 +257,7 @@ where
   )?;
 
   let id_token = generate_id_token(
+    &kid,
     &user_id_str,
     issuer,
     &user_id_str,
@@ -301,18 +319,25 @@ where
     .map_err(|e| e.to_status())?
     .ok_or_else(|| Status::failed_precondition("no device identity found"))?;
 
-  let (_key_node, device_key) = identity_service
+  let kid = device_node.id.to_string();
+  let device_key = identity_service
     .get_identity_key(device_node.id)
     .await
     .map_err(|e| e.to_status())?;
+
+  let device_key_bytes = device_key.decode_private_key().map_err(|e| {
+    log::error!("failed to decode device private key: {}", e);
+    Status::internal("invalid device private key format")
+  })?;
 
   let access_token_expiry = 900;
   let refresh_token_expiry = 604800;
   let scope = grant.scope.as_deref();
   let device_id_str = device_node.id.to_string();
-  let encoding_key = jsonwebtoken::EncodingKey::from_secret(&device_key);
+  let encoding_key = jsonwebtoken::EncodingKey::from_ec_der(&device_key_bytes);
 
   let access_token = generate_access_token(
+    &kid,
     &device_id_str,
     issuer,
     &device_id_str,
@@ -323,6 +348,7 @@ where
   )?;
 
   let refresh_token = generate_refresh_token(
+    &kid,
     &device_id_str,
     issuer,
     &device_id_str,
@@ -334,6 +360,7 @@ where
 
   let id_token = if scope.is_some_and(|s| s.contains("openid")) {
     Some(generate_id_token(
+      &kid,
       &device_id_str,
       issuer,
       &device_id_str,

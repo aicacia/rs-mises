@@ -1,8 +1,10 @@
 use chrono::{Duration, Utc};
-use jsonwebtoken::{EncodingKey, Header, encode};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, decode_header, encode};
 use serde::{Deserialize, Serialize};
-use tonic::Status;
+use tonic::{Request, Status};
 use uuid::Uuid;
+
+use mises_core::{model::node::NodeMeta, traits::Repository};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -17,6 +19,7 @@ pub struct Claims {
 }
 
 pub fn generate_access_token(
+  kid: &str,
   sub: &str,
   issuer: &str,
   audience: &str,
@@ -39,11 +42,19 @@ pub fn generate_access_token(
     acting_for: acting_for.map(ToString::to_string),
   };
 
-  encode(&Header::default(), &claims, secret)
-    .map_err(|e| Status::internal(format!("failed to generate access token: {}", e)))
+  encode(
+    &Header {
+      kid: Some(kid.to_string()),
+      ..Default::default()
+    },
+    &claims,
+    secret,
+  )
+  .map_err(|e| Status::internal(format!("failed to generate access token: {}", e)))
 }
 
 pub fn generate_refresh_token(
+  kid: &str,
   sub: &str,
   issuer: &str,
   audience: &str,
@@ -66,11 +77,19 @@ pub fn generate_refresh_token(
     acting_for: acting_for.map(ToString::to_string),
   };
 
-  encode(&Header::default(), &claims, secret)
-    .map_err(|e| Status::internal(format!("failed to generate refresh token: {}", e)))
+  encode(
+    &Header {
+      kid: Some(kid.to_string()),
+      ..Default::default()
+    },
+    &claims,
+    secret,
+  )
+  .map_err(|e| Status::internal(format!("failed to generate refresh token: {}", e)))
 }
 
 pub fn generate_id_token(
+  kid: &str,
   sub: &str,
   issuer: &str,
   audience: &str,
@@ -96,6 +115,81 @@ pub fn generate_id_token(
     claims.scope = Some(format!("nonce:{}", nonce_val));
   }
 
-  encode(&Header::default(), &claims, secret)
-    .map_err(|e| Status::internal(format!("failed to generate id token: {}", e)))
+  encode(
+    &Header {
+      kid: Some(kid.to_string()),
+      ..Default::default()
+    },
+    &claims,
+    secret,
+  )
+  .map_err(|e| Status::internal(format!("failed to generate id token: {}", e)))
+}
+
+pub async fn extract_optional_claims<T, R>(
+  request: &Request<T>,
+  key_repository: &R,
+) -> Result<Option<Claims>, Status>
+where
+  R: Repository + Clone + Send + Sync + 'static,
+{
+  let Some(auth_header) = request
+    .metadata()
+    .get("authorization")
+    .and_then(|v| v.to_str().ok())
+  else {
+    return Ok(None);
+  };
+
+  let auth_header = auth_header.trim();
+  if auth_header.is_empty() {
+    return Ok(None);
+  }
+
+  let token = auth_header
+    .strip_prefix("Bearer ")
+    .or_else(|| auth_header.strip_prefix("bearer "))
+    .ok_or_else(|| Status::unauthenticated("invalid bearer token"))?;
+
+  let header = decode_header(token).map_err(|_| Status::unauthenticated("invalid bearer token"))?;
+
+  let Some(kid_string) = header.kid else {
+    return Err(Status::unauthenticated("missing key id in token header"));
+  };
+
+  let kid = Uuid::try_from(kid_string).map_err(|e| {
+    log::error!("invalid key id in token header: {}", e);
+    Status::unauthenticated("invalid key id in token header")
+  })?;
+
+  let Some(key_node) = key_repository
+    .get_node_by_id(kid)
+    .await
+    .map_err(|_| Status::unauthenticated("invalid key id"))?
+  else {
+    return Err(Status::unauthenticated("key not found"));
+  };
+
+  let public_key = match key_node.metadata {
+    NodeMeta::Key(key) => match key.decode_public_key_bytes() {
+      Ok(bytes) => bytes,
+      Err(e) => {
+        log::error!("invalid public key format in key node: {}", e);
+        return Err(Status::unauthenticated(
+          "invalid public key format in key node",
+        ));
+      }
+    },
+    _ => {
+      log::error!("key node does not contain a public key");
+      return Err(Status::unauthenticated("invalid key type"));
+    }
+  };
+
+  let decoding_key = DecodingKey::from_ec_der(&public_key);
+
+  let token_data = decode::<Claims>(token, &decoding_key, &Validation::default())
+    .map_err(|_| Status::unauthenticated("invalid token signature"))?;
+
+  Ok(Some(token_data.claims))
 }

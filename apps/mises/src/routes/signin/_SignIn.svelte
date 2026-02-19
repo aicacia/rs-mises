@@ -22,6 +22,8 @@
 	import Issues from '$lib/common/components/Issues.svelte';
 	import { oidcClient } from '$lib/common/util/grpcClient';
 	import type { Configuration } from '$lib/proto/mises';
+	import { setTokenResponse } from '$lib/common/state/auth.svelte';
+	import { afterSigninRedirect } from '$lib/common/state/afterSignInRedirectPath.svelte';
 
 	const { configuration }: SignInProps = $props();
 
@@ -46,7 +48,8 @@
 			}
 		});
 
-		console.log({ token });
+		setTokenResponse(token);
+		await afterSigninRedirect();
 	}
 
 	async function onDeviceSubmit() {
@@ -57,7 +60,8 @@
 			}
 		});
 
-		console.log({ token });
+		setTokenResponse(token);
+		await afterSigninRedirect();
 	}
 </script>
 

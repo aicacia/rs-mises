@@ -54,7 +54,7 @@ impl TryFrom<KeyMeta> for Key {
 }
 
 impl KeyMeta {
-  fn decode_public_key_bytes(&self) -> Result<Vec<u8>, base64::DecodeError> {
+  pub fn decode_public_key_bytes(&self) -> Result<Vec<u8>, base64::DecodeError> {
     BASE64_URL_SAFE
       .decode(self.public_key.as_bytes())
       .or_else(|_| {
@@ -84,15 +84,6 @@ impl KeyMeta {
       })
   }
 
-  pub fn to_bytes(&self) -> crate::Result<Vec<u8>> {
-    self.decode_public_key_bytes().map_err(|e| {
-      crate::CoreError::InvalidInput(crate::InvalidInput::Other(format!(
-        "invalid public_key base64: {}",
-        e
-      )))
-    })
-  }
-
   pub fn ec_coords_b64(&self) -> Option<String> {
     let bytes = self.decode_public_key_bytes().ok()?;
 
@@ -113,7 +104,7 @@ mod tests {
   use super::KeyMeta;
 
   #[test]
-  fn keymeta_to_bytes_and_coords() {
+  fn keymeta_decode_public_key_bytes_and_coords() {
     let bytes = [1u8; 32];
     let pub_b64 = BASE64_URL_SAFE.encode(bytes.as_slice());
 
@@ -123,7 +114,7 @@ mod tests {
       derivation_path: String::from("m/44'"),
     };
 
-    let decoded = km.to_bytes().expect("should decode");
+    let decoded = km.decode_public_key_bytes().expect("should decode");
     assert_eq!(decoded, bytes);
 
     let coord = km.ec_coords_b64().expect("coords should exist");
@@ -131,18 +122,15 @@ mod tests {
   }
 
   #[test]
-  fn to_bytes_invalid_base64_returns_err() {
+  fn decode_public_key_bytes_invalid_base64_returns_err() {
     let km = KeyMeta {
       public_key: String::from("!!!notbase64!!!"),
       private_key: None,
       derivation_path: String::from("m/44'"),
     };
 
-    let res = km.to_bytes();
-    assert!(
-      matches!(res, Err(crate::CoreError::InvalidInput(_))),
-      "expected InvalidInput error"
-    );
+    let res = km.decode_public_key_bytes();
+    assert!(matches!(res, Err(_)), "expected InvalidInput error");
   }
 
   #[test]
