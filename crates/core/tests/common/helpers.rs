@@ -6,27 +6,12 @@ use mises_core::model::{
   node::{NodeMeta, NodeType},
   resource::ResourceMeta,
 };
-use mises_graph::{Executor, InMemoryKeyValueStore, KeyValueRepository, UuidGenerator};
+use mises_graph::{Executor, InMemoryKeyValueRepository, UuidGenerator};
 
-pub type Repo = KeyValueRepository<
-  Uuid,
-  NodeMeta,
-  EdgeProps,
-  UuidGenerator,
-  InMemoryKeyValueStore,
-  InMemoryKeyValueStore,
-  InMemoryKeyValueStore,
-  InMemoryKeyValueStore,
->;
+pub type Repo = InMemoryKeyValueRepository<Uuid, NodeMeta, EdgeProps, UuidGenerator>;
 
 pub fn make_repo() -> Repo {
-  KeyValueRepository::new(
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    InMemoryKeyValueStore::new(),
-    UuidGenerator::new(),
-  )
+  Repo::new_in_memory(UuidGenerator::new())
 }
 
 #[allow(dead_code)]

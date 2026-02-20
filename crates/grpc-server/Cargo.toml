@@ -17,13 +17,10 @@ mises-graph = { path = "../graph", default-features = false, features = [] }
 mises-proto = { path = "../proto", default-features = false, features = [] }
 mises-async-kv-bytes = { path = "../async-kv-bytes", default-features = false, features = [
 ] }
+mises-key = { path = "../key", default-features = false, features = [] }
 
 # Crypto
-ed25519-dalek = { version = "2.2", default-features = false, features = [
-  "alloc",
-  "pkcs8",
-] }
-jsonwebtoken = { version = "10.3.0", default-features = false, features = [
+jsonwebtoken = { version = "10.3", default-features = false, features = [
   "rust_crypto",
 ] }
 sha2 = { version = "0.10", default-features = false, features = ["std"] }

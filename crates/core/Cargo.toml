@@ -27,7 +27,14 @@ base64 = { workspace = true, features = ["alloc"] }
 getrandom = { workspace = true, features = [] }
 
 # Cryptography
-argon2 = { version = "3.0.0", package = "rust-argon2" }
+argon2 = { version = "3.0", package = "rust-argon2" }
+ed25519-dalek = { version = "2.2", default-features = false, features = [
+  "alloc",
+  "pkcs8",
+] }
+jsonwebtoken = { version = "10.3", default-features = false, features = [
+  "rust_crypto",
+] }
 
 # Async
 async-trait = { workspace = true, features = [] }
@@ -36,6 +43,7 @@ async-trait = { workspace = true, features = [] }
 # Use the in-memory repository for core unit tests
 mises-graph = { path = "../graph", default-features = false, features = [
   "in-memory",
+  "uuid",
 ] }
 
 mises-key = { path = "../key", default-features = false, features = [] }

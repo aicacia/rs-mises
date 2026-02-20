@@ -31,7 +31,7 @@ tokio = { version = "1", default-features = false, features = [
   "process",
   "time",
 ] }
-tokio-util = { version = "0", default-features = false, features = [] }
+tokio-util = { version = "0.7", default-features = false, features = [] }
 tonic = { version = "0.14", default-features = false, features = ["transport"] }
 
 # networking
@@ -42,7 +42,7 @@ tower = { version = "0.5", default-features = false }
 hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
 
 # utils
-log = { version = "*" }
+log = { workspace = true }
 uuid = { workspace = true, features = ["v7", "std"] }
 prost = { version = "0.14", default-features = false }
 config = { version = "0.15", default-features = false, features = ["json"] }

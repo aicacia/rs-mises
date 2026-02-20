@@ -1,7 +1,10 @@
 use tonic::{Request, Response, Status};
 use url::Url;
 
-use mises_core::{service::graph::GraphService, traits::Repository};
+use mises_core::{
+  service::{graph::GraphService, identity::IdentityService},
+  traits::Repository,
+};
 use mises_graph::KeyValueStoreExecutor;
 
 use crate::{
@@ -61,7 +64,11 @@ where
   ) -> Result<Response<mises_proto::AuthorizeResponse>, Status> {
     log::debug!("authorize request: {:?}", request);
 
-    let claims = extract_optional_claims(&request, &self.repo).await?;
+    let claims = extract_optional_claims(
+      &request,
+      IdentityService::new(self.repo.clone(), self.device_id.clone()),
+    )
+    .await?;
 
     authorize(
       &self.repo,
@@ -88,7 +95,11 @@ where
   ) -> Result<Response<mises_proto::TokenResponse>, Status> {
     log::debug!("Token request: {:?}", request);
 
-    let claims = extract_optional_claims(&request, &self.repo).await?;
+    let claims = extract_optional_claims(
+      &request,
+      IdentityService::new(self.repo.clone(), self.device_id.clone()),
+    )
+    .await?;
 
     token(
       &self.repo,
@@ -136,7 +147,11 @@ where
   ) -> Result<Response<mises_proto::Client>, Status> {
     log::debug!("client_register request: {:?}", request);
 
-    let claims = extract_optional_claims(&request, &self.repo).await?;
+    let claims = extract_optional_claims(
+      &request,
+      IdentityService::new(self.repo.clone(), self.device_id.clone()),
+    )
+    .await?;
 
     if claims.is_none() {
       return Err(Status::unauthenticated(
@@ -162,7 +177,11 @@ where
   ) -> Result<Response<mises_proto::UserInfo>, Status> {
     log::debug!("get_user_info request: {:?}", request);
 
-    let claims = extract_optional_claims(&request, &self.repo).await?;
+    let claims = extract_optional_claims(
+      &request,
+      IdentityService::new(self.repo.clone(), self.device_id.clone()),
+    )
+    .await?;
 
     get_user_info(&self.repo, &self.device_id, claims)
       .await

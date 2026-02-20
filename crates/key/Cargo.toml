@@ -24,14 +24,22 @@ crc32fast = { version = "1.5", default-features = false, features = [] }
 
 # ed25519 + SLIP-0010
 slip10 = { version = "0.4", default-features = false, features = [] }
-ed25519-dalek = { version = "1.0", default-features = false, features = [] }
+ed25519-dalek = { version = "2.2", default-features = false, features = [
+  "alloc",
+] }
 
 # optional
-getrandom = { version = "0.3", default-features = false, optional = true, features = [
+getrandom = { version = "0.2", default-features = false, optional = true, features = [
 ] }
 
 
 [dev-dependencies]
+jsonwebtoken = { version = "9", default-features = false }
+serde = { version = "1", default-features = false, features = [
+  "derive",
+  "alloc",
+] }
+serde_json = { version = "1", default-features = false }
 tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
 tempfile = "3"
 

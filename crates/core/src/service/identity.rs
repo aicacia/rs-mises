@@ -15,7 +15,7 @@ use crate::{
   model::{
     edge::{EdgeProps, EdgeType},
     identity::{IdentityMeta, IdentityType},
-    keys::KeyMeta,
+    keys::{KeyMaterial, KeyMeta},
     node::{NodeMeta, NodeType},
   },
   traits::Executor,
@@ -105,15 +105,32 @@ where
     let type_index = identity_type.as_u32();
     let child_path = format!("m/44'/0/{}/{}", type_index, identity_index);
 
+    log::debug!(
+      "create_key_for_identity: deriving child key for {} with path: {}",
+      identity_type.as_str(),
+      child_path
+    );
+
     let child_key = master_key
       .child_from_derivation_path(&child_path)
       .map_err(|e| CoreError::other(InvalidInput::Other(format!("key derivation error: {}", e))))?;
 
+    log::debug!(
+      "create_key_for_identity: derived child, derivation_path={}",
+      child_key.derivation_path()
+    );
+
     let kp = child_key.ed25519_keypair()?;
     let public_key = BASE64_URL_SAFE.encode(kp.public.as_bytes());
 
-    let secret_bytes = child_key.ed25519_secret_bytes()?;
-    let private_key_b64 = BASE64_URL_SAFE.encode(secret_bytes.as_slice());
+    // Get the master key to store its seed bytes (not the terminal secret)
+    // Terminal keys are stored as: master_seed + derivation_path + Seed material type
+    // This ensures we can re-derive and get the same key material every time
+    let master_key = self.get_master_key().await?;
+    let master_seed = master_key
+      .seed_bytes()
+      .ok_or_else(|| CoreError::other(InvalidInput::Other("master seed not available".into())))?;
+    let master_seed_b64 = BASE64_URL_SAFE.encode(&master_seed);
 
     let key_node = self
       .exec
@@ -121,11 +138,17 @@ where
         NodeType::Key.as_str().to_string(),
         NodeMeta::Key(KeyMeta {
           public_key,
-          private_key: Some(private_key_b64),
+          private_key: Some(master_seed_b64),
           derivation_path: child_key.derivation_path(),
+          key_material: KeyMaterial::Seed,
         }),
       )
       .await?;
+
+    log::debug!(
+      "create_key_for_identity: stored terminal key node {} (no re-derivation needed)",
+      key_node.id
+    );
 
     Ok(key_node)
   }
@@ -141,6 +164,7 @@ where
       if let Element::Node(node) = el
         && let NodeMeta::Key(KeyMeta {
           private_key: Some(b64),
+          key_material: KeyMaterial::Seed,
           ..
         }) = &node.metadata
       {
@@ -233,7 +257,7 @@ where
   pub async fn get_identity_key(&self, identity_id: Uuid) -> Result<KeyMeta> {
     let query = Query::nodes(
       NodeQuery::new(NodeType::Key.as_str()).include(
-        EdgeQuery::outgoing(EdgeType::Owns.as_str())
+        EdgeQuery::incoming(EdgeType::Owns.as_str())
           .from(NodeQuery::any().filter(field("id").eq(identity_id.to_string()))),
       ),
     );
@@ -245,6 +269,60 @@ where
         && let NodeMeta::Key(key_meta) = key_node.metadata
       {
         return Ok(key_meta);
+      }
+    }
+
+    Err(CoreError::NotFound)
+  }
+
+  pub async fn get_key_by_id(&self, key_id: Uuid) -> Result<KeyMeta> {
+    let node = self
+      .exec
+      .get_node_by_id(key_id)
+      .await?
+      .ok_or(CoreError::NotFound)?;
+
+    match node.metadata {
+      NodeMeta::Key(key_meta) => Ok(key_meta),
+      _ => Err(CoreError::InvalidInput(InvalidInput::Other(
+        "node is not a key".into(),
+      ))),
+    }
+  }
+
+  pub async fn get_identity_key_node(&self, identity_id: Uuid) -> Result<E::Node> {
+    // Query all Owns edges from the identity to find its key
+    let edge_query = Query::edges(
+      EdgeQuery::outgoing(EdgeType::Owns.as_str())
+        .from(NodeQuery::any().filter(field("id").eq(identity_id.to_string()))),
+    );
+
+    let edge_elements = self.exec.query(edge_query).await?;
+
+    let mut key_ids: Vec<_> = Vec::new();
+    for el in edge_elements {
+      if let Element::Edge(edge) = el {
+        log::debug!(
+          "get_identity_key_node: found Owns edge from {} to {}",
+          edge.from_id,
+          edge.to_id
+        );
+        key_ids.push(edge.to_id);
+      }
+    }
+
+    // Now fetch the key node(s)
+    for key_id in key_ids {
+      if let Some(key_node) = self.exec.get_node_by_id(key_id).await?
+        && let NodeMeta::Key(key_meta) = &key_node.metadata
+      {
+        log::debug!(
+          "get_identity_key_node found key for identity {}: derivation_path={}, public_key={}",
+          identity_id,
+          key_meta.derivation_path,
+          key_meta.public_key
+        );
+        return Ok(key_node);
       }
     }
 
@@ -286,7 +364,7 @@ where
 
   pub async fn verify_ownership(&self, owner_id: Uuid, owned_id: Uuid) -> Result<bool> {
     let query = Query::edges(
-      EdgeQuery::outgoing(EdgeType::Owns.as_str())
+      EdgeQuery::incoming(EdgeType::Owns.as_str())
         .from(NodeQuery::any().filter(field("id").eq(owner_id.to_string())))
         .to(NodeQuery::any().filter(field("id").eq(owned_id.to_string()))),
     );
@@ -318,7 +396,7 @@ where
     };
 
     let query = Query::edges(
-      EdgeQuery::outgoing(EdgeType::Owns.as_str())
+      EdgeQuery::incoming(EdgeType::Owns.as_str())
         .from(NodeQuery::any().filter(field("id").eq(owner_id.to_string())))
         .to(to_query),
     );

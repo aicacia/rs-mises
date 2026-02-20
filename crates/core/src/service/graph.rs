@@ -17,7 +17,7 @@ use crate::{
   CoreError, InvalidInput, Result,
   model::{
     identity::IdentityType,
-    keys::KeyMeta,
+    keys::{KeyMaterial, KeyMeta},
     node::{NodeMeta, NodeType},
   },
   service::{identity::IdentityService, password::hash_password},
@@ -131,6 +131,7 @@ where
       if let Element::Node(node) = el
         && let NodeMeta::Key(KeyMeta {
           private_key: Some(b64),
+          key_material: KeyMaterial::Seed,
           ..
         }) = &node.metadata
       {
@@ -176,6 +177,7 @@ where
             public_key: master_key_public_key.clone(),
             private_key: Some(BASE64_URL_SAFE.encode(seed_bytes.as_slice())),
             derivation_path: master_key.derivation_path(),
+            key_material: KeyMaterial::Seed,
           }),
         )
         .await?;
@@ -215,11 +217,9 @@ where
               .clone()
               .unwrap_or_else(|| "admin".to_owned()),
             hash_password("admin")?,
-            None,
+            Some(root_group_id),
           )
           .await?;
-
-        identity.set_owner(user_node.id, root_group_id).await?;
 
         log::debug!(
           "bootstrap: created owner user {} for group {}",

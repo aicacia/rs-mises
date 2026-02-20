@@ -1,12 +1,13 @@
 use chrono::{Duration, Utc};
-use jsonwebtoken::{
-  Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, decode_header, encode,
-};
+use jsonwebtoken::{Algorithm, Header, Validation, decode, decode_header, encode};
 use serde::{Deserialize, Serialize};
 use tonic::{Request, Status};
 use uuid::Uuid;
 
-use mises_core::{model::node::NodeMeta, traits::Repository};
+use mises_core::{
+  CoreError, model::node::NodeMeta, service::identity::IdentityService, traits::Repository,
+};
+use mises_graph::Node;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -21,15 +22,24 @@ pub struct Claims {
 }
 
 pub fn generate_access_token(
-  kid: &str,
+  key_node: &Node<Uuid, NodeMeta>,
   sub: &str,
   issuer: &str,
   audience: &str,
   scope: Option<&str>,
   acting_for: Option<&str>,
   expires_in_seconds: i64,
-  secret: &EncodingKey,
 ) -> Result<String, Status> {
+  let key = match &key_node.metadata {
+    NodeMeta::Key(key_meta) => key_meta,
+    _ => return Err(Status::internal("expected key node")),
+  };
+
+  let encoding_key = key.jwt_encoding_key().map_err(|e| {
+    log::error!("failed to derive jwt encoding key: {}", e);
+    Status::internal("invalid secret key format")
+  })?;
+
   let now = Utc::now();
   let exp = now + Duration::seconds(expires_in_seconds);
 
@@ -47,25 +57,34 @@ pub fn generate_access_token(
   encode(
     &Header {
       alg: Algorithm::EdDSA,
-      kid: Some(kid.to_string()),
+      kid: Some(key_node.id.to_string()),
       ..Default::default()
     },
     &claims,
-    secret,
+    &encoding_key,
   )
   .map_err(|e| Status::internal(format!("failed to generate access token: {}", e)))
 }
 
 pub fn generate_refresh_token(
-  kid: &str,
+  key_node: &Node<Uuid, NodeMeta>,
   sub: &str,
   issuer: &str,
   audience: &str,
   scope: Option<&str>,
   acting_for: Option<&str>,
   expires_in_seconds: i64,
-  secret: &EncodingKey,
 ) -> Result<String, Status> {
+  let key = match &key_node.metadata {
+    NodeMeta::Key(key_meta) => key_meta,
+    _ => return Err(Status::internal("expected key node")),
+  };
+
+  let encoding_key = key.jwt_encoding_key().map_err(|e| {
+    log::error!("failed to derive jwt encoding key: {}", e);
+    Status::internal("invalid secret key format")
+  })?;
+
   let now = Utc::now();
   let exp = now + Duration::seconds(expires_in_seconds);
 
@@ -83,24 +102,33 @@ pub fn generate_refresh_token(
   encode(
     &Header {
       alg: Algorithm::EdDSA,
-      kid: Some(kid.to_string()),
+      kid: Some(key_node.id.to_string()),
       ..Default::default()
     },
     &claims,
-    secret,
+    &encoding_key,
   )
   .map_err(|e| Status::internal(format!("failed to generate refresh token: {}", e)))
 }
 
 pub fn generate_id_token(
-  kid: &str,
+  key_node: &Node<Uuid, NodeMeta>,
   sub: &str,
   issuer: &str,
   audience: &str,
   nonce: Option<&str>,
   expires_in_seconds: i64,
-  secret: &EncodingKey,
 ) -> Result<String, Status> {
+  let key = match &key_node.metadata {
+    NodeMeta::Key(key_meta) => key_meta,
+    _ => return Err(Status::internal("expected key node")),
+  };
+
+  let encoding_key = key.jwt_encoding_key().map_err(|e| {
+    log::error!("failed to derive jwt encoding key: {}", e);
+    Status::internal("invalid secret key format")
+  })?;
+
   let now = Utc::now();
   let exp = now + Duration::seconds(expires_in_seconds);
 
@@ -122,18 +150,18 @@ pub fn generate_id_token(
   encode(
     &Header {
       alg: Algorithm::EdDSA,
-      kid: Some(kid.to_string()),
+      kid: Some(key_node.id.to_string()),
       ..Default::default()
     },
     &claims,
-    secret,
+    &encoding_key,
   )
   .map_err(|e| Status::internal(format!("failed to generate id token: {}", e)))
 }
 
 pub async fn extract_optional_claims<T, R>(
   request: &Request<T>,
-  key_repository: &R,
+  identity_service: IdentityService<R>,
 ) -> Result<Option<Claims>, Status>
 where
   R: Repository + Clone + Send + Sync + 'static,
@@ -162,39 +190,52 @@ where
     return Err(Status::unauthenticated("missing key id in token header"));
   };
 
-  let kid = Uuid::try_from(kid_string).map_err(|e| {
+  let kid = Uuid::parse_str(&kid_string).map_err(|e| {
     log::error!("invalid key id in token header: {}", e);
     Status::unauthenticated("invalid key id in token header")
   })?;
 
-  let Some(key_node) = key_repository
-    .get_node_by_id(kid)
+  let key = identity_service
+    .get_key_by_id(kid)
     .await
-    .map_err(|_| Status::unauthenticated("invalid key id"))?
-  else {
-    return Err(Status::unauthenticated("key not found"));
-  };
-
-  let public_key = match key_node.metadata {
-    NodeMeta::Key(key) => match key.decode_public_key_bytes() {
-      Ok(bytes) => bytes,
-      Err(e) => {
-        log::error!("invalid public key format in key node: {}", e);
-        return Err(Status::unauthenticated(
-          "invalid public key format in key node",
-        ));
+    .map_err(|e| match e {
+      CoreError::NotFound => {
+        log::error!("key node not found for kid: {}", kid);
+        Status::unauthenticated("invalid key id in token header")
       }
-    },
-    _ => {
-      log::error!("key node does not contain a public key");
-      return Err(Status::unauthenticated("invalid key type"));
-    }
-  };
+      e => {
+        log::error!("failed to retrieve key node: {}", e);
+        Status::internal("failed to retrieve key node")
+      }
+    })?;
 
-  let decoding_key = DecodingKey::from_ed_der(&public_key);
+  let decoding_key = key.jwt_decoding_key().map_err(|e| {
+    log::error!("failed to derive jwt decoding key: {}", e);
+    Status::unauthenticated("invalid public key format")
+  })?;
 
-  let token_data = decode::<Claims>(token, &decoding_key, &Validation::new(Algorithm::EdDSA))
-    .map_err(|_| Status::unauthenticated("invalid token signature"))?;
+  let service = identity_service
+    .find_service_by_name("mises")
+    .await
+    .map_err(|e| {
+      log::error!(
+        "failed to find mises service for audience validation: {}",
+        e
+      );
+      Status::internal("failed to resolve audience")
+    })?
+    .ok_or_else(|| Status::unauthenticated("mises service not found"))?;
+  let service_id = service.id.to_string();
+
+  let mut validation = Validation::new(Algorithm::EdDSA);
+  validation.validate_exp = true;
+  validation.leeway = 60;
+  validation.set_audience(&[service_id.as_str()]);
+
+  let token_data = decode::<Claims>(token, &decoding_key, &validation).map_err(|e| {
+    log::error!("failed to decode token: {}", e);
+    Status::unauthenticated("invalid token signature")
+  })?;
 
   Ok(Some(token_data.claims))
 }

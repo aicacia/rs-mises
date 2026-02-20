@@ -1,7 +1,6 @@
 use alloc::{
   boxed::Box,
   collections::BTreeSet,
-  format,
   string::{String, ToString},
   sync::Arc,
   vec,
@@ -42,6 +41,16 @@ pub trait KeyValueRepositoryStore: Send + Sync {
   fn from_index_store(&self) -> &Self::Store;
   fn to_index_store(&self) -> &Self::Store;
   fn id_gen(&self) -> &Self::IdGen;
+}
+
+pub trait UnifiedRepositoryStore: Send + Sync {
+  type Id: Id;
+  type Store: KeyValueStoreExecutor;
+
+  fn node_store(&self) -> &Self::Store;
+  fn edge_store(&self) -> &Self::Store;
+  fn from_index_store(&self) -> &Self::Store;
+  fn to_index_store(&self) -> &Self::Store;
 }
 
 #[derive(Clone)]
@@ -157,6 +166,28 @@ where
     Some(end) => store.scan(prefix..end, f).await.map_err(GraphError::from),
     None => store.scan(prefix.., f).await.map_err(GraphError::from),
   }
+}
+
+/// Collects all key-value pairs with non-empty values from a store prefix scan.
+/// Used to reduce duplication of scan-and-collect patterns throughout the code.
+async fn collect_key_values<S>(
+  store: &S,
+  prefix: Vec<u8>,
+) -> Result<Vec<(Vec<u8>, Vec<u8>)>, GraphError>
+where
+  S: mises_async_kv_bytes::KeyValueStoreExecutor,
+  GraphError: From<S::Error>,
+  S::Error: Send,
+{
+  let mut results = Vec::new();
+  scan_prefix(store, prefix, |k, v| {
+    if !v.is_empty() {
+      results.push((k.clone(), v.clone()));
+    }
+    true
+  })
+  .await?;
+  Ok(results)
 }
 
 async fn create_node<I, M, G, S>(
@@ -503,6 +534,7 @@ where
   edge_store.delete(&key).await.map_err(GraphError::from)?;
   Ok(())
 }
+
 async fn get_node_by_id<I, M, S>(store: &S, id: I) -> Result<Option<Node<I, M>>, GraphError>
 where
   I: Id,
@@ -571,6 +603,9 @@ where
   Ok(nodes)
 }
 
+/// Navigates a JSON value by dot-separated path.
+/// Handles enum-wrapped JSON (e.g., `{"Some": {"name": "Alice"}}`) for single-key objects.
+/// This is necessary to support JSON serialized Rust enums with single variants.
 fn get_json_field<'a>(v: &'a serde_json::Value, path: &str) -> Option<&'a serde_json::Value> {
   let mut cur = v;
   for part in path.split('.') {
@@ -579,6 +614,7 @@ fn get_json_field<'a>(v: &'a serde_json::Value, path: &str) -> Option<&'a serde_
         if let Some(next) = map.get(part) {
           cur = next;
         } else if map.len() == 1 {
+          // Special case: single-key objects might be enum wrappers (e.g., {"Some": {...}})
           if let Some(sole_value) = map.values().next() {
             if let Some(obj) = sole_value.as_object() {
               if let Some(next) = obj.get(part) {
@@ -602,29 +638,28 @@ fn get_json_field<'a>(v: &'a serde_json::Value, path: &str) -> Option<&'a serde_
 
 fn strip_field_prefix_in_predicate(p: &Predicate, prefix: &str) -> Predicate {
   let mut p2 = p.clone();
-  let pat = format!("{}.", prefix);
-  if p2.field.starts_with(&pat) {
-    p2.field = p2.field[pat.len()..].to_string();
+  let pat_prefix = [prefix, "."].concat();
+  if p2.field.starts_with(&pat_prefix) {
+    p2.field = p2.field[pat_prefix.len()..].to_string();
   }
   p2
+}
+
+fn strip_filters(filters: &[Filter], prefix: &str) -> Vec<Filter> {
+  filters
+    .iter()
+    .map(|f| strip_field_prefix_in_filter(f, prefix))
+    .collect()
 }
 
 fn strip_field_prefix_in_filter(f: &Filter, prefix: &str) -> Filter {
   match f {
     Filter::Predicate(p) => Filter::Predicate(strip_field_prefix_in_predicate(p, prefix)),
-    Filter::And(vec) => Filter::And(
-      vec
-        .iter()
-        .map(|ff| strip_field_prefix_in_filter(ff, prefix))
-        .collect(),
-    ),
-    Filter::Or(vec) => Filter::Or(
-      vec
-        .iter()
-        .map(|ff| strip_field_prefix_in_filter(ff, prefix))
-        .collect(),
-    ),
-    Filter::Not(inner) => Filter::Not(Box::new(strip_field_prefix_in_filter(inner, prefix))),
+    Filter::And(vec) => Filter::And(strip_filters(vec, prefix)),
+    Filter::Or(vec) => Filter::Or(strip_filters(vec, prefix)),
+    Filter::Not(inner) => Filter::Not(::alloc::boxed::Box::new(strip_field_prefix_in_filter(
+      inner, prefix,
+    ))),
   }
 }
 
@@ -712,13 +747,14 @@ where
   if let Some(filter) = &nq.filter {
     let filter = strip_field_prefix_in_filter(filter, "metadata");
     let meta_json = serde_json::to_value(&n.metadata).unwrap_or(serde_json::Value::Null);
+
+    // Try matching on metadata; fallback to full node if metadata doesn't match
     if eval_filter_on_json(&meta_json, &filter) {
-    } else {
-      let node_json = serde_json::to_value(n).unwrap_or(serde_json::Value::Null);
-      if !eval_filter_on_json(&node_json, &filter) {
-        return false;
-      }
+      return true;
     }
+
+    let node_json = serde_json::to_value(n).unwrap_or(serde_json::Value::Null);
+    return eval_filter_on_json(&node_json, &filter);
   }
   true
 }
@@ -903,78 +939,36 @@ where
   SIF::Error: Send,
   SIT::Error: Send,
 {
+  // Consolidate direction logic into unified edge collection
+  let mut seen = HashSet::new();
   let mut edge_ids = Vec::new();
 
-  match direction {
-    EdgeDirection::Out => {
-      let from_prefix = edge_from_index_prefix(node_id)?;
-      let mut from_edges = Vec::new();
-      scan_prefix(from_index_store, from_prefix, |k, v| {
-        if !v.is_empty() {
-          from_edges.push((k.clone(), v.clone()));
-        }
-        true
-      })
-      .await?;
-      for (_, v) in from_edges {
-        if let Ok(edge_id) = serde_json::from_slice::<I>(&v) {
-          edge_ids.push(edge_id);
-        }
-      }
-    }
-    EdgeDirection::In => {
-      let to_prefix = edge_to_index_prefix(node_id)?;
-      let mut to_edges = Vec::new();
-      scan_prefix(to_index_store, to_prefix, |k, v| {
-        if !v.is_empty() {
-          to_edges.push((k.clone(), v.clone()));
-        }
-        true
-      })
-      .await?;
-      for (_, v) in to_edges {
-        if let Ok(edge_id) = serde_json::from_slice::<I>(&v) {
-          edge_ids.push(edge_id);
-        }
-      }
-    }
-    EdgeDirection::Both => {
-      let from_prefix = edge_from_index_prefix(node_id)?;
-      let mut from_edges = Vec::new();
-      scan_prefix(from_index_store, from_prefix, |k, v| {
-        if !v.is_empty() {
-          from_edges.push((k.clone(), v.clone()));
-        }
-        true
-      })
-      .await?;
-      let mut seen = HashSet::new();
-      for (_, v) in from_edges {
-        if let Ok(edge_id) = serde_json::from_slice::<I>(&v) {
-          edge_ids.push(edge_id.clone());
-          let _ = seen.insert(edge_id);
-        }
-      }
-
-      let to_prefix = edge_to_index_prefix(node_id)?;
-      let mut to_edges = Vec::new();
-      scan_prefix(to_index_store, to_prefix, |k, v| {
-        if !v.is_empty() {
-          to_edges.push((k.clone(), v.clone()));
-        }
-        true
-      })
-      .await?;
-      for (_, v) in to_edges {
-        if let Ok(edge_id) = serde_json::from_slice::<I>(&v)
-          && seen.insert(edge_id.clone())
-        {
-          edge_ids.push(edge_id);
-        }
+  // Collect outgoing edges if needed
+  if matches!(direction, EdgeDirection::Out | EdgeDirection::Both) {
+    let from_prefix = edge_from_index_prefix(node_id)?;
+    let from_edges = collect_key_values(from_index_store, from_prefix).await?;
+    for (_, v) in from_edges {
+      if let Ok(edge_id) = serde_json::from_slice::<I>(&v) {
+        edge_ids.push(edge_id.clone());
+        let _ = seen.insert(edge_id);
       }
     }
   }
 
+  // Collect incoming edges if needed
+  if matches!(direction, EdgeDirection::In | EdgeDirection::Both) {
+    let to_prefix = edge_to_index_prefix(node_id)?;
+    let to_edges = collect_key_values(to_index_store, to_prefix).await?;
+    for (_, v) in to_edges {
+      if let Ok(edge_id) = serde_json::from_slice::<I>(&v)
+        && (matches!(direction, EdgeDirection::In) || seen.insert(edge_id.clone()))
+      {
+        edge_ids.push(edge_id);
+      }
+    }
+  }
+
+  // Fetch all edges in one pass
   let mut edges = Vec::with_capacity(edge_ids.len());
   for edge_id in edge_ids {
     if let Ok(Some(edge)) = get_edge_by_id::<I, P, SE>(edge_store, edge_id).await {

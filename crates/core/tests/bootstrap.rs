@@ -3,7 +3,7 @@
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use mises_core::{
   model::{
-    keys::KeyMeta,
+    keys::{KeyMaterial, KeyMeta},
     node::{NodeMeta, NodeType},
   },
   service::graph::{BootstrapOptions, GraphService},
@@ -62,6 +62,7 @@ async fn bootstrap_reads_existing_key_node() {
         public_key: "pub".to_string(),
         private_key: Some(b64.clone()),
         derivation_path: String::from("m/44'"),
+        key_material: KeyMaterial::Seed,
       }),
     )
     .await

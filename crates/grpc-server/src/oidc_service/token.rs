@@ -1,10 +1,12 @@
-use ed25519_dalek::{SecretKey, SigningKey, pkcs8::EncodePrivateKey};
 use native_authentication::{AndroidText, AuthError, Context, PolicyBuilder, Text, WindowsText};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
 use mises_core::{
-  model::{identity::IdentityMeta, node::NodeMeta},
+  model::{
+    identity::{IdentityMeta, IdentityType},
+    node::NodeMeta,
+  },
   service::identity::IdentityService,
   traits::Repository,
 };
@@ -17,20 +19,6 @@ use crate::{
     authorization_code::get_and_delete_authorization_code, helpers::ensure_application_identity,
   },
 };
-
-fn encoding_key_from_ed25519_secret(
-  secret_bytes: &[u8],
-) -> Result<jsonwebtoken::EncodingKey, Status> {
-  let secret_key: SecretKey = secret_bytes
-    .try_into()
-    .map_err(|_| Status::internal("invalid ed25519 private key length"))?;
-  let signing_key = SigningKey::from_bytes(&secret_key);
-  let pkcs8 = signing_key.to_pkcs8_der().map_err(|e| {
-    log::error!("failed to encode ed25519 private key as pkcs8: {}", e);
-    Status::internal("invalid ed25519 private key format")
-  })?;
-  Ok(jsonwebtoken::EncodingKey::from_ed_der(pkcs8.as_bytes()))
-}
 
 pub async fn token<R, S>(
   repo: &R,
@@ -131,59 +119,49 @@ where
   }
 
   let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
+  let service_id = resolve_service_id_for_client(repo, device_id, code_data.client_id).await?;
 
   let client_node = ensure_application_identity(&identity_service, code_data.client_id).await?;
 
   let (access_token_expiry, refresh_token_expiry) = extract_client_token_expiry(&client_node)?;
 
-  let kid = code_data.client_id.to_string();
-  let client_key = identity_service
-    .get_identity_key(code_data.client_id)
+  let client_key_node = identity_service
+    .get_identity_key_node(code_data.client_id)
     .await
     .map_err(|e| e.to_status())?;
-
-  let client_key_bytes = client_key.decode_private_key().map_err(|e| {
-    log::error!("failed to decode client private key: {}", e);
-    Status::internal("invalid client private key format")
-  })?;
 
   let scope = code_data.scope.as_deref();
   let client_id_str = code_data.client_id.to_string();
   let subject_str = code_data.subject.to_string();
 
-  let encoding_key = encoding_key_from_ed25519_secret(&client_key_bytes)?;
-
   let access_token = generate_access_token(
-    &kid,
+    &client_key_node,
     &client_id_str,
     issuer,
-    &client_id_str,
+    &service_id,
     scope,
     Some(&subject_str),
     access_token_expiry,
-    &encoding_key,
   )?;
 
   let refresh_token = generate_refresh_token(
-    &kid,
+    &client_key_node,
     &client_id_str,
     issuer,
-    &client_id_str,
+    &service_id,
     scope,
     Some(&subject_str),
     refresh_token_expiry,
-    &encoding_key,
   )?;
 
   let id_token = if scope.is_some_and(|s| s.contains("openid")) {
     Some(generate_id_token(
-      &kid,
+      &client_key_node,
       &subject_str,
       issuer,
-      &client_id_str,
+      &service_id,
       code_data.nonce.as_deref(),
       access_token_expiry,
-      &encoding_key,
     )?)
   } else {
     None
@@ -225,6 +203,7 @@ where
   }
 
   let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
+  let service_id = resolve_default_service_id(repo, device_id).await?;
   let user_node = identity_service
     .authenticate_user(&grant.username, &grant.password)
     .await
@@ -235,50 +214,40 @@ where
 
   let user_id = user_node.id;
 
-  let kid = user_id.to_string();
-  let user_key = identity_service
-    .get_identity_key(user_id)
+  let user_key_node = identity_service
+    .get_identity_key_node(user_id)
     .await
     .map_err(|e| e.to_status())?;
 
-  let user_key_bytes = user_key.decode_private_key().map_err(|e| {
-    log::error!("failed to decode user private key: {}", e);
-    Status::internal("invalid user private key format")
-  })?;
-
   let user_id_str = user_id.to_string();
-  let encoding_key = encoding_key_from_ed25519_secret(&user_key_bytes)?;
 
   let access_token = generate_access_token(
-    &kid,
+    &user_key_node,
     &user_id_str,
     issuer,
-    &user_id_str,
+    &service_id,
     scope,
     None,
     access_token_expiry,
-    &encoding_key,
   )?;
 
   let refresh_token = generate_refresh_token(
-    &kid,
+    &user_key_node,
     &user_id_str,
     issuer,
-    &user_id_str,
+    &service_id,
     scope,
     None,
     refresh_token_expiry,
-    &encoding_key,
   )?;
 
   let id_token = generate_id_token(
-    &kid,
+    &user_key_node,
     &user_id_str,
     issuer,
-    &user_id_str,
+    &service_id,
     None,
     access_token_expiry,
-    &encoding_key,
   )?;
 
   Ok(mises_proto::TokenResponse {
@@ -323,6 +292,7 @@ where
   })?;
 
   let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
+  let service_id = resolve_default_service_id(repo, device_id).await?;
   let master_group = identity_service
     .get_master_group()
     .await
@@ -334,54 +304,44 @@ where
     .map_err(|e| e.to_status())?
     .ok_or_else(|| Status::failed_precondition("no device identity found"))?;
 
-  let kid = device_node.id.to_string();
-  let device_key = identity_service
-    .get_identity_key(device_node.id)
+  let device_key_node = identity_service
+    .get_identity_key_node(device_node.id)
     .await
     .map_err(|e| e.to_status())?;
-
-  let device_key_bytes = device_key.decode_private_key().map_err(|e| {
-    log::error!("failed to decode device private key: {}", e);
-    Status::internal("invalid device private key format")
-  })?;
 
   let access_token_expiry = 900;
   let refresh_token_expiry = 604800;
   let scope = grant.scope.as_deref();
   let device_id_str = device_node.id.to_string();
-  let encoding_key = encoding_key_from_ed25519_secret(&device_key_bytes)?;
 
   let access_token = generate_access_token(
-    &kid,
+    &device_key_node,
     &device_id_str,
     issuer,
-    &device_id_str,
+    &service_id,
     scope,
     None,
     access_token_expiry,
-    &encoding_key,
   )?;
 
   let refresh_token = generate_refresh_token(
-    &kid,
+    &device_key_node,
     &device_id_str,
     issuer,
-    &device_id_str,
+    &service_id,
     scope,
     None,
     refresh_token_expiry,
-    &encoding_key,
   )?;
 
   let id_token = if scope.is_some_and(|s| s.contains("openid")) {
     Some(generate_id_token(
-      &kid,
+      &device_key_node,
       &device_id_str,
       issuer,
-      &device_id_str,
+      &service_id,
       None,
       access_token_expiry,
-      &encoding_key,
     )?)
   } else {
     None
@@ -416,4 +376,36 @@ fn extract_client_token_expiry(
     },
     _ => Err(Status::internal("client node is not an identity")),
   }
+}
+
+async fn resolve_default_service_id<R>(repo: &R, device_id: &str) -> Result<String, Status>
+where
+  R: Repository + Clone + Send + Sync + 'static,
+{
+  let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
+  let service = identity_service
+    .find_service_by_name("mises")
+    .await
+    .map_err(|e| Status::internal(format!("failed to find mises service: {}", e)))?
+    .ok_or_else(|| Status::not_found("mises service not found"))?;
+
+  Ok(service.id.to_string())
+}
+
+async fn resolve_service_id_for_client<R>(
+  repo: &R,
+  device_id: &str,
+  client_id: uuid::Uuid,
+) -> Result<String, Status>
+where
+  R: Repository + Clone + Send + Sync + 'static,
+{
+  let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
+  let service = identity_service
+    .find_owner(client_id, Some(IdentityType::Service))
+    .await
+    .map_err(|e| Status::internal(format!("failed to find client owner: {}", e)))?
+    .ok_or_else(|| Status::not_found("client owner service not found"))?;
+
+  Ok(service.id.to_string())
 }
