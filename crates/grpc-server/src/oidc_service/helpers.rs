@@ -127,7 +127,7 @@ where
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+  use super::matches_redirect_pattern;
 
   #[test]
   fn test_exact_match() {

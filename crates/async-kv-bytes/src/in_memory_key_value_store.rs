@@ -306,9 +306,12 @@ impl KeyValueStore for InMemoryTransaction {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
   use alloc::vec;
+  use alloc::vec::Vec;
   use core::ops::Bound;
+
+  use super::InMemoryKeyValueStore;
+  use crate::key_value_store::{KeyValueStore, KeyValueStoreExecutor, KeyValueStoreTransaction};
 
   #[tokio::test]
   async fn test_put_and_get() {

@@ -438,4 +438,5 @@ message ClientAllowed {
 
 message ApproveForUserRequest {
     string client_id = 1;
+    repeated string scope = 2;
 }

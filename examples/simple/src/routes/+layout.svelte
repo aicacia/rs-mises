@@ -2,7 +2,6 @@
 	import '../app.css';
 
 	import favicon from '$lib/assets/favicon.svg';
-	import { onMount } from 'svelte';
 	import type { LayoutProps } from './$types';
 	import { getTheme } from '@aicacia/svelte-headless';
 	import Notifications from '$lib/common/components/Notifications.svelte';
@@ -17,7 +16,7 @@
 		}
 	});
 
-	onMount(() => {
+	$effect.pre(() => {
 		document.body.classList.add('hydrated');
 	});
 </script>

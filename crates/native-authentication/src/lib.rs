@@ -154,7 +154,8 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+  use super::BiometricStrength;
+  use super::PolicyBuilder;
 
   #[test]
   fn policy_builder_works() {
@@ -170,6 +171,8 @@ mod tests {
   #[tokio::test]
   #[cfg(not(target_os = "linux"))]
   async fn authenticate_not_supported() {
+    use super::{AndroidText, AuthError, Context, Text, WindowsText};
+
     let ctx = Context::new(());
     let text = Text {
       android: AndroidText {

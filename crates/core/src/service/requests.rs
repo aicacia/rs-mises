@@ -22,7 +22,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum PolicyDecision {
+pub enum PolicyDecision {
   Allowed,
   Denied,
   NotApplicable,
@@ -687,7 +687,7 @@ where
     Ok(props)
   }
 
-  async fn evaluate_request_policies(
+  pub async fn evaluate_request_policies(
     &self,
     requested_for: Uuid,
     actions: &[String],

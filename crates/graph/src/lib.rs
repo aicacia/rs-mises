@@ -35,7 +35,7 @@ mod in_memory_wrapper {
   use alloc::{boxed::Box, vec::Vec};
   use core::ops::RangeBounds;
 
-  use super::*;
+  use super::{GraphError, KeyValueStore, KeyValueStoreExecutor, KeyValueStoreTransaction};
 
   #[derive(Clone)]
   pub struct InMemoryKeyValueStore {
@@ -179,8 +179,9 @@ pub use in_memory_wrapper::{InMemoryKeyValueStore, InMemoryTransaction};
 
 #[cfg(feature = "in-memory")]
 mod in_memory_repository {
-  use super::*;
   use core::marker::PhantomData;
+
+  use crate::{Id, IdGenerator, Value, in_memory_wrapper::InMemoryKeyValueStore};
 
   /// Concrete implementation of `KeyValueRepositoryStore` for in-memory storage.
   #[derive(Clone)]
@@ -218,7 +219,7 @@ mod in_memory_repository {
     }
   }
 
-  impl<I, M, P, G> key_value_repository::KeyValueRepositoryStore
+  impl<I, M, P, G> crate::key_value_repository::KeyValueRepositoryStore
     for InMemoryRepositoryStore<I, M, P, G>
   where
     I: Id,

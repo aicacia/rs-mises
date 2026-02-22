@@ -2,7 +2,6 @@
 	import './layout.css';
 
 	import favicon from '$lib/assets/favicon.svg';
-	import { onMount } from 'svelte';
 	import type { LayoutProps } from './$types';
 	import { resolve } from '$app/paths';
 	import { getTheme } from '@aicacia/svelte-headless';
@@ -21,7 +20,7 @@
 		}
 	});
 
-	onMount(() => {
+	$effect.pre(() => {
 		document.body.classList.add('hydrated');
 
 		let onOpenUrlUnlistenFn: UnlistenFn | undefined;

@@ -1,9 +1,8 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 
-	onMount(() => {
+	$effect.pre(() => {
 		try {
 			const hash = window.location.hash || '';
 			const params = new URLSearchParams(hash.replace(/^#/, ''));
