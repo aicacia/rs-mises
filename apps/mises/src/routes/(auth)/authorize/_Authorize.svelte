@@ -28,6 +28,12 @@
 	let loadingClient = $state(true);
 	$effect(() => {
 		loadingClient = true;
+		if (authorizeRequest.clientId === 'unknown') {
+			console.debug('Client ID is unknown, skipping client info fetch');
+			client = null;
+			loadingClient = false;
+			return;
+		}
 		console.debug('Fetching client info for clientId', authorizeRequest.clientId);
 		clientClient()
 			.get({ clientId: authorizeRequest.clientId })

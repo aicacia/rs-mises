@@ -13,3 +13,5 @@ build
 .svelte-kit
 .vite
 coverage
+# Generated files
+src-tauri/gen/

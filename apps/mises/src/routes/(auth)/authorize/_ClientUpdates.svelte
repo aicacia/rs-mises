@@ -2,7 +2,6 @@
 	import type { ClientInfo } from './_utils';
 
 	export interface ClientInfoProps {
-		userInfo: UserInfo;
 		client: Partial<ClientInfo> & Pick<ClientInfo, 'logoUri' | 'name'>;
 		disabled?: boolean;
 		isNew: boolean;
@@ -15,7 +14,6 @@
 	import { m } from '$lib/paraglide/messages';
 	import ClientHeader from './_ClientHeader.svelte';
 	import ClientFields from './_ClientFields.svelte';
-	import type { UserInfo } from '$lib/proto/mises';
 
 	let { client, disabled, isNew, onAccept, onReject }: ClientInfoProps = $props();
 

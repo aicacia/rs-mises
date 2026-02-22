@@ -1,4 +1,3 @@
-use native_authentication::{AndroidText, AuthError, Context, PolicyBuilder, Text, WindowsText};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
@@ -11,21 +10,22 @@ use mises_core::{
   traits::Repository,
 };
 use mises_graph::KeyValueStoreExecutor;
+use native_authentication::{AndroidText, AuthError, Context, PolicyBuilder, Text, WindowsText};
 
 use crate::{
   error::ToStatus,
-  jwt::{Claims, generate_access_token, generate_id_token, generate_refresh_token},
-  oidc_service::{
-    authorization_code::get_and_delete_authorization_code, helpers::ensure_application_identity,
-  },
+  helpers::{OptionExt, ResultExt},
+  jwt::{generate_access_token, generate_id_token, generate_refresh_token},
+  oidc_service::authorization_code::get_and_delete_authorization_code,
 };
+
+const BUILTIN_CLIENT_IDS: &[&str] = &["mises-desktop", "mises-web"];
 
 pub async fn token<R, S>(
   repo: &R,
   device_id: &str,
   store: &S,
   req: mises_proto::TokenRequest,
-  _claims: Option<Claims>,
   issuer: &str,
 ) -> Result<mises_proto::TokenResponse, Status>
 where
@@ -55,6 +55,74 @@ where
   }
 }
 
+async fn resolve_application<R>(
+  repo: &R,
+  device_id: &str,
+  client_id_str: &str,
+) -> Result<(uuid::Uuid, String), Status>
+where
+  R: Repository + Clone + Send + Sync + 'static,
+{
+  let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
+
+  let app_node = if BUILTIN_CLIENT_IDS.contains(&client_id_str) {
+    match identity_service
+      .find_service_by_name("mises")
+      .await
+      .map_err(|e| Status::internal(format!("failed to find service: {}", e)))?
+    {
+      Some(node) => node,
+      None => {
+        let master_group = identity_service
+          .get_master_group()
+          .await
+          .map_err(|e| Status::internal(format!("failed to get master group: {}", e)))?;
+
+        let (service_node, _key_node) = identity_service
+          .create_service("mises".to_owned(), Some(master_group.id))
+          .await
+          .map_err(|e| Status::internal(format!("failed to create service: {}", e)))?;
+
+        service_node
+      }
+    }
+  } else {
+    let parsed_id =
+      uuid::Uuid::parse_str(client_id_str).or_invalid_argument("invalid client_id format")?;
+
+    identity_service
+      .get_node_by_id_and_identity_type(parsed_id, IdentityType::Application)
+      .await
+      .map_err(|e| match e {
+        mises_core::CoreError::NotFound => {
+          Status::invalid_argument(format!("application not found: {}", parsed_id))
+        }
+        mises_core::CoreError::InvalidInput(_) => {
+          Status::invalid_argument("client_id does not refer to an application")
+        }
+        _ => Status::internal(format!("identity service error: {}", e)),
+      })?
+  };
+
+  let client_id = app_node.id;
+  let app_id_str = match &app_node.metadata {
+    NodeMeta::Identity(identity) => match identity.as_ref() {
+      IdentityMeta::Application { oidc } => {
+        let oidc_meta = oidc.as_ref();
+        if oidc_meta.service_id.is_empty() {
+          client_id.to_string()
+        } else {
+          oidc_meta.service_id.clone()
+        }
+      }
+      _ => client_id.to_string(),
+    },
+    _ => client_id.to_string(),
+  };
+
+  Ok((client_id, app_id_str))
+}
+
 async fn handle_authorization_code_grant<R, S>(
   repo: &R,
   device_id: &str,
@@ -68,7 +136,7 @@ where
 {
   let code_data = get_and_delete_authorization_code(store, &authorization_code.code)
     .await?
-    .ok_or_else(|| Status::invalid_argument("invalid or expired authorization code"))?;
+    .or_invalid_argument("invalid or expired authorization code")?;
 
   if code_data.is_expired() {
     return Err(Status::invalid_argument("authorization code expired"));
@@ -81,9 +149,8 @@ where
   }
 
   if let Some(ref client_id_str) = authorization_code.client_id {
-    let provided_client = uuid::Uuid::parse_str(client_id_str)
-      .map_err(|_| Status::invalid_argument("invalid client_id"))?;
-    if provided_client != code_data.client_id {
+    let (resolved_client_id, _) = resolve_application(repo, device_id, client_id_str).await?;
+    if resolved_client_id != code_data.client_id {
       return Err(Status::invalid_argument("client_id mismatch"));
     }
   }
@@ -92,7 +159,7 @@ where
     let verifier = authorization_code
       .code_verifier
       .as_ref()
-      .ok_or_else(|| Status::invalid_argument("code_verifier required"))?;
+      .or_invalid_argument("code_verifier required")?;
 
     let method = code_data
       .code_challenge_method
@@ -119,36 +186,52 @@ where
   }
 
   let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
-  let service_id = resolve_service_id_for_client(repo, device_id, code_data.client_id).await?;
 
-  let client_node = ensure_application_identity(&identity_service, code_data.client_id).await?;
+  let app_node = repo
+    .get_node_by_id(code_data.client_id)
+    .await
+    .map_err(|e| Status::internal(format!("failed to get client: {}", e)))?
+    .or_internal("client not found")?;
 
-  let (access_token_expiry, refresh_token_expiry) = extract_client_token_expiry(&client_node)?;
+  let (access_token_expiry, refresh_token_expiry) = extract_client_token_expiry(&app_node)?;
 
-  let client_key_node = identity_service
-    .get_identity_key_node(code_data.client_id)
+  let app_key_node = identity_service
+    .get_identity_key_node(app_node.id)
     .await
     .map_err(|e| e.to_status())?;
 
   let scope = code_data.scope.as_deref();
-  let client_id_str = code_data.client_id.to_string();
+  let app_id_str = match &app_node.metadata {
+    NodeMeta::Identity(identity) => match identity.as_ref() {
+      IdentityMeta::Application { oidc } => {
+        let oidc_meta = oidc.as_ref();
+        if oidc_meta.service_id.is_empty() {
+          code_data.client_id.to_string()
+        } else {
+          oidc_meta.service_id.clone()
+        }
+      }
+      _ => code_data.client_id.to_string(),
+    },
+    _ => code_data.client_id.to_string(),
+  };
   let subject_str = code_data.subject.to_string();
 
   let access_token = generate_access_token(
-    &client_key_node,
-    &client_id_str,
+    &app_key_node,
+    &app_id_str,
     issuer,
-    &service_id,
+    &app_id_str,
     scope,
     Some(&subject_str),
     access_token_expiry,
   )?;
 
   let refresh_token = generate_refresh_token(
-    &client_key_node,
-    &client_id_str,
+    &app_key_node,
+    &app_id_str,
     issuer,
-    &service_id,
+    &app_id_str,
     scope,
     Some(&subject_str),
     refresh_token_expiry,
@@ -156,10 +239,10 @@ where
 
   let id_token = if scope.is_some_and(|s| s.contains("openid")) {
     Some(generate_id_token(
-      &client_key_node,
+      &app_key_node,
       &subject_str,
       issuer,
-      &service_id,
+      &app_id_str,
       code_data.nonce.as_deref(),
       access_token_expiry,
     )?)
@@ -194,16 +277,18 @@ where
     return Err(Status::invalid_argument("password is required"));
   }
 
-  let access_token_expiry = 900;
-  let refresh_token_expiry = 604800;
-
   let scope = grant.scope.as_deref();
   if !scope.is_some_and(|s| s.contains("openid")) {
     return Err(Status::invalid_argument("scope must include 'openid'"));
   }
 
+  if grant.client_id.is_empty() {
+    return Err(Status::invalid_argument("client_id is required"));
+  }
+
+  let (client_id, app_id_str) = resolve_application(repo, device_id, &grant.client_id).await?;
+
   let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
-  let service_id = resolve_default_service_id(repo, device_id).await?;
   let user_node = identity_service
     .authenticate_user(&grant.username, &grant.password)
     .await
@@ -221,11 +306,18 @@ where
 
   let user_id_str = user_id.to_string();
 
+  let app_node = repo
+    .get_node_by_id(client_id)
+    .await
+    .map_err(|e| Status::internal(format!("failed to get client: {}", e)))?
+    .or_internal("client not found")?;
+  let (access_token_expiry, refresh_token_expiry) = extract_client_token_expiry(&app_node)?;
+
   let access_token = generate_access_token(
     &user_key_node,
     &user_id_str,
     issuer,
-    &service_id,
+    &app_id_str,
     scope,
     None,
     access_token_expiry,
@@ -235,7 +327,7 @@ where
     &user_key_node,
     &user_id_str,
     issuer,
-    &service_id,
+    &app_id_str,
     scope,
     None,
     refresh_token_expiry,
@@ -245,7 +337,7 @@ where
     &user_key_node,
     &user_id_str,
     issuer,
-    &service_id,
+    &app_id_str,
     None,
     access_token_expiry,
   )?;
@@ -269,6 +361,12 @@ async fn handle_device_credentials_grant<R>(
 where
   R: Repository + Clone + Send + Sync + 'static,
 {
+  if grant.client_id.is_empty() {
+    return Err(Status::invalid_argument("client_id is required"));
+  }
+
+  let (_client_id, app_id_str) = resolve_application(repo, device_id, &grant.client_id).await?;
+
   let policy = PolicyBuilder::new()
     .password(true)
     .build()
@@ -292,7 +390,6 @@ where
   })?;
 
   let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
-  let service_id = resolve_default_service_id(repo, device_id).await?;
   let master_group = identity_service
     .get_master_group()
     .await
@@ -318,7 +415,7 @@ where
     &device_key_node,
     &device_id_str,
     issuer,
-    &service_id,
+    &app_id_str,
     scope,
     None,
     access_token_expiry,
@@ -328,7 +425,7 @@ where
     &device_key_node,
     &device_id_str,
     issuer,
-    &service_id,
+    &app_id_str,
     scope,
     None,
     refresh_token_expiry,
@@ -339,7 +436,7 @@ where
       &device_key_node,
       &device_id_str,
       issuer,
-      &service_id,
+      &app_id_str,
       None,
       access_token_expiry,
     )?)
@@ -362,50 +459,17 @@ fn extract_client_token_expiry(
 ) -> Result<(i64, i64), Status> {
   match &client_node.metadata {
     NodeMeta::Identity(identity) => match identity.as_ref() {
-      IdentityMeta::Application { oidc, .. } => match oidc.as_ref() {
-        Some(oidc_meta) => {
-          let access_expiry = oidc_meta.access_token_expiry as i64;
-          let refresh_expiry = oidc_meta.refresh_token_expiry as i64;
-          Ok((access_expiry, refresh_expiry))
-        }
-        None => Err(Status::internal(
-          "client node application has no OIDC metadata",
-        )),
-      },
-      _ => Err(Status::internal("client node is not an application")),
+      IdentityMeta::Application { oidc } => {
+        let oidc_meta = oidc.as_ref();
+        let access_expiry = oidc_meta.access_token_expiry as i64;
+        let refresh_expiry = oidc_meta.refresh_token_expiry as i64;
+        Ok((access_expiry, refresh_expiry))
+      }
+      IdentityMeta::Service { .. } => Ok((3600, 2592000)),
+      _ => Err(Status::internal(
+        "client node is not an application or service",
+      )),
     },
     _ => Err(Status::internal("client node is not an identity")),
   }
-}
-
-async fn resolve_default_service_id<R>(repo: &R, device_id: &str) -> Result<String, Status>
-where
-  R: Repository + Clone + Send + Sync + 'static,
-{
-  let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
-  let service = identity_service
-    .find_service_by_name("mises")
-    .await
-    .map_err(|e| Status::internal(format!("failed to find mises service: {}", e)))?
-    .ok_or_else(|| Status::not_found("mises service not found"))?;
-
-  Ok(service.id.to_string())
-}
-
-async fn resolve_service_id_for_client<R>(
-  repo: &R,
-  device_id: &str,
-  client_id: uuid::Uuid,
-) -> Result<String, Status>
-where
-  R: Repository + Clone + Send + Sync + 'static,
-{
-  let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
-  let service = identity_service
-    .find_owner(client_id, Some(IdentityType::Service))
-    .await
-    .map_err(|e| Status::internal(format!("failed to find client owner: {}", e)))?
-    .ok_or_else(|| Status::not_found("client owner service not found"))?;
-
-  Ok(service.id.to_string())
 }

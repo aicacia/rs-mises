@@ -6,9 +6,10 @@ use alloc::{
 };
 
 use base64::{Engine, prelude::BASE64_URL_SAFE};
+use uuid::Uuid;
+
 use mises_graph::{EdgeQuery, Element, Filter, NodeQuery, Query, field};
 use mises_key::Key;
-use uuid::Uuid;
 
 use crate::{
   CoreError, InvalidInput, Result,
@@ -21,6 +22,10 @@ use crate::{
   traits::Executor,
 };
 
+/// Service for managing identity operations in the graph.
+///
+/// Handles creation, retrieval, and mutation of identity entities including users,
+/// groups, devices, and applications.
 #[derive(Clone)]
 pub struct IdentityService<E>
 where
@@ -34,10 +39,25 @@ impl<E> IdentityService<E>
 where
   E: Executor,
 {
+  /// Create a new `IdentityService` with the given executor and device ID.
   pub fn new(exec: E, device_id: String) -> Self {
     Self { exec, device_id }
   }
 
+  /// Get a node by ID and verify it matches the expected identity type.
+  ///
+  /// # Arguments
+  ///
+  /// * `id` - The UUID of the node to retrieve
+  /// * `expected` - The `IdentityType` that the node must be
+  ///
+  /// # Returns
+  ///
+  /// The node if found and the identity type matches
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the node is not found, is not an identity, or the type mismatches.
   pub async fn get_node_by_id_and_identity_type(
     &self,
     id: Uuid,
@@ -65,6 +85,7 @@ where
     }
   }
 
+  /// Find the owner of an identity with optional type filtering.
   pub async fn find_owner(
     &self,
     id: Uuid,
@@ -429,6 +450,29 @@ where
     Ok(None)
   }
 
+  pub async fn find_application_by_name(&self, name: &str) -> Result<Option<E::Node>> {
+    let query = Query::nodes(
+      NodeQuery::new(NodeType::Identity.as_str()).filter(Filter::all([
+        field("metadata.type")
+          .eq(IdentityType::Application.as_str())
+          .into(),
+        field("metadata.oidc.client_name")
+          .eq(name.to_string())
+          .into(),
+      ])),
+    );
+
+    let elements = self.exec.query(query).await?;
+
+    for el in elements {
+      if let Element::Node(node) = el {
+        return Ok(Some(node));
+      }
+    }
+
+    Ok(None)
+  }
+
   pub async fn get_master_group(&self) -> Result<E::Node> {
     let query = Query::nodes(
       NodeQuery::new(NodeType::Key.as_str()).filter(field("metadata.derivation_path").eq("m/44'")),
@@ -611,16 +655,15 @@ where
 
   pub async fn create_application(
     &self,
-    name: String,
     group_id: Option<Uuid>,
+    oidc: crate::model::oidc::OidcClientMeta,
   ) -> Result<(E::Node, E::Node)> {
     let app_node = self
       .exec
       .create_node(
         NodeType::Identity.as_str().to_string(),
         NodeMeta::Identity(Box::new(IdentityMeta::Application {
-          name,
-          oidc: Box::new(None),
+          oidc: Box::new(oidc),
         })),
       )
       .await?;

@@ -2,12 +2,15 @@ import { UserManager, type UserManagerSettings } from 'oidc-client-ts';
 import { browser } from '$app/environment';
 import icon256x256Png from '$lib/assets/icon256x256.png';
 import { env } from '$env/dynamic/public';
+import { createStorage } from '@aicacia/svelte-headless';
+
+const clientId = createStorage<string | null>('mises-simple-example-client-id', null);
 
 const userSettings = async () =>
 	browser
 		? ({
 				authority: env.PUBLIC_MISES_URL,
-				client_id: '',
+				client_id: clientId.item ?? 'unknown',
 				redirect_uri: `${env.PUBLIC_URL}/callback`,
 				post_logout_redirect_uri: `${env.PUBLIC_URL}/logout`,
 				response_type: 'code',
@@ -20,7 +23,6 @@ const userSettings = async () =>
 				automaticSilentRenew: true,
 				filterProtocolClaims: true,
 				extraQueryParams: {
-					service_id: 'mises-simple-example',
 					registration: JSON.stringify({
 						name: 'Simple Example',
 						service_id: 'mises-simple-example',

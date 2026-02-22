@@ -7,9 +7,15 @@ use mises_graph::{
 
 use crate::model::{edge::EdgeProps, node::NodeMeta};
 
+/// Core node type with UUID identifiers and node metadata.
 pub type Node = MisesGraphNode<Uuid, NodeMeta>;
+
+/// Core edge type with UUID identifiers and edge properties.
 pub type Edge = MisesGraphEdge<Uuid, EdgeProps>;
 
+/// Graph repository trait for core operations.
+///
+/// Implements the underlying graph repository with UUID identifiers and core metadata types.
 pub trait Repository:
   MisesGraphRepository<
     Id = Uuid,
@@ -32,6 +38,9 @@ impl<T> Repository for T where
 {
 }
 
+/// Graph executor trait for core transactional operations.
+///
+/// Implements the underlying graph executor with UUID identifiers and core metadata types.
 pub trait Executor:
   MisesGraphExecutor<Id = Uuid, NodeMeta = NodeMeta, EdgeProps = EdgeProps, Node = Node, Edge = Edge>
 {

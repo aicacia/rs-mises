@@ -1,10 +1,11 @@
 #![cfg(feature = "in-memory")]
 
+use uuid::Uuid;
+
 use mises_core::{
   model::identity::{IdentityMeta, IdentityType},
   service::identity::IdentityService,
 };
-use uuid::Uuid;
 
 mod common;
 
@@ -18,8 +19,10 @@ async fn get_node_by_id_and_identity_type_happy_path() {
   let id = create_identity(
     &repo,
     IdentityMeta::Application {
-      name: "app".to_string(),
-      oidc: Box::new(None),
+      oidc: Box::new(mises_core::model::oidc::OidcClientMeta {
+        client_name: "app".to_string(),
+        ..Default::default()
+      }),
     },
   )
   .await;

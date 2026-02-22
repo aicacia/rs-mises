@@ -95,18 +95,11 @@ where
   ) -> Result<Response<mises_proto::TokenResponse>, Status> {
     log::debug!("Token request: {:?}", request);
 
-    let claims = extract_optional_claims(
-      &request,
-      IdentityService::new(self.repo.clone(), self.device_id.clone()),
-    )
-    .await?;
-
     token(
       &self.repo,
       &self.device_id,
       &self.store,
       request.into_inner(),
-      claims,
       &self.issuer,
     )
     .await

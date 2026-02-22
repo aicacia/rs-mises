@@ -2,28 +2,21 @@ use alloc::{
   boxed::Box,
   string::{String, ToString},
 };
-use core::{error::Error, fmt};
+use core::error::Error;
 
 #[cfg(feature = "std")]
 use std::sync::PoisonError;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum GraphError {
+  #[error("not found")]
   NotFound,
+  #[error("conflict")]
   Conflict,
+  #[error("serialization error: {0}")]
   SerializationError(String),
+  #[error(transparent)]
   Other(Box<dyn Error + Send + Sync>),
-}
-
-impl fmt::Display for GraphError {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-      GraphError::NotFound => write!(f, "not found"),
-      GraphError::Conflict => write!(f, "conflict"),
-      GraphError::SerializationError(e) => write!(f, "serialization error: {}", e),
-      GraphError::Other(e) => write!(f, "other error: {}", e),
-    }
-  }
 }
 
 impl From<serde_json::Error> for GraphError {
@@ -51,5 +44,3 @@ impl<T> From<PoisonError<T>> for GraphError {
     GraphError::Other(e.to_string().into())
   }
 }
-
-impl Error for GraphError {}

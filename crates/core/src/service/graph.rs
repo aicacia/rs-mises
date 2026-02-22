@@ -7,11 +7,12 @@ use alloc::{
 
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
+
 use mises_graph::{
   Element, Executor as MisesGraphExecutor, Filter, NodeQuery, Query, Transaction, field,
 };
 use mises_key::Key;
-use uuid::Uuid;
 
 use crate::{
   CoreError, InvalidInput, Result,
@@ -24,16 +25,23 @@ use crate::{
   traits::{Executor, Repository},
 };
 
+/// Options for bootstrapping the graph with initial data.
 #[derive(Clone)]
 pub struct BootstrapOptions {
+  /// Device identifier for the bootstrapped system
   pub device_id: String,
+  /// Optional name for the device
   pub device_name: Option<String>,
+  /// Optional name for the root group
   pub root_group_name: Option<String>,
+  /// Optional name for the owner
   pub owner_name: Option<String>,
+  /// Optional timestamp for bootstrap operations (defaults to current time)
   pub now: Option<DateTime<Utc>>,
 }
 
 impl BootstrapOptions {
+  /// Create a builder for constructing `BootstrapOptions`.
   pub fn builder(device_id: impl Into<String>) -> BootstrapOptionsBuilder {
     BootstrapOptionsBuilder {
       device_id: device_id.into(),
@@ -45,6 +53,7 @@ impl BootstrapOptions {
   }
 }
 
+/// Builder for constructing `BootstrapOptions`.
 #[derive(Clone, Default)]
 pub struct BootstrapOptionsBuilder {
   device_id: String,
@@ -55,6 +64,7 @@ pub struct BootstrapOptionsBuilder {
 }
 
 impl BootstrapOptionsBuilder {
+  /// Create a new builder with required device ID.
   pub fn new(device_id: impl Into<String>) -> Self {
     Self {
       device_id: device_id.into(),
@@ -65,26 +75,31 @@ impl BootstrapOptionsBuilder {
     }
   }
 
+  /// Set the device name.
   pub fn device_name(mut self, name: impl Into<String>) -> Self {
     self.device_name = Some(name.into());
     self
   }
 
+  /// Set the root group name.
   pub fn root_group_name(mut self, name: impl Into<String>) -> Self {
     self.root_group_name = Some(name.into());
     self
   }
 
+  /// Set the owner name.
   pub fn owner_name(mut self, name: impl Into<String>) -> Self {
     self.owner_name = Some(name.into());
     self
   }
 
+  /// Set the bootstrap timestamp.
   pub fn now(mut self, now: DateTime<Utc>) -> Self {
     self.now = Some(now);
     self
   }
 
+  /// Build the `BootstrapOptions`.
   pub fn build(self) -> BootstrapOptions {
     BootstrapOptions {
       device_id: self.device_id,
@@ -96,15 +111,23 @@ impl BootstrapOptionsBuilder {
   }
 }
 
+/// Result of a bootstrap operation containing identifiers for created entities.
 pub struct BootstrapResult {
+  /// UUID of the root group
   pub root_group_id: Uuid,
+  /// Base64-encoded public key of the master key
   pub master_key_public_key: String,
+  /// Whether a new master key was created during bootstrap
   pub master_key_created: bool,
+  /// UUID of the owner user
   pub owner_user_id: Uuid,
+  /// UUID of the device
   pub device_id: Uuid,
+  /// UUID of the service
   pub service_id: Uuid,
 }
 
+/// Service for managing graph operations including bootstrap and data initialization.
 #[derive(Clone)]
 pub struct GraphService<E>
 where
@@ -117,6 +140,7 @@ impl<E> GraphService<E>
 where
   E: Executor,
 {
+  /// Create a new `GraphService` with the given executor.
   pub fn new(exec: E) -> Self {
     Self { exec }
   }

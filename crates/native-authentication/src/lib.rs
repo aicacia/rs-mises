@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, process};
 
 use tokio::process::Command;
 
@@ -134,7 +134,7 @@ impl Context {
       .arg("org.freedesktop.policykit.exec")
       .arg("--allow-user-interaction")
       .arg("--process")
-      .arg(format!("{}", std::process::id()))
+      .arg(format!("{}", process::id()))
       .status()
       .await;
 

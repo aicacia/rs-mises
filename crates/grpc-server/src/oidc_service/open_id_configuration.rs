@@ -31,9 +31,9 @@ where
 
   for app in applications {
     if let NodeMeta::Identity(identity) = &app.metadata
-      && let IdentityMeta::Application { oidc, .. } = identity.as_ref()
-      && let Some(oidc_meta) = oidc.as_ref()
+      && let IdentityMeta::Application { oidc } = identity.as_ref()
     {
+      let oidc_meta = oidc.as_ref();
       for rt in &oidc_meta.response_types {
         supported_response_types.insert(rt.as_str().to_string());
       }

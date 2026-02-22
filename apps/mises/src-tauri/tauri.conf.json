@@ -36,16 +36,12 @@
 		"deep-link": {
 			"mobile": [
 				{
-					"scheme": [
-						"mises"
-					],
+					"scheme": ["mises"],
 					"appLink": false
 				}
 			],
 			"desktop": {
-				"schemes": [
-					"mises"
-				]
+				"schemes": ["mises"]
 			}
 		},
 		"cli": {

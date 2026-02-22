@@ -1,6 +1,7 @@
 #![cfg(feature = "in-memory")]
 
 use base64::{Engine, prelude::BASE64_URL_SAFE};
+
 use mises_core::{
   model::{
     keys::{KeyMaterial, KeyMeta},

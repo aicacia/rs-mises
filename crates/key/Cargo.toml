@@ -1,12 +1,12 @@
 [package]
 name = "mises-key"
-edition = "2024"
 version = "0.1.0"
-authors = ["nathanfaucett@gmail.com"]
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 description = "Mises Keys"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/aicacia/rs-mises"
-rust-version = "1.93"
 
 [lib]
 name = "mises_key"
@@ -17,6 +17,9 @@ ed25519-dalek = { version = "2.2", default-features = false, features = [
   "alloc",
 ] }
 slip10 = { version = "0.4", default-features = false, features = [] }
+
+# Error Handling
+thiserror = { version = "2.0", default-features = false }
 
 # Encodings
 bip32 = { version = "0.5", default-features = false, features = [
@@ -34,12 +37,9 @@ zeroize = { version = "1.8", default-features = false, features = [] }
 
 [dev-dependencies]
 jsonwebtoken = { version = "9", default-features = false }
-serde = { version = "1", default-features = false, features = [
-  "derive",
-  "alloc",
-] }
-serde_json = { version = "1", default-features = false }
-tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
+serde = { workspace = true, features = ["derive", "alloc"] }
+serde_json = { workspace = true, features = ["alloc"] }
+tokio = { workspace = true, features = ["macros", "rt"] }
 tempfile = "3"
 
 [features]

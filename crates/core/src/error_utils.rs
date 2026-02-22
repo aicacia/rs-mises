@@ -4,6 +4,7 @@ use mises_graph::GraphError;
 
 use crate::CoreError;
 
+/// Check if a `CoreError` represents a "not found" condition.
 pub fn is_not_found_error(err: &CoreError) -> bool {
   matches!(
     err,
@@ -11,6 +12,7 @@ pub fn is_not_found_error(err: &CoreError) -> bool {
   )
 }
 
+/// Check if a `CoreError` represents a "conflict" condition.
 pub fn is_conflict_error(err: &CoreError) -> bool {
   matches!(
     err,
@@ -18,6 +20,9 @@ pub fn is_conflict_error(err: &CoreError) -> bool {
   )
 }
 
+/// Get a standardized error code string for a `CoreError`.
+///
+/// Returns a machine-readable error code suitable for API responses.
 pub fn error_code(err: &CoreError) -> String {
   if is_not_found_error(err) {
     "NOT_FOUND".to_string()
@@ -35,10 +40,12 @@ pub fn error_code(err: &CoreError) -> String {
   }
 }
 
+/// Check if a `GraphError` represents a "not found" condition.
 pub fn graph_is_not_found(err: &GraphError) -> bool {
   matches!(err, GraphError::NotFound)
 }
 
+/// Check if a `GraphError` represents a "conflict" condition.
 pub fn graph_is_conflict(err: &GraphError) -> bool {
   matches!(err, GraphError::Conflict)
 }

@@ -15,7 +15,10 @@ use mises_core::{
 };
 use mises_graph::{EdgeQuery, Element, Node, NodeQuery, Query, field};
 
-use crate::jwt::extract_optional_claims;
+use crate::{
+  helpers::{OptionExt, ResultExt},
+  jwt::extract_optional_claims,
+};
 
 pub struct ClientService<R>
 where
@@ -38,11 +41,8 @@ where
   ) -> Result<&mises_core::model::oidc::OidcClientMeta, Status> {
     match &client.metadata {
       NodeMeta::Identity(boxed_meta) => {
-        if let IdentityMeta::Application { oidc, .. } = boxed_meta.as_ref() {
-          oidc
-            .as_ref()
-            .as_ref()
-            .ok_or_else(|| Status::not_found("Client OIDC metadata not found"))
+        if let IdentityMeta::Application { oidc } = boxed_meta.as_ref() {
+          Ok(oidc.as_ref())
         } else {
           Err(Status::not_found("Client not found"))
         }
@@ -67,25 +67,29 @@ where
   ) -> Result<Response<mises_proto::Client>, Status> {
     let request = request.into_inner();
 
-    let client_id = Uuid::parse_str(&request.client_id)
-      .map_err(|_| Status::invalid_argument("Invalid client ID"))?;
+    let client_id = Uuid::parse_str(&request.client_id).or_invalid_argument("Invalid client ID")?;
 
     let identity_service = IdentityService::new(self.repo.clone(), self.device_id.clone());
 
     let client = identity_service
       .get_node_by_id_and_identity_type(client_id, IdentityType::Application)
       .await
-      .map_err(|_| Status::not_found("Client not found"))?;
+      .or_not_found("Client not found")?;
 
     let oidc_client = Self::extract_oidc_client(&client)?;
 
     Ok(Response::new(mises_proto::Client {
       id: client.id.to_string(),
-      client_id: oidc_client
-        .client_id
-        .clone()
-        .unwrap_or_else(|| client.id.to_string()),
-      client_secret: oidc_client.client_secret.clone(),
+      client_id: if oidc_client.client_id.is_empty() {
+        client.id.to_string()
+      } else {
+        oidc_client.client_id.clone()
+      },
+      client_secret: if oidc_client.client_secret.is_empty() {
+        None
+      } else {
+        Some(oidc_client.client_secret.clone())
+      },
       name: Some(oidc_client.client_name.clone()),
       redirect_uris: oidc_client.redirect_uris.clone(),
       grant_types: oidc_client
@@ -150,23 +154,23 @@ where
 
     let claims = extract_optional_claims(&request, identity_service.clone())
       .await?
-      .ok_or_else(|| Status::unauthenticated("Missing authorization"))?;
+      .or_unauthenticated("Missing authorization")?;
 
     let user_id = claims
       .acting_for
       .and_then(|af| Uuid::parse_str(&af).ok())
       .or_else(|| Uuid::parse_str(&claims.sub).ok())
-      .ok_or_else(|| Status::invalid_argument("Invalid user identity"))?;
+      .or_invalid_argument("Invalid user identity")?;
 
     let inner_request = request.into_inner();
 
-    let client_id = Uuid::parse_str(&inner_request.client_id)
-      .map_err(|_| Status::invalid_argument("Invalid client ID"))?;
+    let client_id =
+      Uuid::parse_str(&inner_request.client_id).or_invalid_argument("Invalid client ID")?;
 
     let client = identity_service
       .get_node_by_id_and_identity_type(client_id, IdentityType::Application)
       .await
-      .map_err(|_| Status::not_found("Client not found"))?;
+      .or_not_found("Client not found")?;
 
     let oidc_client = Self::extract_oidc_client(&client)?;
 
@@ -192,7 +196,7 @@ where
       .repo
       .query(query)
       .await
-      .map_err(|_| Status::internal("Failed to query requests"))?;
+      .or_internal("Failed to query requests")?;
 
     let mut allowed_scopes = Vec::new();
 
@@ -212,7 +216,7 @@ where
             .repo
             .query(approval_query)
             .await
-            .map_err(|_| Status::internal("Failed to query approvals"))?;
+            .or_internal("Failed to query approvals")?;
 
           for approval_el in approval_elements {
             if let Element::Edge(edge) = approval_el
@@ -220,7 +224,7 @@ where
                 .repo
                 .get_node_by_id(edge.to_id)
                 .await
-                .map_err(|_| Status::internal("Failed to get approval node"))?
+                .or_internal("Failed to get approval node")?
               && let mises_core::model::node::NodeMeta::Approval(approval) = approval_node.metadata
               && approval.approver == user_id
             {
@@ -260,12 +264,12 @@ where
 
     let claims = extract_optional_claims(&request, identity_service)
       .await?
-      .ok_or_else(|| Status::unauthenticated("Missing authorization"))?;
+      .or_unauthenticated("Missing authorization")?;
 
     let inner_request = request.into_inner();
 
-    let client_id = Uuid::parse_str(&inner_request.client_id)
-      .map_err(|_| Status::invalid_argument("Invalid client ID"))?;
+    let client_id =
+      Uuid::parse_str(&inner_request.client_id).or_invalid_argument("Invalid client ID")?;
 
     let request_service = RequestService::new(self.repo.clone());
 
@@ -273,7 +277,7 @@ where
       .acting_for
       .and_then(|af| Uuid::parse_str(&af).ok())
       .or_else(|| Uuid::parse_str(&claims.sub).ok())
-      .ok_or_else(|| Status::invalid_argument("Invalid approver identity"))?;
+      .or_invalid_argument("Invalid approver identity")?;
 
     let query = Query::nodes(
       NodeQuery::new(NodeType::Request.as_str())
@@ -284,7 +288,7 @@ where
       .repo
       .query(query)
       .await
-      .map_err(|_| Status::internal("Failed to query requests"))?;
+      .or_internal("Failed to query requests")?;
 
     let mut request_node_id = None;
 
@@ -305,8 +309,7 @@ where
       }
     }
 
-    let request_id =
-      request_node_id.ok_or_else(|| Status::not_found("No matching pending request found"))?;
+    let request_id = request_node_id.or_not_found("No matching pending request found")?;
 
     request_service
       .approve_request(request_id, approver_id)

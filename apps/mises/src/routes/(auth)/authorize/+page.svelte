@@ -39,7 +39,6 @@
 		}
 	});
 
-	let clientIdError = $state<string>();
 	let responseTypeError = $state<string>();
 	let responseModeError = $state<string>();
 	let scopeError = $state<string>();
@@ -48,11 +47,6 @@
 	let authorizeRequest = $state<AuthorizeRequest>();
 
 	$effect(() => {
-		if (!urlClientId) {
-			clientIdError = m.authorize_client_id_required();
-		} else {
-			clientIdError = undefined;
-		}
 		if (!urlResponseType) {
 			responseTypeError = m.authorize_response_type_required();
 		} else if (!RESPONSE_TYPES.includes(urlResponseType as never)) {
@@ -83,12 +77,12 @@
 		} else {
 			scopeError = undefined;
 		}
-		if (clientIdError || responseTypeError || responseModeError || redirectUriError || scopeError) {
+		if (responseTypeError || responseModeError || redirectUriError || scopeError) {
 			authorizeRequest = undefined;
 			return;
 		}
 		authorizeRequest = {
-			clientId: urlClientId!,
+			clientId: urlClientId ?? 'unknown',
 			responseType: urlResponseType as (typeof RESPONSE_TYPES)[number],
 			responseMode: urlResponseMode as (typeof RESPONSE_MODES)[number],
 			redirectUri: urlRedirectUri!,
@@ -126,9 +120,6 @@
 				<section>
 					<h5>{m.authorize_invalid_request()}</h5>
 					<ul class="list-inside list-disc space-y-1 text-sm">
-						{#if clientIdError}
-							<li><strong>{m.authorize_invalid_client_id_label()}</strong> {clientIdError}</li>
-						{/if}
 						{#if responseTypeError}
 							<li>
 								<strong>{m.authorize_invalid_response_type_label()}</strong>

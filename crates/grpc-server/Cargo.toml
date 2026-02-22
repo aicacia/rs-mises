@@ -1,12 +1,12 @@
 [package]
 name = "mises-grpc-server"
-edition = "2024"
 version = "0.1.0"
-authors = ["nathanfaucett@gmail.com"]
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 description = "Mises gRPC Server"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/aicacia/rs-mises"
-rust-version = "1.93"
 
 [lib]
 name = "mises_grpc_server"
@@ -42,7 +42,7 @@ chrono = { workspace = true, features = ["std"] }
 getrandom = { workspace = true, features = ["std"] }
 log = { workspace = true, features = ["std"] }
 url = { version = "2.5", default-features = false, features = ["std"] }
-uuid = { workspace = true, features = [] }
+uuid = { workspace = true, default-features = false, features = ["v7", "std"] }
 
 
 [dev-dependencies]

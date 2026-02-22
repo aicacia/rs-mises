@@ -269,7 +269,6 @@ async fn approval_nodes_and_edges_created() {
       .from(NodeQuery::any().filter(field("id").eq(request_id.to_string()))),
   );
   let elements = service.exec().query(query.clone()).await.unwrap();
-  eprintln!("approval edges after approve: {:?}", elements);
   let mut approval_nodes = Vec::new();
   for el in elements {
     if let Element::Edge(edge) = el {
@@ -316,7 +315,6 @@ async fn approval_nodes_and_edges_created() {
     tx.commit().await.unwrap();
 
     let elements = service.exec().query(query.clone()).await.unwrap();
-    eprintln!("approval edges after manual tx: {:?}", elements);
     approval_nodes.clear();
     for el in elements {
       if let Element::Edge(edge) = el {

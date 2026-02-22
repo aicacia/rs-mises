@@ -1,23 +1,14 @@
 #![cfg(feature = "in-memory")]
 
-use mises_core::service::identity::IdentityService;
 use mises_graph::Executor;
 
 mod common;
 
-use common::make_repo;
+use common::make_identity_service;
 
 #[tokio::test]
 async fn user_jwt_key_creation_and_retrieval() {
-  let repo = make_repo();
-  let graph_service = mises_core::service::graph::GraphService::new(repo.clone());
-
-  let opts = mises_core::service::graph::BootstrapOptions::builder("test-device")
-    .root_group_name("Everything")
-    .build();
-  graph_service.bootstrap(opts).await.expect("bootstrap");
-
-  let identity_service = IdentityService::new(repo.clone(), "test-device".to_string());
+  let (repo, identity_service) = make_identity_service().await;
 
   let (_user_node, key_node) = identity_service
     .create_user("testuser".to_string(), "hashed".to_string(), None)
@@ -78,18 +69,15 @@ async fn user_jwt_key_creation_and_retrieval() {
 
 #[tokio::test]
 async fn application_jwt_key_creation_and_retrieval() {
-  let repo = make_repo();
-  let graph_service = mises_core::service::graph::GraphService::new(repo.clone());
+  let (repo, identity_service) = make_identity_service().await;
 
-  let opts = mises_core::service::graph::BootstrapOptions::builder("test-device")
-    .root_group_name("Everything")
-    .build();
-  graph_service.bootstrap(opts).await.expect("bootstrap");
-
-  let identity_service = IdentityService::new(repo.clone(), "test-device".to_string());
+  let oidc_meta = mises_core::model::oidc::OidcClientMeta {
+    client_name: "test-app".to_string(),
+    ..Default::default()
+  };
 
   let (_app_node, key_node) = identity_service
-    .create_application("test-app".to_string(), None)
+    .create_application(None, oidc_meta)
     .await
     .expect("create app with key");
 
@@ -150,15 +138,7 @@ async fn jwt_signature_verification_fails_with_wrong_key() {
   use jsonwebtoken::{Algorithm, Header, Validation, decode, encode};
   use serde::{Deserialize, Serialize};
 
-  let repo = make_repo();
-  let graph_service = mises_core::service::graph::GraphService::new(repo.clone());
-
-  let opts = mises_core::service::graph::BootstrapOptions::builder("test-device")
-    .root_group_name("Everything")
-    .build();
-  graph_service.bootstrap(opts).await.expect("bootstrap");
-
-  let identity_service = IdentityService::new(repo.clone(), "test-device".to_string());
+  let (_repo, identity_service) = make_identity_service().await;
 
   let (user1, key_node1) = identity_service
     .create_user("user1".to_string(), "hashed".to_string(), None)
@@ -188,10 +168,7 @@ async fn jwt_signature_verification_fails_with_wrong_key() {
   }
 
   let encoding1 = key_meta1.jwt_encoding_key().expect("encoding key1");
-  let now = std::time::SystemTime::now()
-    .duration_since(std::time::UNIX_EPOCH)
-    .unwrap()
-    .as_secs() as i64;
+  let now = chrono::Utc::now().timestamp();
   let claims1 = TestClaims {
     sub: user1.id.to_string(),
     iat: now,
@@ -218,15 +195,7 @@ async fn jwt_verification_rejects_expired_token() {
   use jsonwebtoken::{Algorithm, Header, Validation, decode, encode};
   use serde::{Deserialize, Serialize};
 
-  let repo = make_repo();
-  let graph_service = mises_core::service::graph::GraphService::new(repo.clone());
-
-  let opts = mises_core::service::graph::BootstrapOptions::builder("test-device")
-    .root_group_name("Everything")
-    .build();
-  graph_service.bootstrap(opts).await.expect("bootstrap");
-
-  let identity_service = IdentityService::new(repo.clone(), "test-device".to_string());
+  let (repo, identity_service) = make_identity_service().await;
 
   let (user_node, key_node) = identity_service
     .create_user("testuser".to_string(), "hashed".to_string(), None)
@@ -246,10 +215,7 @@ async fn jwt_verification_rejects_expired_token() {
   }
 
   let encoding = key_meta.jwt_encoding_key().expect("encoding key");
-  let now = std::time::SystemTime::now()
-    .duration_since(std::time::UNIX_EPOCH)
-    .unwrap()
-    .as_secs() as i64;
+  let now = chrono::Utc::now().timestamp();
   let claims = TestClaims {
     sub: user_node.id.to_string(),
     iat: now - 7200,
@@ -284,15 +250,7 @@ async fn jwt_verification_rejects_expired_token() {
 
 #[tokio::test]
 async fn different_users_have_different_keys() {
-  let repo = make_repo();
-  let graph_service = mises_core::service::graph::GraphService::new(repo.clone());
-
-  let opts = mises_core::service::graph::BootstrapOptions::builder("test-device")
-    .root_group_name("Everything")
-    .build();
-  graph_service.bootstrap(opts).await.expect("bootstrap");
-
-  let identity_service = IdentityService::new(repo.clone(), "test-device".to_string());
+  let (_repo, identity_service) = make_identity_service().await;
 
   let (_user1, key_node1) = identity_service
     .create_user("user1".to_string(), "hashed".to_string(), None)
@@ -329,15 +287,7 @@ async fn jwt_token_can_be_verified_with_same_key() {
   use jsonwebtoken::{Algorithm, Header, Validation, decode, encode};
   use serde::{Deserialize, Serialize};
 
-  let repo = make_repo();
-  let graph_service = mises_core::service::graph::GraphService::new(repo.clone());
-
-  let opts = mises_core::service::graph::BootstrapOptions::builder("test-device")
-    .root_group_name("Everything")
-    .build();
-  graph_service.bootstrap(opts).await.expect("bootstrap");
-
-  let identity_service = IdentityService::new(repo.clone(), "test-device".to_string());
+  let (_repo, identity_service) = make_identity_service().await;
 
   let (user_node, key_node) = identity_service
     .create_user("testuser".to_string(), "hashed".to_string(), None)
@@ -357,10 +307,7 @@ async fn jwt_token_can_be_verified_with_same_key() {
   }
 
   let encoding = key_meta.jwt_encoding_key().expect("encoding key");
-  let now = std::time::SystemTime::now()
-    .duration_since(std::time::UNIX_EPOCH)
-    .unwrap()
-    .as_secs() as i64;
+  let now = chrono::Utc::now().timestamp();
   let claims = TestClaims {
     sub: user_node.id.to_string(),
     iat: now,

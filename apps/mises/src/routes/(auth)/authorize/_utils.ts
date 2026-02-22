@@ -1,5 +1,5 @@
-import { oidcClient } from "$lib/common/util/grpcClient";
-import type { AuthorizeRequest, Client, ClientRegisterRequest } from "$lib/proto/mises";
+import { oidcClient } from '$lib/common/util/grpcClient';
+import type { AuthorizeRequest, Client, ClientRegisterRequest } from '$lib/proto/mises';
 
 export type ClientInfo = ClientRegisterRequest;
 

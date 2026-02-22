@@ -3,13 +3,18 @@ use url::Url;
 use uuid::Uuid;
 
 use mises_core::{
-  model::{identity::IdentityMeta, node::NodeMeta},
+  model::{
+    identity::IdentityMeta,
+    node::NodeMeta,
+    oidc::{ResponseType, TokenEndpointAuthMethod},
+  },
   service::identity::IdentityService,
   traits::Repository,
 };
 use mises_graph::KeyValueStoreExecutor;
 
 use crate::{
+  helpers::ResultExt,
   jwt::Claims,
   oidc_service::{
     authorization_code::{
@@ -36,8 +41,7 @@ impl AuthorizeError {
   }
 
   fn to_response(&self) -> Result<mises_proto::AuthorizeResponse, Status> {
-    let mut url = Url::parse(&self.redirect_uri)
-      .map_err(|_| Status::internal("failed to parse redirect url"))?;
+    let mut url = Url::parse(&self.redirect_uri).or_internal("failed to parse redirect url")?;
     {
       let mut query_pairs = url.query_pairs_mut();
       query_pairs.append_pair("error", &self.error);
@@ -65,8 +69,7 @@ where
 {
   if claims.is_none() {
     if let Some(sign_in_url_str) = sign_in_url {
-      let mut sign_in_redirect =
-        Url::parse(sign_in_url_str).map_err(|_| Status::internal("invalid sign-in url"))?;
+      let mut sign_in_redirect = Url::parse(sign_in_url_str).or_internal("invalid sign-in url")?;
       {
         let mut query_pairs = sign_in_redirect.query_pairs_mut();
         if !req.client_id.trim().is_empty() {
@@ -139,14 +142,7 @@ where
 
   let client = match &node.metadata {
     NodeMeta::Identity(identity) => match identity.as_ref() {
-      IdentityMeta::Application { oidc, .. } => match oidc.as_ref() {
-        Some(oidc_meta) => oidc_meta.clone(),
-        None => {
-          return Err(Status::invalid_argument(
-            "invalid client_id: not an OIDC client",
-          ));
-        }
-      },
+      IdentityMeta::Application { oidc } => oidc.as_ref().clone(),
       _ => {
         return Err(Status::invalid_argument(
           "invalid client_id: not an application",
@@ -217,7 +213,7 @@ where
     .any(|s| s == constants::RESPONSE_TYPE_CODE);
   let client_is_public = matches!(
     client.token_endpoint_auth_method,
-    mises_core::model::oidc::TokenEndpointAuthMethod::None
+    TokenEndpointAuthMethod::None
   );
 
   if code_requested {
@@ -321,7 +317,7 @@ where
     if !client
       .response_types
       .iter()
-      .any(|rt: &mises_core::model::oidc::ResponseType| rt.as_str() == part)
+      .any(|rt: &ResponseType| rt.as_str() == part)
     {
       let err = AuthorizeError::new(
         "unauthorized_client",

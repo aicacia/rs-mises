@@ -1,57 +1,35 @@
 use alloc::{boxed::Box, string::String};
-use core::{
-  error::Error,
-  fmt::{self, Display, Formatter},
-};
+use core::error::Error;
+
+use serde_json::Error as SerdeError;
 
 use mises_graph::GraphError;
 use mises_key::KeyError;
-use serde_json::Error as SerdeError;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum InvalidInput {
+  #[error("failed to serialize {0}")]
   SerializationFailed(String),
+  #[error("{0}")]
   Other(String),
 }
 
-impl Display for InvalidInput {
-  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    match self {
-      InvalidInput::SerializationFailed(s) => write!(f, "failed to serialize {}", s),
-      InvalidInput::Other(s) => write!(f, "{}", s),
-    }
-  }
-}
-
-impl core::error::Error for InvalidInput {}
-
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum CoreError {
-  Graph(GraphError),
-  Key(KeyError),
-  Serde(SerdeError),
+  #[error("graph error: {0}")]
+  Graph(#[from] GraphError),
+  #[error("key error: {0}")]
+  Key(#[from] KeyError),
+  #[error("serde error: {0}")]
+  Serde(#[from] SerdeError),
+  #[error("not found")]
   NotFound,
+  #[error("conflict")]
   Conflict,
+  #[error("invalid input: {0}")]
   InvalidInput(InvalidInput),
+  #[error(transparent)]
   Other(Box<dyn Error + Send + Sync>),
-}
-
-impl From<GraphError> for CoreError {
-  fn from(e: GraphError) -> Self {
-    CoreError::Graph(e)
-  }
-}
-
-impl From<KeyError> for CoreError {
-  fn from(e: KeyError) -> Self {
-    CoreError::Key(e)
-  }
-}
-
-impl From<SerdeError> for CoreError {
-  fn from(e: SerdeError) -> Self {
-    CoreError::Serde(e)
-  }
 }
 
 impl CoreError {
@@ -62,21 +40,5 @@ impl CoreError {
     CoreError::Other(Box::new(e))
   }
 }
-
-impl Display for CoreError {
-  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    match self {
-      CoreError::Graph(e) => write!(f, "graph error: {}", e),
-      CoreError::Key(e) => write!(f, "key error: {}", e),
-      CoreError::Serde(e) => write!(f, "serde error: {}", e),
-      CoreError::NotFound => write!(f, "not found"),
-      CoreError::Conflict => write!(f, "conflict"),
-      CoreError::InvalidInput(s) => write!(f, "invalid input: {}", s),
-      CoreError::Other(e) => write!(f, "other error: {}", e),
-    }
-  }
-}
-
-impl Error for CoreError {}
 
 pub type Result<T> = core::result::Result<T, CoreError>;

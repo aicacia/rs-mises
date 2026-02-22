@@ -2,14 +2,19 @@ use tonic::Status;
 use uuid::Uuid;
 
 use mises_core::{
-  model::{identity::IdentityMeta, node::NodeMeta},
+  error::CoreError,
+  model::{
+    identity::{IdentityMeta, IdentityType},
+    node::NodeMeta,
+  },
   service::identity::IdentityService,
   traits::Repository,
 };
 
 use crate::{
   error::ToStatus,
-  oidc_service::helpers::{ensure_application_identity, ensure_service_owns_application},
+  helpers::{OptionExt, ResultExt},
+  oidc_service::helpers::ensure_service_owns_application,
 };
 
 pub async fn client_register<R>(
@@ -22,14 +27,13 @@ where
 {
   let client_id = request
     .client_id
-    .clone()
     .and_then(|id| if id.trim().is_empty() { None } else { Some(id) });
 
   let service_id = request
     .service_id
     .clone()
     .filter(|id| !id.trim().is_empty())
-    .ok_or_else(|| Status::invalid_argument("missing service_id"))?;
+    .or_invalid_argument("missing service_id")?;
 
   let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
 
@@ -40,12 +44,52 @@ where
     .ok_or_else(|| Status::invalid_argument(format!("service_id not found: {}", service_id)))?;
   let service_uuid = service_node.id;
 
+  let is_new_client;
   let app_node = if let Some(ref id_str) = client_id {
-    let client_uuid =
-      Uuid::parse_str(id_str).map_err(|_| Status::invalid_argument("invalid client_id format"))?;
-    let app_node = ensure_application_identity(&identity_service, client_uuid).await?;
-    ensure_service_owns_application(&identity_service, service_uuid, app_node.id).await?;
-    app_node
+    let client_uuid = Uuid::parse_str(id_str).or_invalid_argument("invalid client_id format")?;
+
+    match identity_service
+      .get_node_by_id_and_identity_type(client_uuid, IdentityType::Application)
+      .await
+    {
+      Ok(existing_node) => {
+        ensure_service_owns_application(&identity_service, service_uuid, existing_node.id).await?;
+        is_new_client = false;
+        existing_node
+      }
+      Err(CoreError::NotFound) => {
+        let app_name = request
+          .name
+          .clone()
+          .filter(|n| !n.trim().is_empty())
+          .unwrap_or_else(|| "OIDC Client".to_string());
+
+        let mut oidc_meta = mises_core::model::oidc::OidcClientMeta {
+          client_name: app_name.clone(),
+          ..Default::default()
+        };
+        oidc_meta.client_id = client_uuid.to_string();
+
+        let (app_node, _key_node) = identity_service
+          .create_application(Some(client_uuid), oidc_meta)
+          .await
+          .map_err(|e| e.to_status())?;
+
+        identity_service
+          .set_owner(service_uuid, app_node.id)
+          .await
+          .map_err(|e| e.to_status())?;
+
+        is_new_client = true;
+        app_node
+      }
+      Err(CoreError::InvalidInput(_)) => {
+        return Err(Status::invalid_argument(
+          "invalid_request: client_id does not refer to an application",
+        ));
+      }
+      Err(e) => return Err(Status::internal(format!("identity service error: {}", e))),
+    }
   } else {
     let app_name = request
       .name
@@ -53,8 +97,13 @@ where
       .filter(|n| !n.trim().is_empty())
       .unwrap_or_else(|| "OIDC Client".to_string());
 
+    let oidc_meta = mises_core::model::oidc::OidcClientMeta {
+      client_name: app_name.clone(),
+      ..Default::default()
+    };
+
     let (app_node, _key_node) = identity_service
-      .create_application(app_name, None)
+      .create_application(None, oidc_meta)
       .await
       .map_err(|e| e.to_status())?;
 
@@ -63,29 +112,29 @@ where
       .await
       .map_err(|e| e.to_status())?;
 
+    is_new_client = true;
     app_node
   };
 
   let app_id = app_node.id;
 
   let current_oidc = if let NodeMeta::Identity(identity_meta) = &app_node.metadata {
-    if let IdentityMeta::Application { oidc, .. } = identity_meta.as_ref() {
+    if let IdentityMeta::Application { oidc } = identity_meta.as_ref() {
       oidc.as_ref().clone()
     } else {
-      None
+      Default::default()
     }
   } else {
-    None
+    Default::default()
   };
 
-  let mut oidc_meta = current_oidc.unwrap_or_default();
+  let mut oidc_meta = current_oidc;
 
-  if oidc_meta.client_id.is_none() {
-    oidc_meta.client_id = Some(app_id.to_string());
-  }
-
-  if let Some(secret) = request.client_secret.filter(|s| !s.trim().is_empty()) {
-    oidc_meta.client_secret = Some(secret);
+  if is_new_client {
+    if oidc_meta.client_id.is_empty() {
+      oidc_meta.client_id = app_id.to_string();
+    }
+    oidc_meta.client_secret = Uuid::new_v4().to_string();
   }
 
   if !request.redirect_uris.is_empty() {
@@ -127,16 +176,7 @@ where
   }
 
   let updated_identity = IdentityMeta::Application {
-    name: if let NodeMeta::Identity(identity_meta) = &app_node.metadata {
-      if let IdentityMeta::Application { name, .. } = identity_meta.as_ref() {
-        name.clone()
-      } else {
-        "OIDC Client".to_string()
-      }
-    } else {
-      "OIDC Client".to_string()
-    },
-    oidc: Box::new(Some(oidc_meta.clone())),
+    oidc: Box::new(oidc_meta.clone()),
   };
 
   repo
@@ -146,8 +186,16 @@ where
 
   Ok(mises_proto::Client {
     id: app_id.to_string(),
-    client_id: oidc_meta.client_id.unwrap_or_else(|| app_id.to_string()),
-    client_secret: oidc_meta.client_secret,
+    client_id: if oidc_meta.client_id.is_empty() {
+      app_id.to_string()
+    } else {
+      oidc_meta.client_id
+    },
+    client_secret: if oidc_meta.client_secret.is_empty() {
+      None
+    } else {
+      Some(oidc_meta.client_secret)
+    },
     name: if oidc_meta.client_name.is_empty() {
       None
     } else {

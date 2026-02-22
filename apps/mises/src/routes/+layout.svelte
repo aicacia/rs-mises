@@ -24,23 +24,30 @@
 		document.body.classList.add('hydrated');
 
 		let onOpenUrlUnlistenFn: UnlistenFn | undefined;
-		onOpenUrl(async (urlStrings) => {
-			if (urlStrings.length > 0) {
-				const urlString = urlStrings[0];
-				const url = new URL(urlString);
 
-				switch (url.hostname) {
-					case 'authorize': {
-						await goto(resolve('/(auth)/authorize') + url.search);
-						break;
-					}
-					default: {
-						console.warn(`Unknown deep link: ${urlString}`);
-						break;
-					}
+		const handleDeepLink = async (urlStrings: string[]) => {
+			const [urlString] = urlStrings;
+			if (!urlString) {
+				return;
+			}
+
+			const url = new URL(urlString);
+
+			switch (url.hostname) {
+				case 'authorize': {
+					const authorizePath = resolve('/(auth)/authorize');
+					// eslint-disable-next-line svelte/no-navigation-without-resolve
+					await goto(`${authorizePath}${url.search}`);
+					break;
+				}
+				default: {
+					console.warn(`Unknown deep link: ${urlString}`);
+					break;
 				}
 			}
-		}).then((unlisten) => {
+		};
+
+		onOpenUrl(handleDeepLink).then((unlisten) => {
 			onOpenUrlUnlistenFn = unlisten;
 		});
 

@@ -346,8 +346,8 @@ impl FromStr for JweEnc {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub struct OidcClientMeta {
-  pub client_id: Option<String>,
-  pub client_secret: Option<String>,
+  pub client_id: String,
+  pub client_secret: String,
   #[serde(default)]
   pub redirect_uris: Vec<String>,
   #[serde(default)]

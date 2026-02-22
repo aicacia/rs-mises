@@ -1,5 +1,5 @@
 use alloc::{boxed::Box, collections::BTreeMap, sync::Arc, vec::Vec};
-use core::{error::Error, fmt, ops::RangeBounds};
+use core::ops::RangeBounds;
 
 use parking_lot::RwLock;
 
@@ -35,20 +35,11 @@ impl InMemoryKeyValueStore {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum InMemoryKeyValueError {
+  #[error("An unexpected error occurred")]
   UnexpectedError,
 }
-
-impl fmt::Display for InMemoryKeyValueError {
-  fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-      Self::UnexpectedError => write!(_f, "An unexpected error occurred"),
-    }
-  }
-}
-
-impl Error for InMemoryKeyValueError {}
 
 #[async_trait::async_trait]
 impl KeyValueStoreExecutor for InMemoryKeyValueStore {
@@ -372,7 +363,7 @@ mod tests {
   async fn test_get_batch() {
     let store = InMemoryKeyValueStore::new();
     let keys = vec![b"key1".to_vec(), b"key2".to_vec(), b"key3".to_vec()];
-    let values: alloc::vec::Vec<alloc::vec::Vec<u8>> = [vec![1, 2], vec![3, 4], vec![5, 6]].into();
+    let values: Vec<Vec<u8>> = [vec![1, 2], vec![3, 4], vec![5, 6]].into();
 
     for (key, value) in keys.iter().zip(values.iter()) {
       store.put(key.clone(), value.clone()).await.unwrap();

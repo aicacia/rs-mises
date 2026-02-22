@@ -2793,6 +2793,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "parking_lot",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
@@ -2812,6 +2813,7 @@ dependencies = [
  "rust-argon2",
  "serde",
  "serde_json",
+ "thiserror 2.0.18",
  "tokio",
  "uuid",
 ]
@@ -2827,6 +2829,7 @@ dependencies = [
  "parking_lot",
  "serde",
  "serde_json",
+ "thiserror 2.0.18",
  "tokio",
  "uuid",
 ]
@@ -2870,6 +2873,7 @@ dependencies = [
  "serde_json",
  "slip10",
  "tempfile",
+ "thiserror 2.0.18",
  "tokio",
  "zeroize",
 ]

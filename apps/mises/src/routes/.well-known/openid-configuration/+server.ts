@@ -23,7 +23,7 @@ export async function GET() {
 			'authorization_code',
 			'refresh_token',
 			'client_credentials',
-			'urn:ietf:params:oauth:grant-type:device_code',
+			'urn:ietf:params:oauth:grant-type:device_code'
 		],
 		token_endpoint_auth_methods_supported: ['none', 'client_secret_basic', 'client_secret_post'],
 		token_endpoint_auth_signing_alg_values_supported: ['EdDSA'],
@@ -46,7 +46,7 @@ export async function GET() {
 			'preferred_username',
 			'email',
 			'email_verified',
-			'picture',
+			'picture'
 		],
 		claims_parameter_supported: true,
 		request_parameter_supported: true,
@@ -55,6 +55,6 @@ export async function GET() {
 		frontchannel_logout_supported: false,
 		frontchannel_logout_session_supported: false,
 		backchannel_logout_supported: false,
-		backchannel_logout_session_supported: false,
+		backchannel_logout_session_supported: false
 	});
 }

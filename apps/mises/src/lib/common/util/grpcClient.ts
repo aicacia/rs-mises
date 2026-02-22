@@ -1,4 +1,8 @@
-import { ClientServiceDefinition, ConfigurationServiceDefinition, OidcServiceDefinition } from '$lib/proto/mises';
+import {
+	ClientServiceDefinition,
+	ConfigurationServiceDefinition,
+	OidcServiceDefinition
+} from '$lib/proto/mises';
 import { channel } from './channel';
 import { once } from './once';
 import { createClientFactory, Metadata, type ClientMiddleware } from 'nice-grpc-web';

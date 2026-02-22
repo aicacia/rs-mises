@@ -1,12 +1,12 @@
 [package]
 name = "mises-graph"
-edition = "2024"
 version = "0.1.0"
-authors = ["nathanfaucett@gmail.com"]
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 description = "Mises Graph"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/aicacia/rs-mises"
-rust-version = "1.93"
 
 [lib]
 name = "mises_graph"
@@ -17,6 +17,9 @@ mises-async-kv-bytes = { path = "../async-kv-bytes", default-features = false }
 
 # Async
 async-trait = { workspace = true, features = [] }
+
+# Error Handling
+thiserror = { version = "2.0", default-features = false }
 
 # Serialization
 serde = { workspace = true, features = ["derive", "alloc"] }

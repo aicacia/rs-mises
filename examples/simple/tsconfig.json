@@ -8,11 +8,7 @@
 		"declarationMap": true,
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
-		"lib": [
-			"ES2020",
-			"DOM",
-			"DOM.Iterable"
-		],
+		"lib": ["ES2020", "DOM", "DOM.Iterable"],
 		"moduleResolution": "bundler",
 		"noUncheckedIndexedAccess": true,
 		"resolveJsonModule": true,

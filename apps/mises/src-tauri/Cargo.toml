@@ -1,9 +1,9 @@
 [package]
 name = "mises-tauri"
 version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
 description = "MISES: Mesh Identity and Security Enforcement System Tauri Application"
-authors = ["nathanfaucett@gmail.com"]
-edition = "2024"
 
 [lib]
 name = "mises_lib"

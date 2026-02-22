@@ -1,31 +1,17 @@
 #![cfg(feature = "in-memory")]
 
-extern crate alloc;
-
-use alloc::sync::Arc;
-use core::sync::atomic::{AtomicU64, Ordering};
-
-use mises_graph::{EdgeQuery, Element, Executor, IdGenerator, NodeQuery, Query, field};
+use mises_graph::{EdgeQuery, Element, Executor, NodeQuery, Query, field};
 use serde_json::json;
 
-#[derive(Clone)]
-struct U64Generator(Arc<AtomicU64>);
-impl U64Generator {
-  fn new() -> Self {
-    Self(Arc::new(AtomicU64::new(1)))
-  }
-}
-impl IdGenerator<u64> for U64Generator {
-  fn next(&self) -> u64 {
-    self.0.fetch_add(1, Ordering::SeqCst)
-  }
-}
+mod common;
+
+use common::U64Generator;
 
 #[tokio::test]
 async fn edge_query_filters_by_node_id() {
   use mises_graph::InMemoryKeyValueRepository;
   type Repo = InMemoryKeyValueRepository<u64, serde_json::Value, serde_json::Value, U64Generator>;
-  let repo = Repo::new_in_memory(U64Generator::new());
+  let repo = Repo::new_in_memory(U64Generator::new_u64());
 
   let n1 = repo
     .create_node("identity".to_string(), json!({ "name": "n1" }))
@@ -38,6 +24,10 @@ async fn edge_query_filters_by_node_id() {
 
   let _edge = repo
     .create_edge("TEST_EDGE".to_string(), n1.id, n2.id, json!({ "at": 1 }))
+    .await
+    .unwrap();
+  let _other_edge = repo
+    .create_edge("TEST_EDGE".to_string(), n2.id, n1.id, json!({ "at": 2 }))
     .await
     .unwrap();
 
@@ -53,8 +43,22 @@ async fn edge_query_filters_by_node_id() {
 
   let elements = repo.query(query).await.unwrap();
   eprintln!("elements: {:?}", elements);
-  let found = elements
+  let edges: Vec<_> = elements
     .into_iter()
-    .any(|el| matches!(el, Element::Edge(_)));
-  assert!(found, "expected to find edge via node id filter");
+    .filter_map(|el| match el {
+      Element::Edge(edge) => Some(edge),
+      _ => None,
+    })
+    .collect();
+  assert_eq!(edges.len(), 1, "expected exactly one edge after filtering");
+  assert_eq!(edges[0].from_id, n1.id);
+
+  let negative = Query::edges(
+    EdgeQuery::outgoing("TEST_EDGE").from(NodeQuery::any().filter(field("id").eq(999_u64))),
+  );
+  let negative_elements = repo.query(negative).await.unwrap();
+  assert!(
+    negative_elements.is_empty(),
+    "expected no edges for unknown node id"
+  );
 }

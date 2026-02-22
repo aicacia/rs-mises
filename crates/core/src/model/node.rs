@@ -17,29 +17,46 @@ use crate::model::{
   resource::ResourceMeta,
 };
 
+/// Graph node metadata representing different entity types in the system.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum NodeMeta {
+  /// Identity metadata (user, group, device, etc.)
   Identity(Box<IdentityMeta>),
+  /// Cryptographic key metadata
   Key(KeyMeta),
+  /// Resource metadata
   Resource(ResourceMeta),
+  /// Access policy metadata
   Policy(PolicyMeta),
+  /// Request metadata
   Request(Request),
+  /// Request approval metadata
   Approval(Approval),
+  /// Request denial metadata
   Denial(Denial),
 }
 
+/// Enumeration of node types available in the graph.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum NodeType {
+  /// Identity node (user, group, device, etc.)
   Identity,
+  /// Cryptographic key node
   Key,
+  /// Resource node
   Resource,
+  /// Access policy node
   Policy,
+  /// Request node
   Request,
+  /// Request approval node
   Approval,
+  /// Request denial node
   Denial,
 }
 
 impl NodeType {
+  /// Get the string representation of this node type.
   pub fn as_str(&self) -> &'static str {
     match self {
       NodeType::Identity => "Identity",

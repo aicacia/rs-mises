@@ -10,5 +10,5 @@
 </script>
 
 <form onsubmit={onSubmit} class="flex flex-col">
-	<input class="btn primary mt-4" type="submit" value="Sign in" />
+	<input class="btn primary" type="submit" value="Sign in" />
 </form>

@@ -7,7 +7,11 @@ use mises_core::{
   traits::Repository,
 };
 
-use crate::{error::ToStatus, jwt::Claims};
+use crate::{
+  error::ToStatus,
+  helpers::{OptionExt, ResultExt},
+  jwt::Claims,
+};
 
 pub async fn get_user_info<R>(
   repo: &R,
@@ -17,11 +21,9 @@ pub async fn get_user_info<R>(
 where
   R: Repository + Clone + Send + Sync + 'static,
 {
-  let claims = claims
-    .ok_or_else(|| Status::unauthenticated("authorization required: bearer token not provided"))?;
+  let claims = claims.or_unauthenticated("authorization required: bearer token not provided")?;
 
-  let user_id =
-    Uuid::parse_str(&claims.sub).map_err(|_| Status::internal("invalid subject in token"))?;
+  let user_id = Uuid::parse_str(&claims.sub).or_internal("invalid subject in token")?;
 
   let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
 

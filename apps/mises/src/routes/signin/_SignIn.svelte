@@ -11,21 +11,15 @@
 				v.minLength(1, m.errors_message_password_min_length({ characters: 1 }))
 			)
 		});
-
-	export interface SignInProps {
-		configuration: Configuration;
-	}
 </script>
 
 <script lang="ts">
 	import { createForm } from '@aicacia/svelte-forms';
 	import Issues from '$lib/common/components/Issues.svelte';
 	import { oidcClient } from '$lib/common/util/grpcClient';
-	import type { Configuration } from '$lib/proto/mises';
 	import { setTokenResponse } from '$lib/common/state/auth.svelte';
 	import { afterSigninRedirect } from '$lib/common/state/afterSignInRedirectPath.svelte';
-
-	const { configuration }: SignInProps = $props();
+	import { isTauri } from '@tauri-apps/api/core';
 
 	const form = createForm(SignInSchema(), {
 		username: '',
@@ -42,6 +36,7 @@
 		}
 		const token = await oidcClient().token({
 			password: {
+				clientId: isTauri() ? 'mises-desktop' : 'mises-web',
 				username: output.username,
 				password: output.password,
 				scope: 'openid profile email'
@@ -55,7 +50,7 @@
 	async function onDeviceSubmit() {
 		const token = await oidcClient().token({
 			deviceCredentials: {
-				clientId: configuration.clientId,
+				clientId: isTauri() ? 'mises-desktop' : 'mises-web',
 				scope: 'openid'
 			}
 		});

@@ -6,8 +6,9 @@ use alloc::{
 };
 
 use chrono::{DateTime, Utc};
-use mises_graph::{EdgeQuery, Element, Executor, NodeQuery, Query, Transaction, field};
 use uuid::Uuid;
+
+use mises_graph::{EdgeQuery, Element, Executor, NodeQuery, Query, Transaction, field};
 
 use crate::{
   CoreError, InvalidInput, Result,
@@ -250,13 +251,16 @@ where
     );
 
     let elements = self.exec.query(check_query).await?;
+    let mut existing_approval_count = 0usize;
     for el in elements {
       if let Element::Edge(edge) = el
         && let Some(approval_node) = self.exec.get_node_by_id(edge.to_id).await?
         && let NodeMeta::Approval(approval) = approval_node.metadata
-        && approval.approver == approver_id
       {
-        return Ok(());
+        if approval.approver == approver_id {
+          return Ok(());
+        }
+        existing_approval_count += 1;
       }
     }
 
@@ -290,21 +294,7 @@ where
     )
     .await?;
 
-    let approval_count = {
-      let count_query = Query::edges(
-        EdgeQuery::outgoing(EdgeType::HasApproval.as_str())
-          .from(NodeQuery::any().filter(field("id").eq(node.id.to_string()))),
-      );
-
-      let elements = tx.query(count_query).await?;
-      let mut count = 0usize;
-      for el in elements {
-        if let Element::Edge(_) = el {
-          count += 1;
-        }
-      }
-      count
-    };
+    let approval_count = existing_approval_count + 1;
 
     if approval_count >= request.quorum {
       request.status = RequestStatus::Approved;

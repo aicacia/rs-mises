@@ -1,5 +1,7 @@
 #![cfg(feature = "in-memory")]
 
+use uuid::Uuid;
+
 use mises_core::{
   model::{
     keys::KeyMeta,
@@ -9,7 +11,6 @@ use mises_core::{
 };
 use mises_graph::Executor;
 use mises_key::Key;
-use uuid::Uuid;
 
 mod common;
 

@@ -3,8 +3,9 @@ use alloc::{format, string::String};
 use base64::{Engine, prelude::BASE64_URL_SAFE};
 use ed25519_dalek::pkcs8::EncodePrivateKey;
 use jsonwebtoken::{DecodingKey, EncodingKey};
-use mises_key::Key;
 use serde::{Deserialize, Serialize};
+
+use mises_key::Key;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
