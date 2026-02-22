@@ -1,14 +1,14 @@
 <script lang="ts" module>
-	const RESPONSE_TYPES = Object.values(ResponseType);
-	const RESPONSE_MODES = Object.values(ResponseMode);
+	const RESPONSE_TYPES = ['id_token', 'token', 'code'] as const;
+	const RESPONSE_MODES = ['query', 'fragment', 'form_post'] as const;
 </script>
 
 <script lang="ts">
 	import { page } from '$app/state';
 	import { m } from '$lib/paraglide/messages';
-	import { type AuthorizeRequest, ResponseMode, ResponseType } from '$lib/common/openapi/oidc';
+	import type { AuthorizeRequest } from '$lib/proto/mises.js';
 	import Authorize from './_Authorize.svelte';
-	import { ClientInfoFromJSON, rejectAuthorizeRequest, type ClientInfo } from './_utils';
+	import { rejectAuthorizeRequest, type ClientInfo } from './_utils';
 
 	let { data } = $props();
 
@@ -19,19 +19,23 @@
 	let urlResponseMode = $derived(page.url.searchParams.get('response_mode'));
 	let urlScope = $derived(page.url.searchParams.get('scope'));
 	let urlRedirectUri = $derived(page.url.searchParams.get('redirect_uri'));
-	let urlState = $derived(page.url.searchParams.get('state'));
-	let urlNonce = $derived(page.url.searchParams.get('nonce'));
-	let urlRegistration = $derived(page.url.searchParams.get('registration'));
-	let urlCodeChallenge = $derived(page.url.searchParams.get('code_challenge'));
-	let urlCodeChallengeMethod = $derived(page.url.searchParams.get('code_challenge_method'));
+	let urlState = $derived(page.url.searchParams.get('state') ?? undefined);
+	let urlNonce = $derived(page.url.searchParams.get('nonce') ?? undefined);
+	let urlRegistration = $derived(page.url.searchParams.get('registration') ?? undefined);
+	let urlCodeChallenge = $derived(page.url.searchParams.get('code_challenge') ?? undefined);
+	let urlCodeChallengeMethod = $derived(
+		page.url.searchParams.get('code_challenge_method') ?? undefined
+	);
 
 	let clientInfo = $state<ClientInfo | null>(null);
 
 	$effect(() => {
 		if (urlRegistration) {
 			try {
-				clientInfo = ClientInfoFromJSON(JSON.parse(urlRegistration));
-			} catch (_e) {}
+				clientInfo = JSON.parse(urlRegistration) as ClientInfo;
+			} catch {
+				clientInfo = null;
+			}
 		}
 	});
 
@@ -85,8 +89,8 @@
 		}
 		authorizeRequest = {
 			clientId: urlClientId!,
-			responseType: urlResponseType as ResponseType,
-			responseMode: urlResponseMode as ResponseMode,
+			responseType: urlResponseType as (typeof RESPONSE_TYPES)[number],
+			responseMode: urlResponseMode as (typeof RESPONSE_MODES)[number],
 			redirectUri: urlRedirectUri!,
 			scope: urlScope!,
 			state: urlState,

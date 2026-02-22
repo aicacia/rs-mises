@@ -12,10 +12,11 @@ rust-version = "1.93"
 name = "mises_proto"
 
 [dependencies]
-tonic = { workspace = true, features = ["codegen"] }
+# gRPC
 prost = { workspace = true, features = [] }
-tonic-prost = { workspace = true, features = [] }
 prost-types = { workspace = true, features = [] }
+tonic = { workspace = true, features = ["codegen"] }
+tonic-prost = { workspace = true, features = [] }
 
 [build-dependencies]
 tonic-prost-build = { version = "0.14", default-features = false }
@@ -27,5 +28,5 @@ tonic-prost-build = { version = "0.14", default-features = false }
 ignored = ["prost", "tonic-prost"]
 
 [features]
-file-descriptor-set = []
 default = ["file-descriptor-set"]
+file-descriptor-set = []

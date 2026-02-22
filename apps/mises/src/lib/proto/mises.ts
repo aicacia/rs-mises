@@ -188,6 +188,39 @@ export interface ClientRegisterRequest {
   tokenEndpointAuthMethod?: string | undefined;
   applicationUrn?: string | undefined;
   serviceId?: string | undefined;
+  requirePkce?: boolean | undefined;
+  applicationType?: string | undefined;
+  contacts: string[];
+  clientUri?: string | undefined;
+  logoUri?: string | undefined;
+  policyUri?: string | undefined;
+  tosUri?: string | undefined;
+  jwksUri?: string | undefined;
+  jwks?: string | undefined;
+  sectorIdentifierUri?: string | undefined;
+  subjectType?: string | undefined;
+  idTokenSignedResponseAlg?: string | undefined;
+  idTokenEncryptedResponseAlg?: string | undefined;
+  idTokenEncryptedResponseEnc?: string | undefined;
+  userinfoSignedResponseAlg?: string | undefined;
+  userinfoEncryptedResponseAlg?: string | undefined;
+  userinfoEncryptedResponseEnc?: string | undefined;
+  requestObjectSigningAlg?: string | undefined;
+  requestObjectEncryptionAlg?: string | undefined;
+  requestObjectEncryptionEnc?: string | undefined;
+  tokenEndpointAuthSigningAlg?: string | undefined;
+  defaultMaxAge?: number | undefined;
+  requireAuthTime?: boolean | undefined;
+  defaultAcrValues: string[];
+  initiateLoginUri?: string | undefined;
+  requestUris: string[];
+  postLogoutRedirectUris: string[];
+  frontchannelLogoutUri?: string | undefined;
+  frontchannelLogoutSessionRequired?: boolean | undefined;
+  backchannelLogoutUri?: string | undefined;
+  backchannelLogoutSessionRequired?: boolean | undefined;
+  accessTokenExpiry?: number | undefined;
+  refreshTokenExpiry?: number | undefined;
 }
 
 export interface NativeAuthenticateRequest {
@@ -211,6 +244,40 @@ export interface Client {
   responseTypes: string[];
   scope?: string | undefined;
   tokenEndpointAuthMethod?: string | undefined;
+  requirePkce?: boolean | undefined;
+  applicationType?: string | undefined;
+  contacts: string[];
+  applicationUrn?: string | undefined;
+  clientUri?: string | undefined;
+  logoUri?: string | undefined;
+  policyUri?: string | undefined;
+  tosUri?: string | undefined;
+  jwksUri?: string | undefined;
+  jwks?: string | undefined;
+  sectorIdentifierUri?: string | undefined;
+  subjectType?: string | undefined;
+  idTokenSignedResponseAlg?: string | undefined;
+  idTokenEncryptedResponseAlg?: string | undefined;
+  idTokenEncryptedResponseEnc?: string | undefined;
+  userinfoSignedResponseAlg?: string | undefined;
+  userinfoEncryptedResponseAlg?: string | undefined;
+  userinfoEncryptedResponseEnc?: string | undefined;
+  requestObjectSigningAlg?: string | undefined;
+  requestObjectEncryptionAlg?: string | undefined;
+  requestObjectEncryptionEnc?: string | undefined;
+  tokenEndpointAuthSigningAlg?: string | undefined;
+  defaultMaxAge?: number | undefined;
+  requireAuthTime?: boolean | undefined;
+  defaultAcrValues: string[];
+  initiateLoginUri?: string | undefined;
+  requestUris: string[];
+  postLogoutRedirectUris: string[];
+  frontchannelLogoutUri?: string | undefined;
+  frontchannelLogoutSessionRequired?: boolean | undefined;
+  backchannelLogoutUri?: string | undefined;
+  backchannelLogoutSessionRequired?: boolean | undefined;
+  accessTokenExpiry?: number | undefined;
+  refreshTokenExpiry?: number | undefined;
 }
 
 export interface EndSessionRequest {
@@ -319,6 +386,23 @@ export interface Configuration {
   serviceId: string;
   clientId: string;
   publicUri?: string | undefined;
+}
+
+export interface GetClientRequest {
+  clientId: string;
+}
+
+export interface IsAllowedForUserRequest {
+  clientId: string;
+  scope: string[];
+}
+
+export interface ClientAllowed {
+  scopes: string[];
+}
+
+export interface ApproveForUserRequest {
+  clientId: string;
 }
 
 function createBaseAuthorizeRequest(): AuthorizeRequest {
@@ -2108,6 +2192,39 @@ function createBaseClientRegisterRequest(): ClientRegisterRequest {
     tokenEndpointAuthMethod: undefined,
     applicationUrn: undefined,
     serviceId: undefined,
+    requirePkce: undefined,
+    applicationType: undefined,
+    contacts: [],
+    clientUri: undefined,
+    logoUri: undefined,
+    policyUri: undefined,
+    tosUri: undefined,
+    jwksUri: undefined,
+    jwks: undefined,
+    sectorIdentifierUri: undefined,
+    subjectType: undefined,
+    idTokenSignedResponseAlg: undefined,
+    idTokenEncryptedResponseAlg: undefined,
+    idTokenEncryptedResponseEnc: undefined,
+    userinfoSignedResponseAlg: undefined,
+    userinfoEncryptedResponseAlg: undefined,
+    userinfoEncryptedResponseEnc: undefined,
+    requestObjectSigningAlg: undefined,
+    requestObjectEncryptionAlg: undefined,
+    requestObjectEncryptionEnc: undefined,
+    tokenEndpointAuthSigningAlg: undefined,
+    defaultMaxAge: undefined,
+    requireAuthTime: undefined,
+    defaultAcrValues: [],
+    initiateLoginUri: undefined,
+    requestUris: [],
+    postLogoutRedirectUris: [],
+    frontchannelLogoutUri: undefined,
+    frontchannelLogoutSessionRequired: undefined,
+    backchannelLogoutUri: undefined,
+    backchannelLogoutSessionRequired: undefined,
+    accessTokenExpiry: undefined,
+    refreshTokenExpiry: undefined,
   };
 }
 
@@ -2142,6 +2259,105 @@ export const ClientRegisterRequest: MessageFns<ClientRegisterRequest> = {
     }
     if (message.serviceId !== undefined) {
       writer.uint32(82).string(message.serviceId);
+    }
+    if (message.requirePkce !== undefined) {
+      writer.uint32(88).bool(message.requirePkce);
+    }
+    if (message.applicationType !== undefined) {
+      writer.uint32(98).string(message.applicationType);
+    }
+    for (const v of message.contacts) {
+      writer.uint32(106).string(v!);
+    }
+    if (message.clientUri !== undefined) {
+      writer.uint32(114).string(message.clientUri);
+    }
+    if (message.logoUri !== undefined) {
+      writer.uint32(122).string(message.logoUri);
+    }
+    if (message.policyUri !== undefined) {
+      writer.uint32(130).string(message.policyUri);
+    }
+    if (message.tosUri !== undefined) {
+      writer.uint32(138).string(message.tosUri);
+    }
+    if (message.jwksUri !== undefined) {
+      writer.uint32(146).string(message.jwksUri);
+    }
+    if (message.jwks !== undefined) {
+      writer.uint32(154).string(message.jwks);
+    }
+    if (message.sectorIdentifierUri !== undefined) {
+      writer.uint32(162).string(message.sectorIdentifierUri);
+    }
+    if (message.subjectType !== undefined) {
+      writer.uint32(170).string(message.subjectType);
+    }
+    if (message.idTokenSignedResponseAlg !== undefined) {
+      writer.uint32(178).string(message.idTokenSignedResponseAlg);
+    }
+    if (message.idTokenEncryptedResponseAlg !== undefined) {
+      writer.uint32(186).string(message.idTokenEncryptedResponseAlg);
+    }
+    if (message.idTokenEncryptedResponseEnc !== undefined) {
+      writer.uint32(194).string(message.idTokenEncryptedResponseEnc);
+    }
+    if (message.userinfoSignedResponseAlg !== undefined) {
+      writer.uint32(202).string(message.userinfoSignedResponseAlg);
+    }
+    if (message.userinfoEncryptedResponseAlg !== undefined) {
+      writer.uint32(210).string(message.userinfoEncryptedResponseAlg);
+    }
+    if (message.userinfoEncryptedResponseEnc !== undefined) {
+      writer.uint32(218).string(message.userinfoEncryptedResponseEnc);
+    }
+    if (message.requestObjectSigningAlg !== undefined) {
+      writer.uint32(226).string(message.requestObjectSigningAlg);
+    }
+    if (message.requestObjectEncryptionAlg !== undefined) {
+      writer.uint32(234).string(message.requestObjectEncryptionAlg);
+    }
+    if (message.requestObjectEncryptionEnc !== undefined) {
+      writer.uint32(242).string(message.requestObjectEncryptionEnc);
+    }
+    if (message.tokenEndpointAuthSigningAlg !== undefined) {
+      writer.uint32(250).string(message.tokenEndpointAuthSigningAlg);
+    }
+    if (message.defaultMaxAge !== undefined) {
+      writer.uint32(256).uint64(message.defaultMaxAge);
+    }
+    if (message.requireAuthTime !== undefined) {
+      writer.uint32(264).bool(message.requireAuthTime);
+    }
+    for (const v of message.defaultAcrValues) {
+      writer.uint32(274).string(v!);
+    }
+    if (message.initiateLoginUri !== undefined) {
+      writer.uint32(282).string(message.initiateLoginUri);
+    }
+    for (const v of message.requestUris) {
+      writer.uint32(290).string(v!);
+    }
+    for (const v of message.postLogoutRedirectUris) {
+      writer.uint32(298).string(v!);
+    }
+    if (message.frontchannelLogoutUri !== undefined) {
+      writer.uint32(306).string(message.frontchannelLogoutUri);
+    }
+    if (message.frontchannelLogoutSessionRequired !== undefined) {
+      writer.uint32(312).bool(message.frontchannelLogoutSessionRequired);
+    }
+    if (message.backchannelLogoutUri !== undefined) {
+      writer.uint32(322).string(message.backchannelLogoutUri);
+    }
+    if (message.backchannelLogoutSessionRequired !== undefined) {
+      writer.uint32(328).bool(message.backchannelLogoutSessionRequired);
+    }
+    if (message.accessTokenExpiry !== undefined) {
+      writer.uint32(336).uint64(message.accessTokenExpiry);
+    }
+    if (message.refreshTokenExpiry !== undefined) {
+      writer.uint32(344).uint64(message.refreshTokenExpiry);
     }
     return writer;
   },
@@ -2233,6 +2449,270 @@ export const ClientRegisterRequest: MessageFns<ClientRegisterRequest> = {
           message.serviceId = reader.string();
           continue;
         }
+        case 11: {
+          if (tag !== 88) {
+            break;
+          }
+
+          message.requirePkce = reader.bool();
+          continue;
+        }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.applicationType = reader.string();
+          continue;
+        }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.contacts.push(reader.string());
+          continue;
+        }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.clientUri = reader.string();
+          continue;
+        }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.logoUri = reader.string();
+          continue;
+        }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.policyUri = reader.string();
+          continue;
+        }
+        case 17: {
+          if (tag !== 138) {
+            break;
+          }
+
+          message.tosUri = reader.string();
+          continue;
+        }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
+
+          message.jwksUri = reader.string();
+          continue;
+        }
+        case 19: {
+          if (tag !== 154) {
+            break;
+          }
+
+          message.jwks = reader.string();
+          continue;
+        }
+        case 20: {
+          if (tag !== 162) {
+            break;
+          }
+
+          message.sectorIdentifierUri = reader.string();
+          continue;
+        }
+        case 21: {
+          if (tag !== 170) {
+            break;
+          }
+
+          message.subjectType = reader.string();
+          continue;
+        }
+        case 22: {
+          if (tag !== 178) {
+            break;
+          }
+
+          message.idTokenSignedResponseAlg = reader.string();
+          continue;
+        }
+        case 23: {
+          if (tag !== 186) {
+            break;
+          }
+
+          message.idTokenEncryptedResponseAlg = reader.string();
+          continue;
+        }
+        case 24: {
+          if (tag !== 194) {
+            break;
+          }
+
+          message.idTokenEncryptedResponseEnc = reader.string();
+          continue;
+        }
+        case 25: {
+          if (tag !== 202) {
+            break;
+          }
+
+          message.userinfoSignedResponseAlg = reader.string();
+          continue;
+        }
+        case 26: {
+          if (tag !== 210) {
+            break;
+          }
+
+          message.userinfoEncryptedResponseAlg = reader.string();
+          continue;
+        }
+        case 27: {
+          if (tag !== 218) {
+            break;
+          }
+
+          message.userinfoEncryptedResponseEnc = reader.string();
+          continue;
+        }
+        case 28: {
+          if (tag !== 226) {
+            break;
+          }
+
+          message.requestObjectSigningAlg = reader.string();
+          continue;
+        }
+        case 29: {
+          if (tag !== 234) {
+            break;
+          }
+
+          message.requestObjectEncryptionAlg = reader.string();
+          continue;
+        }
+        case 30: {
+          if (tag !== 242) {
+            break;
+          }
+
+          message.requestObjectEncryptionEnc = reader.string();
+          continue;
+        }
+        case 31: {
+          if (tag !== 250) {
+            break;
+          }
+
+          message.tokenEndpointAuthSigningAlg = reader.string();
+          continue;
+        }
+        case 32: {
+          if (tag !== 256) {
+            break;
+          }
+
+          message.defaultMaxAge = longToNumber(reader.uint64());
+          continue;
+        }
+        case 33: {
+          if (tag !== 264) {
+            break;
+          }
+
+          message.requireAuthTime = reader.bool();
+          continue;
+        }
+        case 34: {
+          if (tag !== 274) {
+            break;
+          }
+
+          message.defaultAcrValues.push(reader.string());
+          continue;
+        }
+        case 35: {
+          if (tag !== 282) {
+            break;
+          }
+
+          message.initiateLoginUri = reader.string();
+          continue;
+        }
+        case 36: {
+          if (tag !== 290) {
+            break;
+          }
+
+          message.requestUris.push(reader.string());
+          continue;
+        }
+        case 37: {
+          if (tag !== 298) {
+            break;
+          }
+
+          message.postLogoutRedirectUris.push(reader.string());
+          continue;
+        }
+        case 38: {
+          if (tag !== 306) {
+            break;
+          }
+
+          message.frontchannelLogoutUri = reader.string();
+          continue;
+        }
+        case 39: {
+          if (tag !== 312) {
+            break;
+          }
+
+          message.frontchannelLogoutSessionRequired = reader.bool();
+          continue;
+        }
+        case 40: {
+          if (tag !== 322) {
+            break;
+          }
+
+          message.backchannelLogoutUri = reader.string();
+          continue;
+        }
+        case 41: {
+          if (tag !== 328) {
+            break;
+          }
+
+          message.backchannelLogoutSessionRequired = reader.bool();
+          continue;
+        }
+        case 42: {
+          if (tag !== 336) {
+            break;
+          }
+
+          message.accessTokenExpiry = longToNumber(reader.uint64());
+          continue;
+        }
+        case 43: {
+          if (tag !== 344) {
+            break;
+          }
+
+          message.refreshTokenExpiry = longToNumber(reader.uint64());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2257,6 +2737,39 @@ export const ClientRegisterRequest: MessageFns<ClientRegisterRequest> = {
     message.tokenEndpointAuthMethod = object.tokenEndpointAuthMethod ?? undefined;
     message.applicationUrn = object.applicationUrn ?? undefined;
     message.serviceId = object.serviceId ?? undefined;
+    message.requirePkce = object.requirePkce ?? undefined;
+    message.applicationType = object.applicationType ?? undefined;
+    message.contacts = object.contacts?.map((e) => e) || [];
+    message.clientUri = object.clientUri ?? undefined;
+    message.logoUri = object.logoUri ?? undefined;
+    message.policyUri = object.policyUri ?? undefined;
+    message.tosUri = object.tosUri ?? undefined;
+    message.jwksUri = object.jwksUri ?? undefined;
+    message.jwks = object.jwks ?? undefined;
+    message.sectorIdentifierUri = object.sectorIdentifierUri ?? undefined;
+    message.subjectType = object.subjectType ?? undefined;
+    message.idTokenSignedResponseAlg = object.idTokenSignedResponseAlg ?? undefined;
+    message.idTokenEncryptedResponseAlg = object.idTokenEncryptedResponseAlg ?? undefined;
+    message.idTokenEncryptedResponseEnc = object.idTokenEncryptedResponseEnc ?? undefined;
+    message.userinfoSignedResponseAlg = object.userinfoSignedResponseAlg ?? undefined;
+    message.userinfoEncryptedResponseAlg = object.userinfoEncryptedResponseAlg ?? undefined;
+    message.userinfoEncryptedResponseEnc = object.userinfoEncryptedResponseEnc ?? undefined;
+    message.requestObjectSigningAlg = object.requestObjectSigningAlg ?? undefined;
+    message.requestObjectEncryptionAlg = object.requestObjectEncryptionAlg ?? undefined;
+    message.requestObjectEncryptionEnc = object.requestObjectEncryptionEnc ?? undefined;
+    message.tokenEndpointAuthSigningAlg = object.tokenEndpointAuthSigningAlg ?? undefined;
+    message.defaultMaxAge = object.defaultMaxAge ?? undefined;
+    message.requireAuthTime = object.requireAuthTime ?? undefined;
+    message.defaultAcrValues = object.defaultAcrValues?.map((e) => e) || [];
+    message.initiateLoginUri = object.initiateLoginUri ?? undefined;
+    message.requestUris = object.requestUris?.map((e) => e) || [];
+    message.postLogoutRedirectUris = object.postLogoutRedirectUris?.map((e) => e) || [];
+    message.frontchannelLogoutUri = object.frontchannelLogoutUri ?? undefined;
+    message.frontchannelLogoutSessionRequired = object.frontchannelLogoutSessionRequired ?? undefined;
+    message.backchannelLogoutUri = object.backchannelLogoutUri ?? undefined;
+    message.backchannelLogoutSessionRequired = object.backchannelLogoutSessionRequired ?? undefined;
+    message.accessTokenExpiry = object.accessTokenExpiry ?? undefined;
+    message.refreshTokenExpiry = object.refreshTokenExpiry ?? undefined;
     return message;
   },
 };
@@ -2342,6 +2855,40 @@ function createBaseClient(): Client {
     responseTypes: [],
     scope: undefined,
     tokenEndpointAuthMethod: undefined,
+    requirePkce: undefined,
+    applicationType: undefined,
+    contacts: [],
+    applicationUrn: undefined,
+    clientUri: undefined,
+    logoUri: undefined,
+    policyUri: undefined,
+    tosUri: undefined,
+    jwksUri: undefined,
+    jwks: undefined,
+    sectorIdentifierUri: undefined,
+    subjectType: undefined,
+    idTokenSignedResponseAlg: undefined,
+    idTokenEncryptedResponseAlg: undefined,
+    idTokenEncryptedResponseEnc: undefined,
+    userinfoSignedResponseAlg: undefined,
+    userinfoEncryptedResponseAlg: undefined,
+    userinfoEncryptedResponseEnc: undefined,
+    requestObjectSigningAlg: undefined,
+    requestObjectEncryptionAlg: undefined,
+    requestObjectEncryptionEnc: undefined,
+    tokenEndpointAuthSigningAlg: undefined,
+    defaultMaxAge: undefined,
+    requireAuthTime: undefined,
+    defaultAcrValues: [],
+    initiateLoginUri: undefined,
+    requestUris: [],
+    postLogoutRedirectUris: [],
+    frontchannelLogoutUri: undefined,
+    frontchannelLogoutSessionRequired: undefined,
+    backchannelLogoutUri: undefined,
+    backchannelLogoutSessionRequired: undefined,
+    accessTokenExpiry: undefined,
+    refreshTokenExpiry: undefined,
   };
 }
 
@@ -2373,6 +2920,108 @@ export const Client: MessageFns<Client> = {
     }
     if (message.tokenEndpointAuthMethod !== undefined) {
       writer.uint32(74).string(message.tokenEndpointAuthMethod);
+    }
+    if (message.requirePkce !== undefined) {
+      writer.uint32(80).bool(message.requirePkce);
+    }
+    if (message.applicationType !== undefined) {
+      writer.uint32(90).string(message.applicationType);
+    }
+    for (const v of message.contacts) {
+      writer.uint32(98).string(v!);
+    }
+    if (message.applicationUrn !== undefined) {
+      writer.uint32(106).string(message.applicationUrn);
+    }
+    if (message.clientUri !== undefined) {
+      writer.uint32(114).string(message.clientUri);
+    }
+    if (message.logoUri !== undefined) {
+      writer.uint32(122).string(message.logoUri);
+    }
+    if (message.policyUri !== undefined) {
+      writer.uint32(130).string(message.policyUri);
+    }
+    if (message.tosUri !== undefined) {
+      writer.uint32(138).string(message.tosUri);
+    }
+    if (message.jwksUri !== undefined) {
+      writer.uint32(146).string(message.jwksUri);
+    }
+    if (message.jwks !== undefined) {
+      writer.uint32(154).string(message.jwks);
+    }
+    if (message.sectorIdentifierUri !== undefined) {
+      writer.uint32(162).string(message.sectorIdentifierUri);
+    }
+    if (message.subjectType !== undefined) {
+      writer.uint32(170).string(message.subjectType);
+    }
+    if (message.idTokenSignedResponseAlg !== undefined) {
+      writer.uint32(178).string(message.idTokenSignedResponseAlg);
+    }
+    if (message.idTokenEncryptedResponseAlg !== undefined) {
+      writer.uint32(186).string(message.idTokenEncryptedResponseAlg);
+    }
+    if (message.idTokenEncryptedResponseEnc !== undefined) {
+      writer.uint32(194).string(message.idTokenEncryptedResponseEnc);
+    }
+    if (message.userinfoSignedResponseAlg !== undefined) {
+      writer.uint32(202).string(message.userinfoSignedResponseAlg);
+    }
+    if (message.userinfoEncryptedResponseAlg !== undefined) {
+      writer.uint32(210).string(message.userinfoEncryptedResponseAlg);
+    }
+    if (message.userinfoEncryptedResponseEnc !== undefined) {
+      writer.uint32(218).string(message.userinfoEncryptedResponseEnc);
+    }
+    if (message.requestObjectSigningAlg !== undefined) {
+      writer.uint32(226).string(message.requestObjectSigningAlg);
+    }
+    if (message.requestObjectEncryptionAlg !== undefined) {
+      writer.uint32(234).string(message.requestObjectEncryptionAlg);
+    }
+    if (message.requestObjectEncryptionEnc !== undefined) {
+      writer.uint32(242).string(message.requestObjectEncryptionEnc);
+    }
+    if (message.tokenEndpointAuthSigningAlg !== undefined) {
+      writer.uint32(250).string(message.tokenEndpointAuthSigningAlg);
+    }
+    if (message.defaultMaxAge !== undefined) {
+      writer.uint32(256).uint64(message.defaultMaxAge);
+    }
+    if (message.requireAuthTime !== undefined) {
+      writer.uint32(264).bool(message.requireAuthTime);
+    }
+    for (const v of message.defaultAcrValues) {
+      writer.uint32(274).string(v!);
+    }
+    if (message.initiateLoginUri !== undefined) {
+      writer.uint32(282).string(message.initiateLoginUri);
+    }
+    for (const v of message.requestUris) {
+      writer.uint32(290).string(v!);
+    }
+    for (const v of message.postLogoutRedirectUris) {
+      writer.uint32(298).string(v!);
+    }
+    if (message.frontchannelLogoutUri !== undefined) {
+      writer.uint32(306).string(message.frontchannelLogoutUri);
+    }
+    if (message.frontchannelLogoutSessionRequired !== undefined) {
+      writer.uint32(312).bool(message.frontchannelLogoutSessionRequired);
+    }
+    if (message.backchannelLogoutUri !== undefined) {
+      writer.uint32(322).string(message.backchannelLogoutUri);
+    }
+    if (message.backchannelLogoutSessionRequired !== undefined) {
+      writer.uint32(328).bool(message.backchannelLogoutSessionRequired);
+    }
+    if (message.accessTokenExpiry !== undefined) {
+      writer.uint32(336).uint64(message.accessTokenExpiry);
+    }
+    if (message.refreshTokenExpiry !== undefined) {
+      writer.uint32(344).uint64(message.refreshTokenExpiry);
     }
     return writer;
   },
@@ -2456,6 +3105,278 @@ export const Client: MessageFns<Client> = {
           message.tokenEndpointAuthMethod = reader.string();
           continue;
         }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.requirePkce = reader.bool();
+          continue;
+        }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.applicationType = reader.string();
+          continue;
+        }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.contacts.push(reader.string());
+          continue;
+        }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.applicationUrn = reader.string();
+          continue;
+        }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.clientUri = reader.string();
+          continue;
+        }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.logoUri = reader.string();
+          continue;
+        }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.policyUri = reader.string();
+          continue;
+        }
+        case 17: {
+          if (tag !== 138) {
+            break;
+          }
+
+          message.tosUri = reader.string();
+          continue;
+        }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
+
+          message.jwksUri = reader.string();
+          continue;
+        }
+        case 19: {
+          if (tag !== 154) {
+            break;
+          }
+
+          message.jwks = reader.string();
+          continue;
+        }
+        case 20: {
+          if (tag !== 162) {
+            break;
+          }
+
+          message.sectorIdentifierUri = reader.string();
+          continue;
+        }
+        case 21: {
+          if (tag !== 170) {
+            break;
+          }
+
+          message.subjectType = reader.string();
+          continue;
+        }
+        case 22: {
+          if (tag !== 178) {
+            break;
+          }
+
+          message.idTokenSignedResponseAlg = reader.string();
+          continue;
+        }
+        case 23: {
+          if (tag !== 186) {
+            break;
+          }
+
+          message.idTokenEncryptedResponseAlg = reader.string();
+          continue;
+        }
+        case 24: {
+          if (tag !== 194) {
+            break;
+          }
+
+          message.idTokenEncryptedResponseEnc = reader.string();
+          continue;
+        }
+        case 25: {
+          if (tag !== 202) {
+            break;
+          }
+
+          message.userinfoSignedResponseAlg = reader.string();
+          continue;
+        }
+        case 26: {
+          if (tag !== 210) {
+            break;
+          }
+
+          message.userinfoEncryptedResponseAlg = reader.string();
+          continue;
+        }
+        case 27: {
+          if (tag !== 218) {
+            break;
+          }
+
+          message.userinfoEncryptedResponseEnc = reader.string();
+          continue;
+        }
+        case 28: {
+          if (tag !== 226) {
+            break;
+          }
+
+          message.requestObjectSigningAlg = reader.string();
+          continue;
+        }
+        case 29: {
+          if (tag !== 234) {
+            break;
+          }
+
+          message.requestObjectEncryptionAlg = reader.string();
+          continue;
+        }
+        case 30: {
+          if (tag !== 242) {
+            break;
+          }
+
+          message.requestObjectEncryptionEnc = reader.string();
+          continue;
+        }
+        case 31: {
+          if (tag !== 250) {
+            break;
+          }
+
+          message.tokenEndpointAuthSigningAlg = reader.string();
+          continue;
+        }
+        case 32: {
+          if (tag !== 256) {
+            break;
+          }
+
+          message.defaultMaxAge = longToNumber(reader.uint64());
+          continue;
+        }
+        case 33: {
+          if (tag !== 264) {
+            break;
+          }
+
+          message.requireAuthTime = reader.bool();
+          continue;
+        }
+        case 34: {
+          if (tag !== 274) {
+            break;
+          }
+
+          message.defaultAcrValues.push(reader.string());
+          continue;
+        }
+        case 35: {
+          if (tag !== 282) {
+            break;
+          }
+
+          message.initiateLoginUri = reader.string();
+          continue;
+        }
+        case 36: {
+          if (tag !== 290) {
+            break;
+          }
+
+          message.requestUris.push(reader.string());
+          continue;
+        }
+        case 37: {
+          if (tag !== 298) {
+            break;
+          }
+
+          message.postLogoutRedirectUris.push(reader.string());
+          continue;
+        }
+        case 38: {
+          if (tag !== 306) {
+            break;
+          }
+
+          message.frontchannelLogoutUri = reader.string();
+          continue;
+        }
+        case 39: {
+          if (tag !== 312) {
+            break;
+          }
+
+          message.frontchannelLogoutSessionRequired = reader.bool();
+          continue;
+        }
+        case 40: {
+          if (tag !== 322) {
+            break;
+          }
+
+          message.backchannelLogoutUri = reader.string();
+          continue;
+        }
+        case 41: {
+          if (tag !== 328) {
+            break;
+          }
+
+          message.backchannelLogoutSessionRequired = reader.bool();
+          continue;
+        }
+        case 42: {
+          if (tag !== 336) {
+            break;
+          }
+
+          message.accessTokenExpiry = longToNumber(reader.uint64());
+          continue;
+        }
+        case 43: {
+          if (tag !== 344) {
+            break;
+          }
+
+          message.refreshTokenExpiry = longToNumber(reader.uint64());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2479,6 +3400,40 @@ export const Client: MessageFns<Client> = {
     message.responseTypes = object.responseTypes?.map((e) => e) || [];
     message.scope = object.scope ?? undefined;
     message.tokenEndpointAuthMethod = object.tokenEndpointAuthMethod ?? undefined;
+    message.requirePkce = object.requirePkce ?? undefined;
+    message.applicationType = object.applicationType ?? undefined;
+    message.contacts = object.contacts?.map((e) => e) || [];
+    message.applicationUrn = object.applicationUrn ?? undefined;
+    message.clientUri = object.clientUri ?? undefined;
+    message.logoUri = object.logoUri ?? undefined;
+    message.policyUri = object.policyUri ?? undefined;
+    message.tosUri = object.tosUri ?? undefined;
+    message.jwksUri = object.jwksUri ?? undefined;
+    message.jwks = object.jwks ?? undefined;
+    message.sectorIdentifierUri = object.sectorIdentifierUri ?? undefined;
+    message.subjectType = object.subjectType ?? undefined;
+    message.idTokenSignedResponseAlg = object.idTokenSignedResponseAlg ?? undefined;
+    message.idTokenEncryptedResponseAlg = object.idTokenEncryptedResponseAlg ?? undefined;
+    message.idTokenEncryptedResponseEnc = object.idTokenEncryptedResponseEnc ?? undefined;
+    message.userinfoSignedResponseAlg = object.userinfoSignedResponseAlg ?? undefined;
+    message.userinfoEncryptedResponseAlg = object.userinfoEncryptedResponseAlg ?? undefined;
+    message.userinfoEncryptedResponseEnc = object.userinfoEncryptedResponseEnc ?? undefined;
+    message.requestObjectSigningAlg = object.requestObjectSigningAlg ?? undefined;
+    message.requestObjectEncryptionAlg = object.requestObjectEncryptionAlg ?? undefined;
+    message.requestObjectEncryptionEnc = object.requestObjectEncryptionEnc ?? undefined;
+    message.tokenEndpointAuthSigningAlg = object.tokenEndpointAuthSigningAlg ?? undefined;
+    message.defaultMaxAge = object.defaultMaxAge ?? undefined;
+    message.requireAuthTime = object.requireAuthTime ?? undefined;
+    message.defaultAcrValues = object.defaultAcrValues?.map((e) => e) || [];
+    message.initiateLoginUri = object.initiateLoginUri ?? undefined;
+    message.requestUris = object.requestUris?.map((e) => e) || [];
+    message.postLogoutRedirectUris = object.postLogoutRedirectUris?.map((e) => e) || [];
+    message.frontchannelLogoutUri = object.frontchannelLogoutUri ?? undefined;
+    message.frontchannelLogoutSessionRequired = object.frontchannelLogoutSessionRequired ?? undefined;
+    message.backchannelLogoutUri = object.backchannelLogoutUri ?? undefined;
+    message.backchannelLogoutSessionRequired = object.backchannelLogoutSessionRequired ?? undefined;
+    message.accessTokenExpiry = object.accessTokenExpiry ?? undefined;
+    message.refreshTokenExpiry = object.refreshTokenExpiry ?? undefined;
     return message;
   },
 };
@@ -3616,6 +4571,202 @@ export const Configuration: MessageFns<Configuration> = {
   },
 };
 
+function createBaseGetClientRequest(): GetClientRequest {
+  return { clientId: "" };
+}
+
+export const GetClientRequest: MessageFns<GetClientRequest> = {
+  encode(message: GetClientRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.clientId !== "") {
+      writer.uint32(10).string(message.clientId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetClientRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetClientRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<GetClientRequest>): GetClientRequest {
+    return GetClientRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetClientRequest>): GetClientRequest {
+    const message = createBaseGetClientRequest();
+    message.clientId = object.clientId ?? "";
+    return message;
+  },
+};
+
+function createBaseIsAllowedForUserRequest(): IsAllowedForUserRequest {
+  return { clientId: "", scope: [] };
+}
+
+export const IsAllowedForUserRequest: MessageFns<IsAllowedForUserRequest> = {
+  encode(message: IsAllowedForUserRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.clientId !== "") {
+      writer.uint32(10).string(message.clientId);
+    }
+    for (const v of message.scope) {
+      writer.uint32(18).string(v!);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): IsAllowedForUserRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseIsAllowedForUserRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.scope.push(reader.string());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<IsAllowedForUserRequest>): IsAllowedForUserRequest {
+    return IsAllowedForUserRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<IsAllowedForUserRequest>): IsAllowedForUserRequest {
+    const message = createBaseIsAllowedForUserRequest();
+    message.clientId = object.clientId ?? "";
+    message.scope = object.scope?.map((e) => e) || [];
+    return message;
+  },
+};
+
+function createBaseClientAllowed(): ClientAllowed {
+  return { scopes: [] };
+}
+
+export const ClientAllowed: MessageFns<ClientAllowed> = {
+  encode(message: ClientAllowed, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.scopes) {
+      writer.uint32(10).string(v!);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ClientAllowed {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseClientAllowed();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.scopes.push(reader.string());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<ClientAllowed>): ClientAllowed {
+    return ClientAllowed.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ClientAllowed>): ClientAllowed {
+    const message = createBaseClientAllowed();
+    message.scopes = object.scopes?.map((e) => e) || [];
+    return message;
+  },
+};
+
+function createBaseApproveForUserRequest(): ApproveForUserRequest {
+  return { clientId: "" };
+}
+
+export const ApproveForUserRequest: MessageFns<ApproveForUserRequest> = {
+  encode(message: ApproveForUserRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.clientId !== "") {
+      writer.uint32(10).string(message.clientId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ApproveForUserRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseApproveForUserRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.clientId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<ApproveForUserRequest>): ApproveForUserRequest {
+    return ApproveForUserRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ApproveForUserRequest>): ApproveForUserRequest {
+    const message = createBaseApproveForUserRequest();
+    message.clientId = object.clientId ?? "";
+    return message;
+  },
+};
+
 /** ---- OIDC service and messages ---- */
 export type OidcServiceDefinition = typeof OidcServiceDefinition;
 export const OidcServiceDefinition = {
@@ -3836,6 +4987,56 @@ export interface ConfigurationServiceImplementation<CallContextExt = {}> {
 
 export interface ConfigurationServiceClient<CallOptionsExt = {}> {
   get(request: DeepPartial<Empty>, options?: CallOptions & CallOptionsExt): Promise<Configuration>;
+}
+
+export type ClientServiceDefinition = typeof ClientServiceDefinition;
+export const ClientServiceDefinition = {
+  name: "ClientService",
+  fullName: "mises.ClientService",
+  methods: {
+    get: {
+      name: "Get",
+      requestType: GetClientRequest,
+      requestStream: false,
+      responseType: Client,
+      responseStream: false,
+      options: {},
+    },
+    isAllowedForUser: {
+      name: "IsAllowedForUser",
+      requestType: IsAllowedForUserRequest,
+      requestStream: false,
+      responseType: ClientAllowed,
+      responseStream: false,
+      options: {},
+    },
+    approveForUser: {
+      name: "ApproveForUser",
+      requestType: ApproveForUserRequest,
+      requestStream: false,
+      responseType: Empty,
+      responseStream: false,
+      options: {},
+    },
+  },
+} as const;
+
+export interface ClientServiceImplementation<CallContextExt = {}> {
+  get(request: GetClientRequest, context: CallContext & CallContextExt): Promise<DeepPartial<Client>>;
+  isAllowedForUser(
+    request: IsAllowedForUserRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ClientAllowed>>;
+  approveForUser(request: ApproveForUserRequest, context: CallContext & CallContextExt): Promise<DeepPartial<Empty>>;
+}
+
+export interface ClientServiceClient<CallOptionsExt = {}> {
+  get(request: DeepPartial<GetClientRequest>, options?: CallOptions & CallOptionsExt): Promise<Client>;
+  isAllowedForUser(
+    request: DeepPartial<IsAllowedForUserRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ClientAllowed>;
+  approveForUser(request: DeepPartial<ApproveForUserRequest>, options?: CallOptions & CallOptionsExt): Promise<Empty>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

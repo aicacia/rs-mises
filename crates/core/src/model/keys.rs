@@ -1,22 +1,17 @@
 use alloc::{format, string::String};
 
 use base64::{Engine, prelude::BASE64_URL_SAFE};
-use ed25519_dalek::pkcs8::{EncodePrivateKey, EncodePublicKey};
+use ed25519_dalek::pkcs8::EncodePrivateKey;
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use mises_key::Key;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum KeyMaterial {
+  #[default]
   Seed,
   Ed25519Secret,
-}
-
-impl Default for KeyMaterial {
-  fn default() -> Self {
-    Self::Seed
-  }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -66,10 +61,8 @@ impl TryFrom<KeyMeta> for Key {
       };
 
       if km.derivation_path.is_empty() {
-        // Terminal key: the seed IS the final key, no re-derivation needed
         Key::from_master_seed_bytes(bytes)
       } else {
-        // Master or intermediate key: re-derive to the stored path
         let base_key = Key::from_master_seed_bytes(bytes)?;
         base_key.child_from_derivation_path(&km.derivation_path)
       }
@@ -130,7 +123,6 @@ impl KeyMeta {
       )));
     }
 
-    // Note: DecodingKey::from_ed_der() accepts raw 32-byte Ed25519 public key bytes in the crate version we're using
     Ok(DecodingKey::from_ed_der(&public_key_bytes))
   }
 

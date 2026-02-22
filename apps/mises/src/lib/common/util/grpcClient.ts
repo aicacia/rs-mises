@@ -1,4 +1,4 @@
-import { ConfigurationServiceDefinition, OidcServiceDefinition } from '$lib/proto/mises';
+import { ClientServiceDefinition, ConfigurationServiceDefinition, OidcServiceDefinition } from '$lib/proto/mises';
 import { channel } from './channel';
 import { once } from './once';
 import { createClientFactory, Metadata, type ClientMiddleware } from 'nice-grpc-web';
@@ -23,3 +23,4 @@ export const configurationClient = once(() =>
 	clientFactory().create(ConfigurationServiceDefinition, channel())
 );
 export const oidcClient = once(() => clientFactory().create(OidcServiceDefinition, channel()));
+export const clientClient = once(() => clientFactory().create(ClientServiceDefinition, channel()));

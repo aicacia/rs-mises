@@ -120,9 +120,7 @@ where
     oidc_meta.token_endpoint_auth_method = method;
   }
 
-  if let Some(application_urn) = request.application_urn.filter(|u| !u.trim().is_empty()) {
-    oidc_meta.application_urn = application_urn;
-  }
+  oidc_meta.service_id = service_id;
 
   if let Some(name) = request.name.filter(|n| !n.trim().is_empty()) {
     oidc_meta.client_name = name;
@@ -172,5 +170,39 @@ where
       Some(oidc_meta.scope)
     },
     token_endpoint_auth_method: Some(oidc_meta.token_endpoint_auth_method.as_str().to_string()),
+    require_pkce: None,
+    application_type: None,
+    contacts: vec![],
+    service_id: Some(oidc_meta.service_id),
+    client_uri: None,
+    logo_uri: None,
+    policy_uri: None,
+    tos_uri: None,
+    jwks_uri: None,
+    jwks: None,
+    sector_identifier_uri: None,
+    subject_type: None,
+    id_token_signed_response_alg: None,
+    id_token_encrypted_response_alg: None,
+    id_token_encrypted_response_enc: None,
+    userinfo_signed_response_alg: None,
+    userinfo_encrypted_response_alg: None,
+    userinfo_encrypted_response_enc: None,
+    request_object_signing_alg: None,
+    request_object_encryption_alg: None,
+    request_object_encryption_enc: None,
+    token_endpoint_auth_signing_alg: None,
+    default_max_age: None,
+    require_auth_time: None,
+    default_acr_values: vec![],
+    initiate_login_uri: None,
+    request_uris: vec![],
+    post_logout_redirect_uris: vec![],
+    frontchannel_logout_uri: None,
+    frontchannel_logout_session_required: None,
+    backchannel_logout_uri: None,
+    backchannel_logout_session_required: None,
+    access_token_expiry: None,
+    refresh_token_expiry: None,
   })
 }

@@ -1,11 +1,12 @@
 packages:
   - apps/*
   - packages/*
+  - examples/*
 
 onlyBuiltDependencies:
-  - '@nestjs/core'
-  - '@openapitools/openapi-generator-cli'
-  - '@tailwindcss/oxide'
+  - "@nestjs/core"
+  - "@openapitools/openapi-generator-cli"
+  - "@tailwindcss/oxide"
   - cbor-extract
   - esbuild
   - grpc-tools

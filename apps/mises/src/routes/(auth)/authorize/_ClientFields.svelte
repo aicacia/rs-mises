@@ -16,7 +16,7 @@
 	<section>
 		<h5>{m.authorize_scopes_label()}</h5>
 		<ul class="list-inside list-disc space-y-1 text-sm">
-			{#each client.scopes as s}
+			{#each client.scopes as s (s)}
 				<li>{s}</li>
 			{/each}
 		</ul>
@@ -27,7 +27,7 @@
 	<section>
 		<h5>{m.authorize_redirect_uris_label()}</h5>
 		<ul class="list-inside list-disc space-y-1 text-sm">
-			{#each client.redirectUris as uri}
+			{#each client.redirectUris as uri (uri)}
 				<li>{uri}</li>
 			{/each}
 		</ul>
@@ -38,7 +38,7 @@
 	<section>
 		<h5>{m.authorize_post_logout_redirect_uris_label()}</h5>
 		<ul class="list-inside list-disc space-y-1 text-sm">
-			{#each client.postLogoutRedirectUris as uri}
+			{#each client.postLogoutRedirectUris as uri (uri)}
 				<li>{uri}</li>
 			{/each}
 		</ul>
@@ -49,7 +49,7 @@
 	<section>
 		<h5>{m.authorize_grant_types_label()}</h5>
 		<ul class="list-inside list-disc space-y-1 text-sm">
-			{#each client.grantTypes as t}
+			{#each client.grantTypes as t (t)}
 				<li>{t}</li>
 			{/each}
 		</ul>
@@ -60,7 +60,7 @@
 	<section>
 		<h5>{m.authorize_response_types_label()}</h5>
 		<ul class="list-inside list-disc space-y-1 text-sm">
-			{#each client.responseTypes as r}
+			{#each client.responseTypes as r (r)}
 				<li>{r}</li>
 			{/each}
 		</ul>
@@ -71,7 +71,7 @@
 	<section>
 		<h5>{m.authorize_audience_label()}</h5>
 		<ul class="list-inside list-disc space-y-1 text-sm">
-			{#each client.audience as a}
+			{#each client.audience as a (a)}
 				<li>{a}</li>
 			{/each}
 		</ul>
@@ -101,12 +101,16 @@
 		<ul class="space-y-1 text-sm">
 			{#if client.policyUri}
 				<li>
-					<a href={client.policyUri} target="_blank">{m.authorize_privacy_policy()}</a>
+					<a href={client.policyUri} target="_blank" rel="external"
+						>{m.authorize_privacy_policy()}</a
+					>
 				</li>
 			{/if}
 			{#if client.termsOfServiceUri}
 				<li>
-					<a href={client.termsOfServiceUri} target="_blank">{m.authorize_terms_of_service()}</a>
+					<a href={client.termsOfServiceUri} target="_blank" rel="external"
+						>{m.authorize_terms_of_service()}</a
+					>
 				</li>
 			{/if}
 		</ul>

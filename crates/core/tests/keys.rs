@@ -30,19 +30,16 @@ async fn user_jwt_key_creation_and_retrieval() {
     _ => panic!("expected key metadata"),
   };
 
-  assert_eq!(
-    key_meta.public_key.len() > 0,
-    true,
+  assert!(
+    !key_meta.public_key.is_empty(),
     "public key should be present"
   );
-  assert_eq!(
+  assert!(
     key_meta.private_key.is_some(),
-    true,
     "private key should be present"
   );
-  assert_eq!(
-    key_meta.derivation_path.len() > 0,
-    true,
+  assert!(
+    !key_meta.derivation_path.is_empty(),
     "derivation path should be present"
   );
 
@@ -102,19 +99,16 @@ async fn application_jwt_key_creation_and_retrieval() {
     _ => panic!("expected key metadata"),
   };
 
-  assert_eq!(
-    key_meta.public_key.len() > 0,
-    true,
+  assert!(
+    !key_meta.public_key.is_empty(),
     "public key should be present"
   );
-  assert_eq!(
+  assert!(
     key_meta.private_key.is_some(),
-    true,
     "private key should be present"
   );
-  assert_eq!(
-    key_meta.derivation_path.len() > 0,
-    true,
+  assert!(
+    !key_meta.derivation_path.is_empty(),
     "derivation path should be present"
   );
 
@@ -362,7 +356,6 @@ async fn jwt_token_can_be_verified_with_same_key() {
     exp: i64,
   }
 
-  // Sign a token
   let encoding = key_meta.jwt_encoding_key().expect("encoding key");
   let now = std::time::SystemTime::now()
     .duration_since(std::time::UNIX_EPOCH)
@@ -378,7 +371,6 @@ async fn jwt_token_can_be_verified_with_same_key() {
   header.kid = Some(key_node.id.to_string());
   let token = encode(&header, &claims, &encoding).expect("token encoding");
 
-  // Verify with the SAME key
   let decoding = key_meta.jwt_decoding_key().expect("decoding key");
   let validation = Validation::new(Algorithm::EdDSA);
 

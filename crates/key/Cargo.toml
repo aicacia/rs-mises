@@ -12,9 +12,13 @@ rust-version = "1.93"
 name = "mises_key"
 
 [dependencies]
-# utils
-zeroize = { version = "1.8", default-features = false, features = [] }
-# encodings
+# Cryptography
+ed25519-dalek = { version = "2.2", default-features = false, features = [
+  "alloc",
+] }
+slip10 = { version = "0.4", default-features = false, features = [] }
+
+# Encodings
 bip32 = { version = "0.5", default-features = false, features = [
   "secp256k1",
   "alloc",
@@ -22,15 +26,10 @@ bip32 = { version = "0.5", default-features = false, features = [
 bip39 = { version = "2.2", default-features = false, features = [] }
 crc32fast = { version = "1.5", default-features = false, features = [] }
 
-# ed25519 + SLIP-0010
-slip10 = { version = "0.4", default-features = false, features = [] }
-ed25519-dalek = { version = "2.2", default-features = false, features = [
-  "alloc",
-] }
-
-# optional
+# Utils
 getrandom = { version = "0.2", default-features = false, optional = true, features = [
 ] }
+zeroize = { version = "1.8", default-features = false, features = [] }
 
 
 [dev-dependencies]

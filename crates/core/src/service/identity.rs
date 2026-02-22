@@ -123,9 +123,6 @@ where
     let kp = child_key.ed25519_keypair()?;
     let public_key = BASE64_URL_SAFE.encode(kp.public.as_bytes());
 
-    // Get the master key to store its seed bytes (not the terminal secret)
-    // Terminal keys are stored as: master_seed + derivation_path + Seed material type
-    // This ensures we can re-derive and get the same key material every time
     let master_key = self.get_master_key().await?;
     let master_seed = master_key
       .seed_bytes()
@@ -291,7 +288,6 @@ where
   }
 
   pub async fn get_identity_key_node(&self, identity_id: Uuid) -> Result<E::Node> {
-    // Query all Owns edges from the identity to find its key
     let edge_query = Query::edges(
       EdgeQuery::outgoing(EdgeType::Owns.as_str())
         .from(NodeQuery::any().filter(field("id").eq(identity_id.to_string()))),
@@ -311,7 +307,6 @@ where
       }
     }
 
-    // Now fetch the key node(s)
     for key_id in key_ids {
       if let Some(key_node) = self.exec.get_node_by_id(key_id).await?
         && let NodeMeta::Key(key_meta) = &key_node.metadata

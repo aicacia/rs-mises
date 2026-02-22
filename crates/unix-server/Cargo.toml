@@ -16,47 +16,15 @@ name = "mises-unix-server"
 name = "mises_unix_server"
 
 [dependencies]
+# Internal
 mises-core = { path = "../core", default-features = false, features = ["std"] }
 mises-graph = { path = "../graph", default-features = false, features = [
   "std",
   "uuid",
   "in-memory",
 ] }
-
 mises-grpc-server = { path = "../grpc-server", default-features = false, features = [
   "file-descriptor-set",
-] }
-
-# cli utils
-clap = { version = "4.5", features = [
-  "std",
-  "derive",
-  "help",
-], default-features = false }
-clap_complete = { version = "4.5", default-features = false, features = [] }
-
-# Utils
-config = { version = "0.15", features = ["json"], default-features = false }
-chrono = { workspace = true, features = ["std"] }
-machine-uid = { version = "0.5.4", default-features = false, features = [] }
-
-# logging
-log = { version = "0.4", default-features = false }
-tracing = { version = "0.1", features = ["std"], default-features = false }
-tracing-subscriber = { version = "0.3", features = [
-  "ansi",
-  "fmt",
-  "std",
-  "tracing-log",
-  "env-filter",
-], default-features = false }
-tracing-log = { version = "0.2", default-features = false }
-
-# Serialization
-serde = { workspace = true, features = ["derive"] }
-tonic = { workspace = true, features = ["server", "router"] }
-tonic-reflection = { version = "0.14", default-features = false, features = [
-  "server",
 ] }
 
 # Async
@@ -71,7 +39,38 @@ tokio = { workspace = true, features = [
 tokio-stream = { version = "0.1", features = [], default-features = false }
 tokio-util = { version = "0.7", features = [], default-features = false }
 
-[dev-dependencies]
+# CLI
+clap = { version = "4.5", features = [
+  "std",
+  "derive",
+  "help",
+], default-features = false }
+clap_complete = { version = "4.5", default-features = false, features = [] }
 
-[features]
-default = []
+# gRPC
+tonic = { workspace = true, features = ["server", "router"] }
+tonic-reflection = { version = "0.14", default-features = false, features = [
+  "server",
+] }
+
+# Logging
+log = { version = "0.4", default-features = false }
+tracing = { version = "0.1", features = ["std"], default-features = false }
+tracing-log = { version = "0.2", default-features = false }
+tracing-subscriber = { version = "0.3", features = [
+  "ansi",
+  "fmt",
+  "std",
+  "tracing-log",
+  "env-filter",
+], default-features = false }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+
+# Utils
+chrono = { workspace = true, features = ["std"] }
+config = { version = "0.15", features = ["json"], default-features = false }
+machine-uid = { version = "0.5.4", default-features = false, features = [] }
+
+[dev-dependencies]

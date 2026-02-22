@@ -38,7 +38,9 @@ pub trait KeyValueRepositoryStore: Send + Sync {
 
   fn node_store(&self) -> &Self::Store;
   fn edge_store(&self) -> &Self::Store;
+  #[allow(clippy::wrong_self_convention)]
   fn from_index_store(&self) -> &Self::Store;
+  #[allow(clippy::wrong_self_convention)]
   fn to_index_store(&self) -> &Self::Store;
   fn id_gen(&self) -> &Self::IdGen;
 }
@@ -49,7 +51,9 @@ pub trait UnifiedRepositoryStore: Send + Sync {
 
   fn node_store(&self) -> &Self::Store;
   fn edge_store(&self) -> &Self::Store;
+  #[allow(clippy::wrong_self_convention)]
   fn from_index_store(&self) -> &Self::Store;
+  #[allow(clippy::wrong_self_convention)]
   fn to_index_store(&self) -> &Self::Store;
 }
 
@@ -92,19 +96,16 @@ impl<S: KeyValueRepositoryStore> KeyValueTransaction<S> {
 
 #[inline]
 fn node_key<I: Id>(id: &I) -> serde_json::Result<Vec<u8>> {
-  // node store is dedicated — no global prefix needed
   serde_json::to_vec(id)
 }
 
 #[inline]
 fn edge_key<I: Id>(id: &I) -> serde_json::Result<Vec<u8>> {
-  // edge store is dedicated — no global prefix needed
   serde_json::to_vec(id)
 }
 
 #[inline]
 fn edge_from_index_key<I: Id>(from_id: &I, edge_id: &I) -> serde_json::Result<Vec<u8>> {
-  // index store is dedicated — encode (node_id, edge_id) without a global prefix
   let from_bytes = serde_json::to_vec(from_id)?;
   let edge_bytes = serde_json::to_vec(edge_id)?;
   let mut key = Vec::with_capacity(from_bytes.len() + 1 + edge_bytes.len());
@@ -342,7 +343,6 @@ where
           Err(e) => return Err(GraphError::SerializationError(e.to_string())),
         };
 
-        // fallback: remove any index entries whose value equals the edge id (scan both index stores)
         let mut found = Vec::new();
         if scan_prefix(from_index_store, vec![], |k, v| {
           if v == &edge_id_bytes {
@@ -379,11 +379,15 @@ where
   Ok(())
 }
 
+struct EdgeStores<'a, SN, SE, SIF, SIT> {
+  node_store: &'a SN,
+  edge_store: &'a SE,
+  from_index_store: &'a SIF,
+  to_index_store: &'a SIT,
+}
+
 async fn create_edge<I, P, G, SN, SE, SIF, SIT>(
-  node_store: &SN,
-  edge_store: &SE,
-  from_index_store: &SIF,
-  to_index_store: &SIT,
+  stores: EdgeStores<'_, SN, SE, SIF, SIT>,
   id_gen: &G,
   r#type: String,
   from_id: I,
@@ -407,8 +411,8 @@ where
   let from_key = node_key(&from_id)?;
   let to_key = node_key(&to_id)?;
 
-  if node_store.get::<&[u8]>(&from_key).await?.is_none()
-    || node_store.get::<&[u8]>(&to_key).await?.is_none()
+  if stores.node_store.get::<&[u8]>(&from_key).await?.is_none()
+    || stores.node_store.get::<&[u8]>(&to_key).await?.is_none()
   {
     return Err(GraphError::NotFound);
   }
@@ -429,7 +433,8 @@ where
   let value =
     serde_json::to_vec(&edge).map_err(|e| GraphError::SerializationError(e.to_string()))?;
 
-  edge_store
+  stores
+    .edge_store
     .put(key.clone(), value)
     .await
     .map_err(GraphError::from)?;
@@ -439,20 +444,22 @@ where
   let from_index_key = edge_from_index_key(&edge.from_id, &edge.id)?;
   let to_index_key = edge_to_index_key(&edge.to_id, &edge.id)?;
 
-  if let Err(e) = from_index_store
+  if let Err(e) = stores
+    .from_index_store
     .put(from_index_key.clone(), edge_id_bytes.clone())
     .await
   {
-    let _ = edge_store.delete(&key).await;
+    let _ = stores.edge_store.delete(&key).await;
     return Err(GraphError::from(e));
   }
 
-  if let Err(e) = to_index_store
+  if let Err(e) = stores
+    .to_index_store
     .put(to_index_key.clone(), edge_id_bytes.clone())
     .await
   {
-    let _ = edge_store.delete(&key).await;
-    let _ = from_index_store.delete(&from_index_key).await;
+    let _ = stores.edge_store.delete(&key).await;
+    let _ = stores.from_index_store.delete(&from_index_key).await;
     return Err(GraphError::from(e));
   }
 
@@ -614,7 +621,6 @@ fn get_json_field<'a>(v: &'a serde_json::Value, path: &str) -> Option<&'a serde_
         if let Some(next) = map.get(part) {
           cur = next;
         } else if map.len() == 1 {
-          // Special case: single-key objects might be enum wrappers (e.g., {"Some": {...}})
           if let Some(sole_value) = map.values().next() {
             if let Some(obj) = sole_value.as_object() {
               if let Some(next) = obj.get(part) {
@@ -748,7 +754,6 @@ where
     let filter = strip_field_prefix_in_filter(filter, "metadata");
     let meta_json = serde_json::to_value(&n.metadata).unwrap_or(serde_json::Value::Null);
 
-    // Try matching on metadata; fallback to full node if metadata doesn't match
     if eval_filter_on_json(&meta_json, &filter) {
       return true;
     }
@@ -816,7 +821,6 @@ where
   let mut node_count = 0;
   let mut ids = BTreeSet::new();
 
-  // scan entire dedicated node store
   scan_prefix(store, vec![], |_, data| {
     if enforce_limit && node_count >= max_nodes {
       return false;
@@ -939,11 +943,9 @@ where
   SIF::Error: Send,
   SIT::Error: Send,
 {
-  // Consolidate direction logic into unified edge collection
   let mut seen = HashSet::new();
   let mut edge_ids = Vec::new();
 
-  // Collect outgoing edges if needed
   if matches!(direction, EdgeDirection::Out | EdgeDirection::Both) {
     let from_prefix = edge_from_index_prefix(node_id)?;
     let from_edges = collect_key_values(from_index_store, from_prefix).await?;
@@ -955,7 +957,6 @@ where
     }
   }
 
-  // Collect incoming edges if needed
   if matches!(direction, EdgeDirection::In | EdgeDirection::Both) {
     let to_prefix = edge_to_index_prefix(node_id)?;
     let to_edges = collect_key_values(to_index_store, to_prefix).await?;
@@ -968,7 +969,6 @@ where
     }
   }
 
-  // Fetch all edges in one pass
   let mut edges = Vec::with_capacity(edge_ids.len());
   for edge_id in edge_ids {
     if let Ok(Some(edge)) = get_edge_by_id::<I, P, SE>(edge_store, edge_id).await {
@@ -1020,7 +1020,6 @@ where
 
     let mut nodes = Vec::with_capacity(core::cmp::min(16, max_nodes));
 
-    // scan the dedicated node store (no in-store prefix required)
     scan_prefix(node_store, vec![], |_, data| {
       if enforce_limit && node_count >= max_nodes {
         return false;
@@ -1190,7 +1189,6 @@ where
     } else {
       let mut prefilter_count = 0;
       let mut edges = Vec::new();
-      // scan the dedicated edge store (no in-store prefix required)
       scan_prefix(edge_store, vec![], |_, data| {
         let edge = match serde_json::from_slice::<Edge<I, P>>(data) {
           Ok(edge) => edge,
@@ -1305,10 +1303,12 @@ where
     properties: Self::EdgeProps,
   ) -> Result<Self::Edge, GraphError> {
     create_edge::<S::Id, S::EdgeProps, S::IdGen, _, _, _, _>(
-      self.store.node_store(),
-      self.store.edge_store(),
-      self.store.from_index_store(),
-      self.store.to_index_store(),
+      EdgeStores {
+        node_store: self.store.node_store(),
+        edge_store: self.store.edge_store(),
+        from_index_store: self.store.from_index_store(),
+        to_index_store: self.store.to_index_store(),
+      },
       self.store.id_gen(),
       r#type,
       from_id,
@@ -1460,10 +1460,12 @@ where
     properties: Self::EdgeProps,
   ) -> Result<Self::Edge, GraphError> {
     create_edge::<S::Id, S::EdgeProps, S::IdGen, _, _, _, _>(
-      &self.node_tx,
-      &self.edge_tx,
-      &self.from_index_tx,
-      &self.to_index_tx,
+      EdgeStores {
+        node_store: &self.node_tx,
+        edge_store: &self.edge_tx,
+        from_index_store: &self.from_index_tx,
+        to_index_store: &self.to_index_tx,
+      },
       &*self.id_gen,
       r#type,
       from_id,

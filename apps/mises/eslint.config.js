@@ -7,5 +7,5 @@ const gitignorePath = fileURLToPath(new URL('./.gitignore', import.meta.url));
 const tsconfigRootDir = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineConfig(createSvelteConfig({ gitignorePath, tsconfigRootDir, svelteConfig }), {
-  ignores: ['src/routes/.well-known/**']
+	ignores: ['src/routes/.well-known/**']
 });

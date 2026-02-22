@@ -11,9 +11,12 @@ use tracing_subscriber::layer::SubscriberExt;
 use mises_core::service::graph::{BootstrapOptionsBuilder, GraphService};
 use mises_graph::{InMemoryKeyValueRepository, InMemoryKeyValueStore, UuidGenerator};
 use mises_grpc_server::{
-  ConfigurationService, OidcService,
+  ClientService, ConfigurationService, OidcService,
   oidc_service_server::OidcServiceServer,
-  proto::{FILE_DESCRIPTOR_SET, configuration_service_server::ConfigurationServiceServer},
+  proto::{
+    FILE_DESCRIPTOR_SET, client_service_server::ClientServiceServer,
+    configuration_service_server::ConfigurationServiceServer,
+  },
 };
 
 use crate::{
@@ -116,7 +119,6 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
   let uds = UnixListener::bind(bind_path)?;
   let uds_stream = UnixListenerStream::new(uds);
 
-  // use helper to create an in-memory key/value repository
   let repo = InMemoryKeyValueRepository::new_in_memory(UuidGenerator::new());
 
   let graph_service = GraphService::new(repo.clone());
@@ -142,7 +144,6 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
     .build_v1()
     .map_err(|e| io::Error::other(format!("failed to build reflection service: {}", e)))?;
 
-  // keep a separate generic store for services that previously used the single store
   let service_store = InMemoryKeyValueStore::new();
 
   let server_result = Server::builder()
@@ -159,6 +160,10 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
       device_id.clone(),
       issuer,
       None,
+    )))
+    .add_service(ClientServiceServer::new(ClientService::new(
+      repo.clone(),
+      device_id.clone(),
     )))
     .add_service(reflection_service)
     .serve_with_incoming_shutdown(uds_stream, cancellation_token.cancelled())

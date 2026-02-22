@@ -50,7 +50,8 @@
 				await afterSigninRedirect();
 			}
 		} catch (e) {
-			submitError = e instanceof Error ? e.message : m.errors_message_unexpected?.() ?? 'Unexpected error';
+			submitError =
+				e instanceof Error ? e.message : (m.errors_message_unexpected?.() ?? 'Unexpected error');
 		}
 	}
 </script>
@@ -58,7 +59,9 @@
 <div class="flex grow flex-col items-center justify-center">
 	<div class="card w-sm">
 		<h3>{m.profile_change_password_title()}</h3>
-		<p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{m.profile_change_password_description?.() ?? ''}</p>
+		<p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+			{m.profile_change_password_description?.() ?? ''}
+		</p>
 
 		<form onsubmit={onSubmit} class="mt-4 flex flex-col gap-3">
 			<label class="flex flex-col">

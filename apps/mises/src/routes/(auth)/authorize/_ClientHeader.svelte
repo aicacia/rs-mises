@@ -21,7 +21,7 @@
 		<h1 class="text-xl font-semibold">{client.name}</h1>
 
 		{#if client.clientUri}
-			<a href={client.clientUri} target="_blank">
+			<a href={client.clientUri} target="_blank" rel="external">
 				{client.clientUri}
 			</a>
 		{/if}

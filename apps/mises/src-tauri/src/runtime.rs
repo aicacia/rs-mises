@@ -71,6 +71,10 @@ pub fn start() {
         Config::default()
       };
 
+      app.deep_link().on_open_url(|event| {
+        log::debug!("deep link URLs: {:?}", event.urls());
+      });
+
       let cancellation_token = CancellationToken::new();
 
       let app_cancellation_token = cancellation_token.clone();

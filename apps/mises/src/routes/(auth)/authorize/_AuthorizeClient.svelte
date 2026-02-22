@@ -1,9 +1,8 @@
 <script lang="ts" module>
 	import type { ClientInfo } from './_utils';
-	import type { OpenIdClaims } from '$lib/common/openapi/oidc';
 
 	export interface ClientProps {
-		userInfo: OpenIdClaims;
+		userInfo: UserInfo;
 		client: ClientInfo;
 		disabled?: boolean;
 		onAllow: () => Promise<void>;
@@ -14,6 +13,7 @@
 <script lang="ts">
 	import Avatar from '../../../lib/common/components/Avatar.svelte';
 	import { m } from '$lib/paraglide/messages';
+	import type { UserInfo } from '$lib/proto/mises';
 
 	let { userInfo, client, disabled, onAllow, onDeny }: ClientProps = $props();
 
@@ -49,7 +49,7 @@
 	</div>
 
 	<p class="text-center">
-		{m.authorize_wants_to_access({ username: userInfo.nickname })}
+		{m.authorize_wants_to_access({ username: userInfo.name })}
 	</p>
 </div>
 
@@ -73,10 +73,12 @@
 	<hr />
 	<div class="mt-4 flex flex-row justify-center gap-4 text-xs">
 		{#if client.policyUri}
-			<a href={client.policyUri} target="_blank">{m.authorize_privacy_policy()}</a>
+			<a href={client.policyUri} target="_blank" rel="external">{m.authorize_privacy_policy()}</a>
 		{/if}
 		{#if client.termsOfServiceUri}
-			<a href={client.termsOfServiceUri} target="_blank">{m.authorize_terms_of_service()}</a>
+			<a href={client.termsOfServiceUri} target="_blank" rel="external"
+				>{m.authorize_terms_of_service()}</a
+			>
 		{/if}
 	</div>
 {/if}

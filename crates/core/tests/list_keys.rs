@@ -35,9 +35,9 @@ async fn list_keys_returns_keymeta() {
 
   assert!(!keys.is_empty(), "expected at least one key");
 
-  let found = keys.into_iter().any(|(_, k): (Uuid, KeyMeta)| {
-    k.ec_coords_b64().is_some()
-  });
+  let found = keys
+    .into_iter()
+    .any(|(_, k): (Uuid, KeyMeta)| k.ec_coords_b64().is_some());
 
   assert!(found, "expected to find a key with valid EC coords");
 }

@@ -1,6 +1,4 @@
 <script lang="ts" module>
-	import type { AuthorizeRequest, UserInfo } from '$lib/common/openapi/oidc';
-
 	export interface AuthorizeProps {
 		userInfo: UserInfo;
 		clientInfo: ClientInfo | null;
@@ -9,8 +7,6 @@
 </script>
 
 <script lang="ts">
-	import { oidcApi } from '$lib/common/openapi';
-	import type { Client } from '$lib/common/openapi/oidc/models/Client';
 	import {
 		getClientDiff,
 		rejectAuthorizeRequest,
@@ -21,7 +17,8 @@
 	import { LoaderCircle } from '@lucide/svelte';
 	import AddClient from './_ClientUpdates.svelte';
 	import AuthorizeClient from './_AuthorizeClient.svelte';
-	import { handleError } from '$lib/common/errors';
+	import type { AuthorizeRequest, Client, UserInfo } from '$lib/proto/mises';
+	import { clientClient, oidcClient } from '$lib/common/util/grpcClient';
 
 	let { userInfo, clientInfo, authorizeRequest }: AuthorizeProps = $props();
 
@@ -31,8 +28,9 @@
 	let loadingClient = $state(true);
 	$effect(() => {
 		loadingClient = true;
-		oidcApi
-			.client({ clientId: authorizeRequest.clientId })
+		console.debug('Fetching client info for clientId', authorizeRequest.clientId);
+		clientClient()
+			.get({ clientId: authorizeRequest.clientId })
 			.catch((_e) => {
 				return null;
 			})
@@ -49,24 +47,27 @@
 			if (client) {
 				clientDiff = getClientDiff(client, clientInfo);
 			}
-		} else {
-			clientDiff = false;
 		}
+		clientDiff = false;
 	});
 
 	let loadingUserAllowed = $state(true);
 	$effect(() => {
 		if (loadingClient) {
+			console.debug('Still loading client info, skipping user allowed check');
 			return;
 		}
 		if (!client || clientDiff) {
+			console.debug('Client info not available or has updates, skipping user allowed check');
+			loadingUserAllowed = false;
 			return;
 		}
 		loadingUserAllowed = true;
-		oidcApi
-			.isClientAllowedForUser({
+		console.debug('Checking if user has already allowed this client and scopes');
+		clientClient()
+			.isAllowedForUser({
 				clientId: authorizeRequest.clientId,
-				scope: authorizeRequest.scope
+				scope: authorizeRequest.scope?.split(' ') ?? []
 			})
 			.then(onAuthorize)
 			.catch(() => {
@@ -83,33 +84,29 @@
 		try {
 			await resolveAuthorizeRequest(authorizeRequest);
 		} catch (e) {
-			handleError(e);
+			console.error('Error resolving authorize request', e);
 		} finally {
 			loadingAuthorizeRequest = false;
 		}
 	}
 	async function onAllow() {
 		try {
-			await oidcApi.approveClientForUser({ clientId: authorizeRequest.clientId });
+			await clientClient().approveForUser({ clientId: authorizeRequest.clientId });
 			await onAuthorize();
 		} catch (e) {
-			handleError(e);
+			console.error('Error approving client for user', e);
 		}
 	}
 	async function onDeny() {
 		rejectAuthorizeRequest(authorizeRequest, 'access_denied', m.authorize_access_denied_reason());
 	}
-	import { oidcClient } from '$lib/common/util/grpcClient';
-	import { toGrpcClientRegisterRequest, grpcClientToClient } from './_utils';
 
 	async function onAcceptClientUpdates(clientRegisterRequest: ClientInfo) {
 		try {
 			loadingClient = true;
-			const grpcReq = toGrpcClientRegisterRequest(clientRegisterRequest);
-			const grpcResp = await oidcClient().clientRegister(grpcReq);
-			client = grpcClientToClient(grpcResp);
+			client = await oidcClient().clientRegister(clientRegisterRequest);
 		} catch (e) {
-			handleError(e);
+			console.error('Error registering client', e);
 		} finally {
 			loadingClient = false;
 		}

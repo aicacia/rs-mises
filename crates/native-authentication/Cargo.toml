@@ -10,12 +10,12 @@ license = "MIT OR Apache-2.0"
 name = "native_authentication"
 
 [dependencies]
-which = { version = "4", default-features = false }
+# Async
 tokio = { version = "1", default-features = false, features = [
   "process",
   "macros",
   "rt",
 ] }
 
-[features]
-default = []
+# Utils
+which = { version = "4", default-features = false }

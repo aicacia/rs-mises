@@ -481,7 +481,6 @@ async fn delete_node_handles_missing_main_edge_cleanup() {
   use mises_graph::KeyValueStoreExecutor;
   use mises_graph::key_value_repository::KeyValueRepositoryStore;
 
-  // Create a custom store for testing
   #[derive(Clone)]
   struct TestStore {
     node_store: InMemoryKeyValueStore,
@@ -550,13 +549,11 @@ async fn delete_node_handles_missing_main_edge_cleanup() {
     .await
     .unwrap();
 
-  // remove the main edge entry directly from the edge store
   let id_bytes = serde_json::to_vec(&e.id).unwrap();
   edge_store.delete(id_bytes).await.unwrap();
 
   assert!(repo.get_edge_by_id(e.id).await.unwrap().is_none());
 
-  // ensure index still contains the from entry for the missing main edge
   let mut from_prefix = serde_json::to_vec(&a.id).unwrap();
   from_prefix.push(0);
   let mut matches: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
@@ -575,7 +572,6 @@ async fn delete_node_handles_missing_main_edge_cleanup() {
 
   repo.delete_node(a.id).await.unwrap();
 
-  // confirm no index entries remain for that edge id
   let mut all_index_entries: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
   from_index_store
     .scan(vec![].., |k: &Vec<u8>, v: &Vec<u8>| {

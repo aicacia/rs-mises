@@ -1,12 +1,7 @@
-import { oidcApi } from '$lib/common/openapi';
-import type { AuthorizeRequest, Client } from '$lib/common/openapi/oidc';
-import {
-	ClientRegisterRequestFromJSON,
-	type ClientRegisterRequest
-} from '$lib/common/openapi/oidc/models/ClientRegisterRequest';
+import { oidcClient } from "$lib/common/util/grpcClient";
+import type { AuthorizeRequest, Client, ClientRegisterRequest } from "$lib/proto/mises";
 
 export type ClientInfo = ClientRegisterRequest;
-export const ClientInfoFromJSON = ClientRegisterRequestFromJSON;
 
 function deepEqual(a: unknown, b: unknown): boolean {
 	if (a === b) {
@@ -70,7 +65,7 @@ export function rejectAuthorizeRequest(
 	error: string,
 	errorDescription: string
 ) {
-	const url = new URL(authorizeRequest.redirectUri);
+	const url = new URL(authorizeRequest.redirectUri!);
 	if (authorizeRequest.state) {
 		url.searchParams.append('state', authorizeRequest.state);
 	}
@@ -83,16 +78,14 @@ export function rejectAuthorizeRequest(
 }
 
 export async function resolveAuthorizeRequest(authorizeRequest: AuthorizeRequest) {
-	const url = new URL(authorizeRequest.redirectUri);
+	const url = new URL(authorizeRequest.redirectUri!);
 	if (authorizeRequest.state) {
 		url.searchParams.append('state', authorizeRequest.state);
 	}
 	if (authorizeRequest.nonce) {
 		url.searchParams.append('nonce', authorizeRequest.nonce);
 	}
-	const authorizeResponse = await oidcApi.authorizeClient({
-		clientAuthorizeRequest: authorizeRequest
-	});
+	const authorizeResponse = await oidcClient().authorize(authorizeRequest);
 	switch (authorizeRequest.responseMode) {
 		case 'fragment':
 		case 'query': {
@@ -124,53 +117,4 @@ export async function resolveAuthorizeRequest(authorizeRequest: AuthorizeRequest
 			break;
 		}
 	}
-}
-
-// --- Conversion helpers -------------------------------------------------
-import type {
-	ClientRegisterRequest as GrpcClientRegisterRequest,
-	Client as GrpcClient
-} from '$lib/proto/mises';
-
-export function toGrpcClientRegisterRequest(ci: ClientInfo): GrpcClientRegisterRequest {
-	return {
-		clientId: (ci as any).clientId,
-		clientSecret: (ci as any).clientSecret,
-		name: (ci as any).name || (ci as any).clientName,
-		redirectUris: (ci as any).redirectUris ?? [],
-		grantTypes: (ci as any).grantTypes ?? [],
-		responseTypes: (ci as any).responseTypes ?? [],
-		// accept either `scope` string or `scopes` array from the OpenAPI model
-		scope: (ci as any).scope ?? ((ci as any).scopes ? (ci as any).scopes.join(' ') : undefined),
-		tokenEndpointAuthMethod: (ci as any).tokenEndpointAuthMethod,
-		applicationUrn: (ci as any).applicationUrn,
-		serviceId: (ci as any).serviceId
-	};
-}
-
-export function grpcClientToClient(gc: GrpcClient): Client {
-	return {
-		id: gc.id,
-		clientId: gc.clientId,
-		clientSecret: gc.clientSecret,
-		name: gc.name,
-		redirectUris: gc.redirectUris ?? [],
-		grantTypes: gc.grantTypes ?? [],
-		responseTypes: gc.responseTypes ?? [],
-		// proto uses a single space-delimited `scope` string — convert to array for the UI
-		scopes: gc.scope ? gc.scope.split(' ').filter((s) => s.length > 0) : [],
-		scope: gc.scope,
-		tokenEndpointAuthMethod: gc.tokenEndpointAuthMethod,
-		// UI fields not available from proto server response -> leave undefined/default
-		postLogoutRedirectUris: [],
-		audience: [],
-		accessTokenExpiresInSeconds: undefined,
-		idTokenExpiresInSeconds: undefined,
-		refreshExpiresInSeconds: undefined,
-		policyUri: undefined,
-		termsOfServiceUri: undefined,
-		logoUri: undefined,
-		clientUri: undefined,
-		applicationType: undefined
-	};
 }

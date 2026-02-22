@@ -12,19 +12,12 @@ rust-version = "1.93"
 name = "mises_core"
 
 [dependencies]
-mises-key = { path = "../key", default-features = false, features = [] }
+# Internal
 mises-graph = { path = "../graph", default-features = false }
+mises-key = { path = "../key", default-features = false, features = [] }
 
-# Utils
-log = { workspace = true, features = [] }
-chrono = { workspace = true, features = ["alloc", "serde", "clock"] }
-uuid = { workspace = true, features = ["v4", "serde"] }
-
-# Serialization
-serde = { workspace = true, features = ["derive", "alloc"] }
-serde_json = { workspace = true, features = ["alloc"] }
-base64 = { workspace = true, features = ["alloc"] }
-getrandom = { workspace = true, features = [] }
+# Async
+async-trait = { workspace = true, features = [] }
 
 # Cryptography
 argon2 = { version = "3.0", package = "rust-argon2" }
@@ -36,8 +29,16 @@ jsonwebtoken = { version = "10.3", default-features = false, features = [
   "rust_crypto",
 ] }
 
-# Async
-async-trait = { workspace = true, features = [] }
+# Serialization
+base64 = { workspace = true, features = ["alloc"] }
+serde = { workspace = true, features = ["derive", "alloc"] }
+serde_json = { workspace = true, features = ["alloc"] }
+
+# Utils
+chrono = { workspace = true, features = ["alloc", "serde", "clock"] }
+getrandom = { workspace = true, features = [] }
+log = { workspace = true, features = [] }
+uuid = { workspace = true, features = ["v4", "serde"] }
 
 [dev-dependencies]
 # Use the in-memory repository for core unit tests

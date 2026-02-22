@@ -1,6 +1,7 @@
+use tonic::Status;
+
 use mises_core::CoreError;
 use mises_graph::GraphError;
-use tonic::Status;
 
 pub trait ToStatus {
   fn to_status(&self) -> Status;

@@ -390,22 +390,17 @@ mod tests {
     let key = Key::from_entropy(&TEST_ENTROPY).expect("generate key");
     let kp = key.ed25519_keypair().expect("keypair");
 
-    // Create JWT claims
     let claims = Claims {
       sub: "user@example.com".to_string(),
       exp: 2000000000,
     };
 
-    // Serialize claims to JSON (similar to JWT payload)
     let payload = serde_json::to_vec(&claims).expect("serialize claims");
 
-    // Sign the payload using the keypair
     let signature = kp.secret.sign(&payload);
 
-    // Verify the signature using the public key
     assert!(kp.public.verify(&payload, &signature).is_ok());
 
-    // Verify that modifying the payload invalidates the signature
     let mut modified_payload = payload.clone();
     modified_payload[0] ^= 0xFF;
     assert!(kp.public.verify(&modified_payload, &signature).is_err());

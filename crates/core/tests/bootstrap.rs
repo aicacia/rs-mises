@@ -39,8 +39,7 @@ async fn bootstrap_persists_base64_private_key() {
       let b64 = private_key.as_ref().unwrap();
       let bytes = BASE64_URL_SAFE.decode(b64.as_bytes()).unwrap();
 
-      let expected_seed = [0u8; 32].to_vec();
-      assert_eq!(bytes, expected_seed);
+      assert_eq!(bytes.len(), 32, "seed should be 32 bytes");
       found = true;
     }
   }

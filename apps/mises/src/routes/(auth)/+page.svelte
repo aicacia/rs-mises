@@ -13,7 +13,6 @@
 			userInfo?.preferredUsername ||
 			userInfo?.givenName ||
 			userInfo?.email ||
-			userInfo?.nickname ||
 			'User'
 	);
 

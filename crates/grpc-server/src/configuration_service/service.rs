@@ -1,6 +1,7 @@
-use mises_core::{service::identity::IdentityService, traits::Repository};
 use tonic::{Request, Response, Status};
 use url::Url;
+
+use mises_core::{service::identity::IdentityService, traits::Repository};
 
 pub struct ConfigurationService<R>
 where

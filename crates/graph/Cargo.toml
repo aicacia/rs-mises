@@ -12,14 +12,11 @@ rust-version = "1.93"
 name = "mises_graph"
 
 [dependencies]
-# internal
+# Internal
 mises-async-kv-bytes = { path = "../async-kv-bytes", default-features = false }
 
-# Utils
-uuid = { workspace = true, optional = true, features = ["v4", "v7", "serde"] }
-hashbrown = { version = "0.16", default-features = false, features = [
-  "default-hasher",
-] }
+# Async
+async-trait = { workspace = true, features = [] }
 
 # Serialization
 serde = { workspace = true, features = ["derive", "alloc"] }
@@ -27,8 +24,11 @@ serde_json = { workspace = true, features = ["alloc"] }
 
 # Utils
 chrono = { workspace = true, features = ["alloc", "serde", "clock"] }
-async-trait = { workspace = true, features = [] }
+hashbrown = { version = "0.16", default-features = false, features = [
+  "default-hasher",
+] }
 parking_lot = { version = "0.12", optional = true, default-features = false }
+uuid = { workspace = true, optional = true, features = ["v4", "v7", "serde"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }

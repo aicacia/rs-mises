@@ -365,7 +365,7 @@ pub struct OidcClientMeta {
   #[serde(default)]
   pub client_name: String,
   #[serde(default)]
-  pub application_urn: String,
+  pub service_id: String,
   #[serde(default)]
   pub client_uri: String,
   #[serde(default)]

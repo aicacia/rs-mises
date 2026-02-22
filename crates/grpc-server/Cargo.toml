@@ -12,18 +12,25 @@ rust-version = "1.93"
 name = "mises_grpc_server"
 
 [dependencies]
-mises-core = { path = "../core", default-features = false, features = [] }
-mises-graph = { path = "../graph", default-features = false, features = [] }
-mises-proto = { path = "../proto", default-features = false, features = [] }
+# Internal
 mises-async-kv-bytes = { path = "../async-kv-bytes", default-features = false, features = [
 ] }
+mises-core = { path = "../core", default-features = false, features = [] }
+mises-graph = { path = "../graph", default-features = false, features = [] }
 mises-key = { path = "../key", default-features = false, features = [] }
+mises-proto = { path = "../proto", default-features = false, features = [] }
+native-authentication = { path = "../native-authentication", default-features = false, features = [
+] }
 
-# Crypto
+# Cryptography
 jsonwebtoken = { version = "10.3", default-features = false, features = [
   "rust_crypto",
 ] }
 sha2 = { version = "0.10", default-features = false, features = ["std"] }
+
+# gRPC
+prost-types = { workspace = true, features = [] }
+tonic = { workspace = true, features = [] }
 
 # Serialization
 base64 = { workspace = true, features = [] }
@@ -31,19 +38,11 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["alloc"] }
 
 # Utils
-log = { workspace = true, features = ["std"] }
 chrono = { workspace = true, features = ["std"] }
 getrandom = { workspace = true, features = ["std"] }
+log = { workspace = true, features = ["std"] }
 url = { version = "2.5", default-features = false, features = ["std"] }
 uuid = { workspace = true, features = [] }
-
-# Auth
-native-authentication = { path = "../native-authentication", default-features = false, features = [
-] }
-
-# gRPC
-prost-types = { workspace = true, features = [] }
-tonic = { workspace = true, features = [] }
 
 
 [dev-dependencies]
@@ -54,5 +53,17 @@ mises-graph = { path = "../graph", default-features = false, features = [
 tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
-default = ["file-descriptor-set"]
+default = ["std", "file-descriptor-set"]
+std = [
+  "mises-async-kv-bytes/std",
+  "mises-core/std",
+  "mises-graph/std",
+  "mises-key/std",
+  "base64/std",
+  "serde/std",
+  "serde_json/std",
+  "chrono/std",
+  "getrandom/std",
+  "log/std",
+]
 file-descriptor-set = ["mises-proto/file-descriptor-set"]
