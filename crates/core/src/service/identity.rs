@@ -22,10 +22,6 @@ use crate::{
   traits::Executor,
 };
 
-/// Service for managing identity operations in the graph.
-///
-/// Handles creation, retrieval, and mutation of identity entities including users,
-/// groups, devices, and applications.
 #[derive(Clone)]
 pub struct IdentityService<E>
 where

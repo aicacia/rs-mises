@@ -21,112 +21,111 @@ pub struct Claims {
   pub acting_for: Option<String>,
 }
 
-fn generate_token(
-  key_node: &Node<Uuid, NodeMeta>,
-  sub: &str,
-  issuer: &str,
-  audience: &str,
-  expires_in_seconds: i64,
+pub struct TokenBuilder<'a> {
+  key_node: &'a Node<Uuid, NodeMeta>,
+  sub: Option<String>,
+  issuer: Option<String>,
+  audience: Option<String>,
+  expires_in_seconds: Option<i64>,
   scope: Option<String>,
   acting_for: Option<String>,
-  token_type: &str,
-) -> Result<String, Status> {
-  let key = match &key_node.metadata {
-    NodeMeta::Key(key_meta) => key_meta,
-    _ => return Err(Status::internal("expected key node")),
-  };
-
-  let encoding_key = key.jwt_encoding_key().map_err(|e| {
-    log::error!("failed to derive jwt encoding key: {}", e);
-    Status::internal("invalid secret key format")
-  })?;
-
-  let now = Utc::now();
-  let exp = now + Duration::seconds(expires_in_seconds);
-
-  let claims = Claims {
-    sub: sub.to_string(),
-    iss: Some(issuer.to_string()),
-    iat: Some(now.timestamp()),
-    exp: Some(exp.timestamp()),
-    jti: Some(Uuid::new_v4().to_string()),
-    aud: Some(audience.to_string()),
-    scope,
-    acting_for,
-  };
-
-  encode(
-    &Header {
-      alg: Algorithm::EdDSA,
-      kid: Some(key_node.id.to_string()),
-      ..Default::default()
-    },
-    &claims,
-    &encoding_key,
-  )
-  .map_err(|e| Status::internal(format!("failed to generate {} token: {}", token_type, e)))
+  nonce: Option<String>,
+  token_type: Option<String>,
 }
 
-pub fn generate_access_token(
-  key_node: &Node<Uuid, NodeMeta>,
-  sub: &str,
-  issuer: &str,
-  audience: &str,
-  scope: Option<&str>,
-  acting_for: Option<&str>,
-  expires_in_seconds: i64,
-) -> Result<String, Status> {
-  generate_token(
-    key_node,
-    sub,
-    issuer,
-    audience,
-    expires_in_seconds,
-    scope.map(ToString::to_string),
-    acting_for.map(ToString::to_string),
-    "access",
-  )
-}
+impl<'a> TokenBuilder<'a> {
+  pub fn new(key_node: &'a Node<Uuid, NodeMeta>) -> Self {
+    Self {
+      key_node,
+      sub: None,
+      issuer: None,
+      audience: None,
+      expires_in_seconds: None,
+      scope: None,
+      acting_for: None,
+      nonce: None,
+      token_type: None,
+    }
+  }
 
-pub fn generate_refresh_token(
-  key_node: &Node<Uuid, NodeMeta>,
-  sub: &str,
-  issuer: &str,
-  audience: &str,
-  scope: Option<&str>,
-  acting_for: Option<&str>,
-  expires_in_seconds: i64,
-) -> Result<String, Status> {
-  generate_token(
-    key_node,
-    sub,
-    issuer,
-    audience,
-    expires_in_seconds,
-    scope.map(ToString::to_string),
-    acting_for.map(ToString::to_string),
-    "refresh",
-  )
-}
+  pub fn sub(mut self, sub: impl Into<String>) -> Self {
+    self.sub = Some(sub.into());
+    self
+  }
 
-pub fn generate_id_token(
-  key_node: &Node<Uuid, NodeMeta>,
-  sub: &str,
-  issuer: &str,
-  audience: &str,
-  nonce: Option<&str>,
-  expires_in_seconds: i64,
-) -> Result<String, Status> {
-  generate_token(
-    key_node,
-    sub,
-    issuer,
-    audience,
-    expires_in_seconds,
-    nonce.map(|n| format!("nonce:{}", n)),
-    None,
-    "id",
-  )
+  pub fn issuer(mut self, issuer: impl Into<String>) -> Self {
+    self.issuer = Some(issuer.into());
+    self
+  }
+
+  pub fn audience(mut self, audience: impl Into<String>) -> Self {
+    self.audience = Some(audience.into());
+    self
+  }
+
+  pub fn expires_in(mut self, seconds: i64) -> Self {
+    self.expires_in_seconds = Some(seconds);
+    self
+  }
+
+  pub fn scope(mut self, scope: impl Into<String>) -> Self {
+    self.scope = Some(scope.into());
+    self
+  }
+
+  pub fn acting_for(mut self, acting_for: impl Into<String>) -> Self {
+    self.acting_for = Some(acting_for.into());
+    self
+  }
+
+  pub fn nonce(mut self, nonce: impl Into<String>) -> Self {
+    self.nonce = Some(nonce.into());
+    self
+  }
+
+  pub fn token_type(mut self, token_type: impl Into<String>) -> Self {
+    self.token_type = Some(token_type.into());
+    self
+  }
+
+  pub fn build(self) -> Result<String, Status> {
+    let key = match &self.key_node.metadata {
+      NodeMeta::Key(key_meta) => key_meta,
+      _ => return Err(Status::internal("expected key node")),
+    };
+
+    let encoding_key = key.jwt_encoding_key().map_err(|e| {
+      log::error!("failed to derive jwt encoding key: {}", e);
+      Status::internal("invalid secret key format")
+    })?;
+
+    let now = Utc::now();
+    let exp = self.expires_in_seconds.map(|s| now + Duration::seconds(s));
+
+    let claims = Claims {
+      sub: self.sub.unwrap_or_default(),
+      iss: self.issuer,
+      iat: Some(now.timestamp()),
+      exp: exp.map(|dt| dt.timestamp()),
+      jti: Some(Uuid::new_v4().to_string()),
+      aud: self.audience,
+      scope: self.scope.or(self.nonce),
+      acting_for: self.acting_for,
+    };
+
+    let token_type = self.token_type.unwrap_or_else(|| "access".to_string());
+
+    encode(
+      &Header {
+        alg: Algorithm::EdDSA,
+        kid: Some(self.key_node.id.to_string()),
+        ..Default::default()
+      },
+      &claims,
+      &encoding_key,
+    )
+    .map_err(|e| Status::internal(format!("failed to generate {} token: {}", token_type, e)))
+  }
 }
 
 pub async fn extract_optional_claims<T, R>(

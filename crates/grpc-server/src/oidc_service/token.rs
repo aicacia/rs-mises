@@ -15,7 +15,7 @@ use native_authentication::{AndroidText, AuthError, Context, PolicyBuilder, Text
 use crate::{
   error::ToStatus,
   helpers::{OptionExt, ResultExt},
-  jwt::{generate_access_token, generate_id_token, generate_refresh_token},
+  jwt::TokenBuilder,
   oidc_service::authorization_code::get_and_delete_authorization_code,
 };
 
@@ -217,35 +217,37 @@ where
   };
   let subject_str = code_data.subject.to_string();
 
-  let access_token = generate_access_token(
-    &app_key_node,
-    &app_id_str,
-    issuer,
-    &app_id_str,
-    scope,
-    Some(&subject_str),
-    access_token_expiry,
-  )?;
+  let access_token = TokenBuilder::new(&app_key_node)
+    .sub(&app_id_str)
+    .issuer(issuer)
+    .audience(&app_id_str)
+    .scope(scope.unwrap_or("").to_string())
+    .acting_for(&subject_str)
+    .expires_in(access_token_expiry)
+    .token_type("access")
+    .build()?;
 
-  let refresh_token = generate_refresh_token(
-    &app_key_node,
-    &app_id_str,
-    issuer,
-    &app_id_str,
-    scope,
-    Some(&subject_str),
-    refresh_token_expiry,
-  )?;
+  let refresh_token = TokenBuilder::new(&app_key_node)
+    .sub(&app_id_str)
+    .issuer(issuer)
+    .audience(&app_id_str)
+    .scope(scope.unwrap_or("").to_string())
+    .acting_for(&subject_str)
+    .expires_in(refresh_token_expiry)
+    .token_type("refresh")
+    .build()?;
 
   let id_token = if scope.is_some_and(|s| s.contains("openid")) {
-    Some(generate_id_token(
-      &app_key_node,
-      &subject_str,
-      issuer,
-      &app_id_str,
-      code_data.nonce.as_deref(),
-      access_token_expiry,
-    )?)
+    Some(
+      TokenBuilder::new(&app_key_node)
+        .sub(&subject_str)
+        .issuer(issuer)
+        .audience(&app_id_str)
+        .nonce(code_data.nonce.as_deref().unwrap_or(""))
+        .expires_in(access_token_expiry)
+        .token_type("id")
+        .build()?,
+    )
   } else {
     None
   };
@@ -313,34 +315,31 @@ where
     .or_internal("client not found")?;
   let (access_token_expiry, refresh_token_expiry) = extract_client_token_expiry(&app_node)?;
 
-  let access_token = generate_access_token(
-    &user_key_node,
-    &user_id_str,
-    issuer,
-    &app_id_str,
-    scope,
-    None,
-    access_token_expiry,
-  )?;
+  let access_token = TokenBuilder::new(&user_key_node)
+    .sub(&user_id_str)
+    .issuer(issuer)
+    .audience(&app_id_str)
+    .scope(scope.unwrap_or("").to_string())
+    .expires_in(access_token_expiry)
+    .token_type("access")
+    .build()?;
 
-  let refresh_token = generate_refresh_token(
-    &user_key_node,
-    &user_id_str,
-    issuer,
-    &app_id_str,
-    scope,
-    None,
-    refresh_token_expiry,
-  )?;
+  let refresh_token = TokenBuilder::new(&user_key_node)
+    .sub(&user_id_str)
+    .issuer(issuer)
+    .audience(&app_id_str)
+    .scope(scope.unwrap_or("").to_string())
+    .expires_in(refresh_token_expiry)
+    .token_type("refresh")
+    .build()?;
 
-  let id_token = generate_id_token(
-    &user_key_node,
-    &user_id_str,
-    issuer,
-    &app_id_str,
-    None,
-    access_token_expiry,
-  )?;
+  let id_token = TokenBuilder::new(&user_key_node)
+    .sub(&user_id_str)
+    .issuer(issuer)
+    .audience(&app_id_str)
+    .expires_in(access_token_expiry)
+    .token_type("id")
+    .build()?;
 
   Ok(mises_proto::TokenResponse {
     access_token,
@@ -411,35 +410,34 @@ where
   let scope = grant.scope.as_deref();
   let device_id_str = device_node.id.to_string();
 
-  let access_token = generate_access_token(
-    &device_key_node,
-    &device_id_str,
-    issuer,
-    &app_id_str,
-    scope,
-    None,
-    access_token_expiry,
-  )?;
+  let access_token = TokenBuilder::new(&device_key_node)
+    .sub(&device_id_str)
+    .issuer(issuer)
+    .audience(&app_id_str)
+    .scope(scope.unwrap_or("").to_string())
+    .expires_in(access_token_expiry)
+    .token_type("access")
+    .build()?;
 
-  let refresh_token = generate_refresh_token(
-    &device_key_node,
-    &device_id_str,
-    issuer,
-    &app_id_str,
-    scope,
-    None,
-    refresh_token_expiry,
-  )?;
+  let refresh_token = TokenBuilder::new(&device_key_node)
+    .sub(&device_id_str)
+    .issuer(issuer)
+    .audience(&app_id_str)
+    .scope(scope.unwrap_or("").to_string())
+    .expires_in(refresh_token_expiry)
+    .token_type("refresh")
+    .build()?;
 
   let id_token = if scope.is_some_and(|s| s.contains("openid")) {
-    Some(generate_id_token(
-      &device_key_node,
-      &device_id_str,
-      issuer,
-      &app_id_str,
-      None,
-      access_token_expiry,
-    )?)
+    Some(
+      TokenBuilder::new(&device_key_node)
+        .sub(&device_id_str)
+        .issuer(issuer)
+        .audience(&app_id_str)
+        .expires_in(access_token_expiry)
+        .token_type("id")
+        .build()?,
+    )
   } else {
     None
   };

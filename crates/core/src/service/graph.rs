@@ -25,7 +25,6 @@ use crate::{
   traits::{Executor, Repository},
 };
 
-/// Options for bootstrapping the graph with initial data.
 #[derive(Clone)]
 pub struct BootstrapOptions {
   /// Device identifier for the bootstrapped system

@@ -1,17 +1,19 @@
 use std::{io, os::unix::fs::FileTypeExt, path::Path, str::FromStr, sync::Arc, time::Duration};
 
 use clap::{CommandFactory, Parser};
-use clap_complete::generate;
 use tokio::{fs, net::UnixListener};
+
+use clap_complete::generate;
+use mises_core::service::graph::{BootstrapOptionsBuilder, GraphService};
+use mises_graph::{InMemoryKeyValueRepository, InMemoryKeyValueStore, UuidGenerator};
+use mises_grpc_server::{ClientService, ConfigurationService, OidcService};
+
 use tokio_stream::wrappers::UnixListenerStream;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Server;
 use tracing_subscriber::layer::SubscriberExt;
 
-use mises_core::service::graph::{BootstrapOptionsBuilder, GraphService};
-use mises_graph::{InMemoryKeyValueRepository, InMemoryKeyValueStore, UuidGenerator};
 use mises_grpc_server::{
-  ClientService, ConfigurationService, OidcService,
   oidc_service_server::OidcServiceServer,
   proto::{
     FILE_DESCRIPTOR_SET, client_service_server::ClientServiceServer,

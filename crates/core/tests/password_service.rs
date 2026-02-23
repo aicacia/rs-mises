@@ -37,11 +37,17 @@ async fn same_password_hashes_to_different_values() {
   let hash1 = hash_password(password).expect("hash1 should succeed");
   let hash2 = hash_password(password).expect("hash2 should succeed");
 
-  assert_ne!(hash1, hash2, "same password should produce different hashes due to random salt");
+  assert_ne!(
+    hash1, hash2,
+    "same password should produce different hashes due to random salt"
+  );
 
   let valid1 = verify_password(password, &hash1).expect("verification should succeed");
   let valid2 = verify_password(password, &hash2).expect("verification should succeed");
-  assert!(valid1 && valid2, "both hashes should verify the same password");
+  assert!(
+    valid1 && valid2,
+    "both hashes should verify the same password"
+  );
 }
 
 #[tokio::test]
@@ -64,7 +70,11 @@ async fn generate_secret_with_different_sizes() {
     let decoded = general_purpose::STANDARD_NO_PAD
       .decode(secret.as_bytes())
       .expect("secret should be valid base64");
-    assert_eq!(decoded.len(), size, "decoded secret should match requested size");
+    assert_eq!(
+      decoded.len(),
+      size,
+      "decoded secret should match requested size"
+    );
   }
 }
 
@@ -83,7 +93,10 @@ async fn generate_secret_produces_different_values() {
   let secret1 = generate_secret(32).expect("secret1 generation should succeed");
   let secret2 = generate_secret(32).expect("secret2 generation should succeed");
 
-  assert_ne!(secret1, secret2, "each call should produce a different secret");
+  assert_ne!(
+    secret1, secret2,
+    "each call should produce a different secret"
+  );
 }
 
 #[tokio::test]
@@ -92,7 +105,10 @@ async fn verify_password_rejects_malformed_hash() {
   let malformed_hash = "not_a_valid_argon2_hash";
 
   let result = verify_password(password, malformed_hash);
-  assert!(result.is_err(), "malformed hash should cause verification to fail");
+  assert!(
+    result.is_err(),
+    "malformed hash should cause verification to fail"
+  );
 }
 
 #[tokio::test]
@@ -104,5 +120,8 @@ async fn empty_password_can_be_hashed_and_verified() {
   assert!(is_valid, "empty password should verify");
 
   let is_invalid = verify_password("not_empty", &hash).expect("verification should succeed");
-  assert!(!is_invalid, "non-empty password should not match empty password hash");
+  assert!(
+    !is_invalid,
+    "non-empty password should not match empty password hash"
+  );
 }

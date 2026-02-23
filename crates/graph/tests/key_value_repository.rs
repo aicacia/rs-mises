@@ -3,17 +3,15 @@
 use std::ops::RangeBounds;
 
 use mises_graph::{
-  EdgeDirection, EdgeQuery, Element, Executor, InMemoryKeyValueRepository,
-  InMemoryKeyValueStore, KeyValueStoreExecutor, NodeQuery, Query, QueryOptions, Repository,
-  Transaction, field,
+  EdgeDirection, EdgeQuery, Element, Executor, InMemoryKeyValueRepository, InMemoryKeyValueStore,
+  KeyValueStoreExecutor, NodeQuery, Query, QueryOptions, Repository, Transaction, field,
 };
 
 mod common;
 
 use common::UsizeGenerator;
 
-type Repo =
-  InMemoryKeyValueRepository<usize, serde_json::Value, serde_json::Value, UsizeGenerator>;
+type Repo = InMemoryKeyValueRepository<usize, serde_json::Value, serde_json::Value, UsizeGenerator>;
 
 #[tokio::test]
 async fn create_and_get_node_edge() {
