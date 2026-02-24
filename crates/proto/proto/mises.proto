@@ -211,6 +211,7 @@ message ClientRegisterRequest {
     optional string subject_type = 19;
     optional string id_token_signed_response_alg = 20;
     optional string id_token_encrypted_response_alg = 21;
+    optional string audience = 44;
     optional string id_token_encrypted_response_enc = 22;
     optional string userinfo_signed_response_alg = 23;
     optional string userinfo_encrypted_response_alg = 24;
@@ -285,6 +286,7 @@ message Client {
     optional bool backchannel_logout_session_required = 41;
     optional uint64 access_token_expiry = 42;
     optional uint64 refresh_token_expiry = 43;
+    optional string audience = 44;
 }
 
 message EndSessionRequest {
@@ -432,7 +434,7 @@ message IsAllowedForUserRequest {
 }
 
 message ClientAllowed {
-    repeated string scopes = 1;
+    string scope = 1;
 }
 
 message ApproveForUserRequest {

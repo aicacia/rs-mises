@@ -40,7 +40,7 @@ const userSettings = async () =>
 						auth_method: 'none',
 						grant_types: ['authorization_code', 'refresh_token'],
 						response_types: ['code'],
-						scopes: ['openid', 'profile', 'address', 'offline', 'email', 'phone'],
+						scope: 'openid profile address offline email phone',
 						audience: [`${env.PUBLIC_URL}`],
 						access_token_expires_in_seconds: 3600,
 						id_token_expires_in_seconds: 3600,

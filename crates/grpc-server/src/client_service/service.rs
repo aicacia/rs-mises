@@ -107,7 +107,8 @@ where
       require_pkce: None,
       application_type: None,
       contacts: vec![],
-      service_id: oidc_client.service_id.clone().into(),
+      audience: Some(oidc_client.service_id.clone()),
+      service_id: Some(oidc_client.service_id.clone()),
       client_uri: None,
       logo_uri: None,
       policy_uri: None,
@@ -174,7 +175,7 @@ where
 
     let oidc_client = Self::extract_oidc_client(&client)?;
 
-    let registered_scopes: HashSet<String> = oidc_client
+    let registered_scope: HashSet<String> = oidc_client
       .scope
       .split_whitespace()
       .map(|s| s.to_string())
@@ -237,7 +238,7 @@ where
         if user_authorized {
           for action in &req.actions {
             if inner_request.scope.contains(action)
-              && registered_scopes.contains(action)
+              && registered_scope.contains(action)
               && !allowed_scopes.contains(action)
             {
               allowed_scopes.push(action.clone());
@@ -248,7 +249,7 @@ where
     }
 
     Ok(Response::new(mises_proto::ClientAllowed {
-      scopes: allowed_scopes,
+      scope: allowed_scopes.join(" "),
     }))
   }
 

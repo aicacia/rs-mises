@@ -136,7 +136,6 @@
 {:else if client}
 	{#if clientDiff}
 		<AddClient
-			{userInfo}
 			client={{
 				name: client.name,
 				logoUri: client.logoUri,
@@ -152,7 +151,6 @@
 	{/if}
 {:else if clientInfo}
 	<AddClient
-		{userInfo}
 		client={clientInfo}
 		{disabled}
 		isNew={true}

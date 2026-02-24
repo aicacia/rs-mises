@@ -6,9 +6,11 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { m } from '$lib/paraglide/messages';
-	import type { AuthorizeRequest } from '$lib/proto/mises.js';
+	import { ClientRegisterRequest, type AuthorizeRequest } from '$lib/proto/mises.js';
 	import Authorize from './_Authorize.svelte';
+
 	import { rejectAuthorizeRequest, type ClientInfo } from './_utils';
+	import { camelizeKeys } from '$lib/common/util/camelizeKeys';
 
 	let { data } = $props();
 
@@ -32,7 +34,8 @@
 	$effect(() => {
 		if (urlRegistration) {
 			try {
-				clientInfo = JSON.parse(urlRegistration) as ClientInfo;
+				const parsed = JSON.parse(urlRegistration);
+				clientInfo = camelizeKeys(parsed) as ClientInfo;
 			} catch {
 				clientInfo = null;
 			}
