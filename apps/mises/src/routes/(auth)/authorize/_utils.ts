@@ -1,64 +1,11 @@
 import { oidcClient } from '$lib/common/util/grpcClient';
 import type { AuthorizeRequest, Client, ClientRegisterRequest } from '$lib/proto/mises';
+import { isTauri } from '@tauri-apps/api/core';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
-export type ClientInfo = ClientRegisterRequest;
+// helper utilities used by authorization pages
 
-function deepEqual(a: unknown, b: unknown): boolean {
-	if (a === b) {
-		return true;
-	}
-	if (Array.isArray(a) && Array.isArray(b)) {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (!deepEqual(a[i], b[i])) {
-				return false;
-			}
-		}
-		return true;
-	}
-	if (a !== null && b !== null && typeof a === 'object' && typeof b === 'object') {
-		const aObj = a as Record<string, unknown>;
-		const bObj = b as Record<string, unknown>;
-		const aKeys = Object.keys(aObj);
-		const bKeys = Object.keys(bObj);
-		if (aKeys.length !== bKeys.length) {
-			return false;
-		}
-		for (const key of aKeys) {
-			if (!bKeys.includes(key)) {
-				return false;
-			}
-			if (!deepEqual(aObj[key], bObj[key])) {
-				return false;
-			}
-		}
-		return true;
-	}
-	return false;
-}
-
-export function getClientDiff(client: Client, clientInfo: ClientInfo): Partial<ClientInfo> | false {
-	const diff: Partial<ClientInfo> = {};
-	let changed = false;
-
-	for (const key of Object.keys(clientInfo) as (keyof ClientInfo)[]) {
-		const a = client[key];
-		const b = clientInfo[key];
-
-		if (!deepEqual(a, b)) {
-			changed = true;
-			diff[key] = b as never;
-		}
-	}
-
-	if (!changed) {
-		return false;
-	}
-
-	return diff;
-}
+// url helpers
 
 export function rejectAuthorizeRequest(
 	authorizeRequest: Pick<AuthorizeRequest, 'redirectUri' | 'state' | 'nonce'>,
@@ -78,14 +25,25 @@ export function rejectAuthorizeRequest(
 }
 
 export async function resolveAuthorizeRequest(authorizeRequest: AuthorizeRequest) {
-	const url = new URL(authorizeRequest.redirectUri!);
+	console.log(authorizeRequest);
+
+	const authorizeResponse = await oidcClient().authorize(authorizeRequest);
+
+	const url = new URL(authorizeResponse.redirectUri!);
 	if (authorizeRequest.state) {
 		url.searchParams.append('state', authorizeRequest.state);
 	}
 	if (authorizeRequest.nonce) {
 		url.searchParams.append('nonce', authorizeRequest.nonce);
 	}
-	const authorizeResponse = await oidcClient().authorize(authorizeRequest);
+
+	if (isTauri()) {
+		await openUrl(url.toString());
+	} else {
+		window.location.href = url.toString();
+	}
+	return;
+	// TODO: change response type to include all possible response parameters, and handle them accordingly
 	switch (authorizeRequest.responseMode) {
 		case 'fragment':
 		case 'query': {
@@ -105,7 +63,11 @@ export async function resolveAuthorizeRequest(authorizeRequest: AuthorizeRequest
 					break;
 				}
 			}
-			window.location.href = url.toString();
+			if (isTauri()) {
+				await openUrl(url.toString());
+			} else {
+				window.location.href = url.toString();
+			}
 			break;
 		}
 		case 'form_post': {

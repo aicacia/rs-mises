@@ -6,11 +6,10 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { m } from '$lib/paraglide/messages';
-	import { ClientRegisterRequest, type AuthorizeRequest } from '$lib/proto/mises.js';
+	import type { AuthorizeRequest } from '$lib/proto/mises.js';
 	import Authorize from './_Authorize.svelte';
 
-	import { rejectAuthorizeRequest, type ClientInfo } from './_utils';
-	import { camelizeKeys } from '$lib/common/util/camelizeKeys';
+	import { rejectAuthorizeRequest } from './_utils';
 
 	let { data } = $props();
 
@@ -23,24 +22,12 @@
 	let urlRedirectUri = $derived(page.url.searchParams.get('redirect_uri'));
 	let urlState = $derived(page.url.searchParams.get('state') ?? undefined);
 	let urlNonce = $derived(page.url.searchParams.get('nonce') ?? undefined);
-	let urlRegistration = $derived(page.url.searchParams.get('registration') ?? undefined);
 	let urlCodeChallenge = $derived(page.url.searchParams.get('code_challenge') ?? undefined);
 	let urlCodeChallengeMethod = $derived(
 		page.url.searchParams.get('code_challenge_method') ?? undefined
 	);
 
-	let clientInfo = $state<ClientInfo | null>(null);
-
-	$effect(() => {
-		if (urlRegistration) {
-			try {
-				const parsed = JSON.parse(urlRegistration);
-				clientInfo = camelizeKeys(parsed) as ClientInfo;
-			} catch {
-				clientInfo = null;
-			}
-		}
-	});
+	// registration is handled on its own page now
 
 	let responseTypeError = $state<string>();
 	let responseModeError = $state<string>();
@@ -118,7 +105,7 @@
 	<div class="m-8 flex grow flex-col items-center justify-center">
 		<div class="card w-md">
 			{#if authorizeRequest}
-				<Authorize {userInfo} {clientInfo} {authorizeRequest} />
+				<Authorize {userInfo} {authorizeRequest} />
 			{:else}
 				<section>
 					<h5>{m.authorize_invalid_request()}</h5>

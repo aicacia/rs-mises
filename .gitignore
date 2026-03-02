@@ -10,3 +10,6 @@
 /data
 /master.key
 /mises.sock
+
+# ignore generated javascript from ts-node tests
+/packages/db/src/**/*.js

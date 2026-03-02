@@ -115,6 +115,9 @@ where
     }
   }
 
+  // client_id must always be provided now. dynamic client registration
+  // is handled separately via the registration endpoint/page; the authorize
+  // call will no longer create applications on-the-fly.
   if req.client_id.trim().is_empty() {
     return Err(Status::invalid_argument("client_id is required"));
   }
@@ -155,12 +158,6 @@ where
       ));
     }
   };
-
-  if req.registration.is_some() {
-    return Err(Status::invalid_argument(
-      "registration parameter not allowed when client_id is provided",
-    ));
-  }
 
   if let Some(ref mode) = req.response_mode
     && constants::RESPONSE_MODES.iter().all(|&m| m != mode)

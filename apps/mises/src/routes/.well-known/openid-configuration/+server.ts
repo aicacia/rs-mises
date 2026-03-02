@@ -9,7 +9,7 @@ export async function GET() {
 		token_endpoint: 'mises://token',
 		userinfo_endpoint: 'mises://user-info',
 		jwks_uri: 'mises://jwks.json',
-		registration_endpoint: 'mises://register',
+		registration_endpoint: `${env.PUBLIC_MISES_URL}/register`,
 		revocation_endpoint: 'mises://revoke',
 		introspection_endpoint: 'mises://introspect',
 		end_session_endpoint: 'mises://end_session',

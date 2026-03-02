@@ -37,11 +37,20 @@ where
 
   let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
 
-  let service_node = identity_service
+  let service_node = match identity_service
     .find_service_by_name(&service_id)
     .await
     .map_err(|e| e.to_status())?
-    .ok_or_else(|| Status::invalid_argument(format!("service_id not found: {}", service_id)))?;
+  {
+    Some(node) => node,
+    None => {
+      let (node, _key) = identity_service
+        .create_service(service_id.clone(), None)
+        .await
+        .map_err(|e| e.to_status())?;
+      node
+    }
+  };
   let service_uuid = service_node.id;
 
   let is_new_client;

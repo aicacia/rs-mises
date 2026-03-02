@@ -1,9 +1,7 @@
 <script lang="ts" module>
-	import type { ClientInfo } from './_utils';
-
 	export interface ClientProps {
 		userInfo: UserInfo;
-		client: ClientInfo;
+		client: Client;
 		disabled?: boolean;
 		onAllow: () => Promise<void>;
 		onDeny: () => Promise<void>;
@@ -13,7 +11,7 @@
 <script lang="ts">
 	import Avatar from '../../../lib/common/components/Avatar.svelte';
 	import { m } from '$lib/paraglide/messages';
-	import type { UserInfo } from '$lib/proto/mises';
+	import type { UserInfo, Client } from '$lib/proto/mises';
 
 	let { userInfo, client, disabled, onAllow, onDeny }: ClientProps = $props();
 
@@ -58,9 +56,14 @@
 <div class="my-4 flex flex-col justify-center">
 	<h2 class="text-sm font-medium">{m.authorize_requested_permissions()}</h2>
 
-	{#if client.scopes && client.scopes.length}
+	{#if client.scope}
+		{@const scopes = client.scope
+			.split(' ')
+			.map((scope) => scope.trim())
+			.filter((scope) => scope.length > 0)}
+
 		<ul class="list-inside list-disc text-sm">
-			{#each client.scopes as scope (scope)}
+			{#each scopes as scope (scope)}
 				<li>{scope}</li>
 			{/each}
 		</ul>
@@ -69,16 +72,14 @@
 	{/if}
 </div>
 
-{#if client.policyUri || client.termsOfServiceUri}
+{#if client.policyUri || client.tosUri}
 	<hr />
 	<div class="mt-4 flex flex-row justify-center gap-4 text-xs">
 		{#if client.policyUri}
 			<a href={client.policyUri} target="_blank" rel="external">{m.authorize_privacy_policy()}</a>
 		{/if}
-		{#if client.termsOfServiceUri}
-			<a href={client.termsOfServiceUri} target="_blank" rel="external"
-				>{m.authorize_terms_of_service()}</a
-			>
+		{#if client.tosUri}
+			<a href={client.tosUri} target="_blank" rel="external">{m.authorize_terms_of_service()}</a>
 		{/if}
 	</div>
 {/if}

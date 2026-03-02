@@ -6,14 +6,17 @@ import { notifications } from '$lib/common/state/notifications.svelte';
 export const load: PageLoad = async (event) => {
 	await event.parent();
 
-	try {
-		const userManager = await getUserManager();
-		await userManager.signinCallback(event.url.toString());
-	} catch (e) {
-		if (e instanceof Error) {
-			notifications.add(e.message);
-		}
-		redirect(302, '/signin');
-	}
-	redirect(302, '/');
+	const userManager = await getUserManager();
+	await userManager.signinCallback(event.url.toString());
+
+	// try {
+	// 	const userManager = await getUserManager();
+	// 	await userManager.signinCallback(event.url.toString());
+	// } catch (e) {
+	// 	if (e instanceof Error) {
+	// 		notifications.add(e.message);
+	// 	}
+	// 	redirect(302, '/signin');
+	// }
+	// redirect(302, '/');
 };

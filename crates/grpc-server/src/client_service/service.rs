@@ -10,7 +10,7 @@ use mises_core::{
     node::{NodeMeta, NodeType},
     requests::RequestStatus,
   },
-  service::{identity::IdentityService, requests::RequestService},
+  service::identity::IdentityService,
   traits::Repository,
 };
 use mises_graph::{EdgeQuery, Element, Node, NodeQuery, Query, field};
@@ -269,56 +269,23 @@ where
 
     let inner_request = request.into_inner();
 
-    let client_id =
+    if inner_request.client_id.is_empty() {
+      return Err(Status::invalid_argument("Client ID is required"));
+    }
+
+    log::debug!(
+      "Approving request for client ID: {}",
+      inner_request.client_id
+    );
+
+    let _client_id =
       Uuid::parse_str(&inner_request.client_id).or_invalid_argument("Invalid client ID")?;
 
-    let request_service = RequestService::new(self.repo.clone());
-
-    let approver_id = claims
+    let _approver_id = claims
       .acting_for
       .and_then(|af| Uuid::parse_str(&af).ok())
       .or_else(|| Uuid::parse_str(&claims.sub).ok())
       .or_invalid_argument("Invalid approver identity")?;
-
-    let query = Query::nodes(
-      NodeQuery::new(NodeType::Request.as_str())
-        .filter(field("metadata.status").eq(RequestStatus::Pending.as_str())),
-    );
-
-    let elements = self
-      .repo
-      .query(query)
-      .await
-      .or_internal("Failed to query requests")?;
-
-    let mut request_node_id = None;
-
-    for el in elements {
-      if let Element::Node(node) = el
-        && let NodeMeta::Request(req) = &node.metadata
-      {
-        let scopes_match = req.actions.len() == inner_request.scope.len()
-          && req
-            .actions
-            .iter()
-            .all(|action| inner_request.scope.contains(action));
-
-        if req.requested_for == Some(client_id) && scopes_match {
-          request_node_id = Some(node.id);
-          break;
-        }
-      }
-    }
-
-    let request_id = request_node_id.or_not_found("No matching pending request found")?;
-
-    request_service
-      .approve_request(request_id, approver_id)
-      .await
-      .map_err(|e| {
-        log::error!("Failed to approve request: {}", e);
-        Status::internal("Failed to approve request")
-      })?;
 
     Ok(Response::new(()))
   }

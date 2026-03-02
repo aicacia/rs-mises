@@ -1,0 +1,86 @@
+{
+	"name": "@aicacia/oidc-client",
+	"version": "0.1.0",
+	"description": "Aicacia OIDC Client",
+	"type": "module",
+	"keywords": [
+		"aicacia",
+		"openid",
+		"connect",
+		"oidc",
+		"client"
+	],
+	"author": "Nathan Faucett",
+	"license": "(MIT OR Apache-2.0)",
+	"readmeFilename": "README.md",
+	"module": "esm/index.js",
+	"main": "cjs/index.js",
+	"types": "types/index.d.ts",
+	"scripts": {
+		"buildCJS": "tsc -b tsconfig.cjs.json",
+		"buildESM": "tsc",
+		"buildBrowser": "rollup -c",
+		"build": "pnpm run clean && pnpm run buildCJS && pnpm run buildESM && pnpm run buildBrowser",
+		"doc": "typedoc",
+		"prepublishOnly": "pnpm run build",
+		"test": "node --loader ts-node/esm node_modules/tape/bin/tape src/**/*.test.{ts,tsx} | tap-spec",
+		"coverage": "nyc --reporter=lcov --check-coverage --lines=75 --require ts-node/register tape src/**/*.test.{ts,tsx} | tap-spec; nyc report ---reporter=text",
+		"coverageHTML": "nyc --reporter=lcov --check-coverage --lines=75 --require ts-node/register tape src/**/*.test.{ts,tsx} | tap-spec; nyc report ---reporter=html",
+		"clean": "shx rm -rf esm cjs browser types .nyc_output coverage",
+		"lint": "prettier --check . && eslint .",
+		"lint:fix": "prettier --write . && eslint --fix .",
+		"preCommit": "pnpm run lint:fix && pnpm run coverage",
+		"prepare": "husky"
+	},
+	"husky": {
+		"hooks": {
+			"pre-commit": "pnpm run preCommit"
+		}
+	},
+	"dependencies": {
+		"eventemitter3": "^5.0.4"
+	},
+	"devDependencies": {
+		"@eslint/compat": "^2.0.2",
+		"@eslint/js": "^9.39.3",
+		"@rollup/plugin-commonjs": "^29.0.0",
+		"@rollup/plugin-node-resolve": "^16.0.3",
+		"@rollup/plugin-terser": "^0.4.4",
+		"@rollup/plugin-typescript": "^12.3.0",
+		"@types/benchmark": "^2.1.5",
+		"@types/tape": "^5.8.1",
+		"benchmark": "^2.1.4",
+		"eslint": "^9.39.3",
+		"eslint-config-prettier": "^10.1.8",
+		"globals": "^17.4.0",
+		"husky": "^9.1.7",
+		"nyc": "^17.1.0",
+		"prettier": "^3.8.1",
+		"rollup": "^4.59.0",
+		"rollup-plugin-esm-import-to-url": "^2.1.0",
+		"shx": "^0.4.0",
+		"tap-nyc": "^1.0.3",
+		"tap-spec": "^5.0.0",
+		"tape": "^5.9.0",
+		"ts-node": "^10.9.2",
+		"tslib": "^2.8.1",
+		"typedoc": "^0.28.17",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.56.1"
+	},
+	"peerDependencies": {
+		"tslib": "2"
+	},
+	"nyc": {
+		"include": [
+			"src"
+		],
+		"exclude": [
+			"src/**/*.test.*"
+		],
+		"extension": [
+			".ts",
+			".tsx"
+		]
+	}
+}

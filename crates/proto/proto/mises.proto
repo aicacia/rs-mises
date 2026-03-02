@@ -48,9 +48,8 @@ message AuthorizeRequest {
     optional string redirect_uri = 5;
     optional string state = 6;
     optional string nonce = 7;
-    optional ClientRegisterRequest registration = 8;
-    optional string code_challenge = 9;
-    optional string code_challenge_method = 10;
+    optional string code_challenge = 8;
+    optional string code_challenge_method = 9;
 }
 
 message AuthorizeResponse {
@@ -167,9 +166,8 @@ message PushedAuthorizeRequest {
     optional string redirect_uri = 5;
     optional string state = 6;
     optional string nonce = 7;
-    optional ClientRegisterRequest registration = 8;
-    optional string code_challenge = 9;
-    optional string code_challenge_method = 10;
+    optional string code_challenge = 8;
+    optional string code_challenge_method = 9;
 }
 
 message PushedAuthorizeResponse {
@@ -430,7 +428,7 @@ message GetClientRequest {
 
 message IsAllowedForUserRequest {
     string client_id = 1;
-    repeated string scope = 2;
+    string scope = 2;
 }
 
 message ClientAllowed {
@@ -439,5 +437,4 @@ message ClientAllowed {
 
 message ApproveForUserRequest {
     string client_id = 1;
-    repeated string scope = 2;
 }

@@ -1,0 +1,19 @@
+{
+	"extends": "../../../tsconfig.base.json",
+	"compilerOptions": {
+		"allowImportingTsExtensions": false,
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"target": "esnext",
+		"allowJs": true,
+		"checkJs": false,
+		"isolatedModules": true,
+		"resolveJsonModule": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"strict": true,
+		"skipLibCheck": true
+	},
+	"include": ["src/**/*.ts", "src/**/*.svelte"],
+	"exclude": ["node_modules", "dist"]
+}

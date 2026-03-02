@@ -1,0 +1,13 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"target": "ES2015",
+		"module": "CommonJS",
+		"moduleResolution": "node",
+		"outDir": "cjs",
+		"declaration": false,
+		"declarationDir": null,
+		"declarationMap": false,
+		"allowImportingTsExtensions": false
+	}
+}
