@@ -1,90 +1,124 @@
 /**
- * Query builder with fluent API for composing queries
+ * Query builder with fluent API for composing queryable CTEs
  */
 
-import type { CTE, IQueryBuilder, OrderDirection, QueryPredicate, UnsubscribeFn } from './types.js';
-import {
-	addNamedCTE,
-	addOrderByToCTE,
-	cloneCTE,
-	createCTE,
-	createOrderBy,
-	setLimitOnCTE,
-	setOffsetOnCTE
-} from './cte.js';
+import type { UnsubscribeFn } from './types.js';
+import { type CTE, type CTEFilter, addNamedCTE, createCTE } from './cte.js';
+import { evaluateCTE } from './filterEngine.js';
 
 /**
- * QueryBuilder - fluent API for building and executing queries
+ * Order direction
  */
-export class QueryBuilder<T> implements IQueryBuilder<T> {
-	private _cte: CTE;
-	private _predicates: QueryPredicate<T>[] = [];
-	private _executeQuery: (cte: CTE, predicates: QueryPredicate<T>[]) => QuerySubscriptionResult<T>;
+export type OrderDirection = 'asc' | 'desc';
 
-	constructor(
-		executeQuery: (cte: CTE, predicates: QueryPredicate<T>[]) => QuerySubscriptionResult<T>
-	) {
-		this._cte = createCTE();
-		this._executeQuery = executeQuery;
-	}
+/**
+ * Deep key of an object type
+ *
+ * Generates a union of all possible paths through an object's properties,
+ * including nested paths using dot notation (e.g., 'user.name', 'user.address.city').
+ *
+ * @example
+ * ```typescript
+ * interface User {
+ *   id: string;
+ *   profile: {
+ *     name: string;
+ *     age: number;
+ *   };
+ * }
+ *
+ * type UserKeys = DeepKeyOf<User>; // 'id' | 'profile' | 'profile.name' | 'profile.age'
+ * ```
+ */
+export type DeepKeyOf<T> = T extends object
+	? {
+			[K in keyof T]-?: K extends string
+				? `${K}` | (T[K] extends object ? `${K}.${DeepKeyOf<T[K]> & string}` : never)
+				: never;
+		}[keyof T]
+	: never;
 
-	filter(predicate: QueryPredicate<T>): IQueryBuilder<T> {
-		const builder = new QueryBuilder(this._executeQuery);
-		builder._cte = cloneCTE(this._cte);
-		builder._predicates = [...this._predicates, predicate];
-		return builder;
-	}
+/**
+ * Query builder interface
+ */
+export interface IQueryBuilder<T> {
+	/**
+	 * Add a filter condition to the CTE
+	 */
+	where(filter: CTEFilter): IQueryBuilder<T>;
 
-	orderBy(field: keyof T, direction: OrderDirection = 'asc'): IQueryBuilder<T> {
-		const builder = new QueryBuilder(this._executeQuery);
-		builder._cte = addOrderByToCTE(this._cte, createOrderBy(String(field), direction));
-		builder._predicates = [...this._predicates];
-		return builder;
-	}
+	/**
+	 * Order results by field
+	 *
+	 * Supports both top-level fields and nested paths using dot notation.
+	 *
+	 * @param field - Field name or nested path (e.g., 'name' or 'user.profile.name')
+	 * @param direction - Sort direction ('asc' or 'desc', default: 'asc')
+	 *
+	 * @example
+	 * ```typescript
+	 * collection.query().orderBy('name', 'asc')
+	 * collection.query().orderBy('user.profile.age', 'desc')
+	 * ```
+	 */
+	orderBy(field: DeepKeyOf<T> | string, direction?: OrderDirection): IQueryBuilder<T>;
 
-	limit(n: number): IQueryBuilder<T> {
-		const builder = new QueryBuilder(this._executeQuery);
-		builder._cte = setLimitOnCTE(this._cte, n);
-		builder._predicates = [...this._predicates];
-		return builder;
-	}
+	/**
+	 * Limit number of results
+	 */
+	limit(n: number): IQueryBuilder<T>;
 
-	offset(n: number): IQueryBuilder<T> {
-		const builder = new QueryBuilder(this._executeQuery);
-		builder._cte = setOffsetOnCTE(this._cte, n);
-		builder._predicates = [...this._predicates];
-		return builder;
-	}
+	/**
+	 * Skip first n results
+	 */
+	offset(n: number): IQueryBuilder<T>;
 
-	with(name: string, fn: (q: IQueryBuilder<T>) => IQueryBuilder<T>): IQueryBuilder<T> {
-		const builder = new QueryBuilder(this._executeQuery);
-		builder._cte = cloneCTE(this._cte);
-		builder._predicates = [...this._predicates];
+	/**
+	 * Paginate results by page number and page size
+	 *
+	 * @param page - Page number (0-indexed)
+	 * @param pageSize - Number of results per page (default: 10)
+	 * @returns Query builder with offset and limit applied
+	 */
+	paginate(page: number, pageSize?: number): IQueryBuilder<T>;
 
-		// Build the subquery
-		const subqueryBuilder = fn(new QueryBuilder(this._executeQuery));
-		const subqueryCTE = subqueryBuilder.toCTE();
+	/**
+	 * Define a reusable CTE subquery
+	 */
+	with(name: string, fn: (q: IQueryBuilder<T>) => IQueryBuilder<T>): IQueryBuilder<T>;
 
-		// Add it as a named CTE
-		builder._cte = addNamedCTE(builder._cte, name, subqueryCTE);
+	/**
+	 * Subscribe to query results
+	 *
+	 * Establishes a subscription to documents matching the query. The subscription
+	 * begins immediately and will emit results as they change. Errors thrown in the
+	 * onUpdate callback are caught and passed to onError if provided.
+	 *
+	 * @param onUpdate - Called with documents matching the query.
+	 *                   Errors thrown here are caught and sent to onError.
+	 * @param onError - Optional callback for errors. Called with adapter errors,
+	 *                  filter evaluation errors, or subscriber callback errors.
+	 *                  Non-recoverable: unsubscribe is recommended.
+	 *                  To retry, create a new subscription.
+	 * @returns Unsubscribe function to clean up subscription and stop receiving updates
+	 */
+	subscribe(onUpdate: (docs: T[]) => void, onError?: (error: Error) => void): UnsubscribeFn;
 
-		return builder;
-	}
+	/**
+	 * Export query as JSON-serializable CTE
+	 */
+	toCTE(): CTE;
 
-	subscribe(onUpdate: (docs: T[]) => void, onError?: (error: Error) => void): UnsubscribeFn {
-		return this._executeQuery(
-			this._cte,
-			this._predicates
-		)({
-			onUpdate,
-			onError: onError || (() => {})
-		});
-	}
-
-	toCTE(): CTE {
-		return cloneCTE(this._cte);
-	}
+	/**
+	 * Compile CTE to executable filter function
+	 */
+	compileToFunction(): (docs: T[]) => T[];
 }
+
+/**
+ * Query compiler - compiles CTE to executable result
+ */
+export type QueryCompiler<T> = (cte: CTE) => QuerySubscriptionResult<T>;
 
 /**
  * Query result subscription callback
@@ -98,3 +132,96 @@ export interface QuerySubscriptionCallback<T> {
  * Query subscription result function
  */
 export type QuerySubscriptionResult<T> = (callbacks: QuerySubscriptionCallback<T>) => UnsubscribeFn;
+
+/**
+ * QueryBuilder - fluent API for building JSON-serializable CTEs that can be compiled
+ */
+export class QueryBuilder<T> implements IQueryBuilder<T> {
+	private _cte: CTE;
+	private _compile: QueryCompiler<T>;
+
+	constructor(compile: QueryCompiler<T>) {
+		this._cte = createCTE();
+		this._compile = compile;
+	}
+
+	private cloneCurrentCTE(): CTE {
+		return JSON.parse(JSON.stringify(this._cte));
+	}
+
+	where(filter: CTEFilter): IQueryBuilder<T> {
+		const builder = new QueryBuilder(this._compile);
+		builder._cte = this.cloneCurrentCTE();
+		if (!builder._cte.filters) {
+			builder._cte.filters = [];
+		}
+		builder._cte.filters.push(filter);
+		return builder;
+	}
+
+	orderBy(field: DeepKeyOf<T> | string, direction: OrderDirection = 'asc'): IQueryBuilder<T> {
+		const builder = new QueryBuilder(this._compile);
+		builder._cte = this.cloneCurrentCTE();
+		if (!builder._cte.orderBy) {
+			builder._cte.orderBy = [];
+		}
+		builder._cte.orderBy.push({ field: String(field), direction });
+		return builder;
+	}
+
+	limit(n: number): IQueryBuilder<T> {
+		const builder = new QueryBuilder(this._compile);
+		builder._cte = this.cloneCurrentCTE();
+		builder._cte.limit = n;
+		return builder;
+	}
+
+	offset(n: number): IQueryBuilder<T> {
+		const builder = new QueryBuilder(this._compile);
+		builder._cte = this.cloneCurrentCTE();
+		builder._cte.offset = n;
+		return builder;
+	}
+
+	paginate(page: number, pageSize: number = 10): IQueryBuilder<T> {
+		const builder = new QueryBuilder(this._compile);
+		builder._cte = this.cloneCurrentCTE();
+		builder._cte.offset = page * pageSize;
+		builder._cte.limit = pageSize;
+		return builder;
+	}
+
+	with(name: string, fn: (q: IQueryBuilder<T>) => IQueryBuilder<T>): IQueryBuilder<T> {
+		const builder = new QueryBuilder(this._compile);
+		builder._cte = this.cloneCurrentCTE();
+
+		const subqueryBuilder = fn(new QueryBuilder(this._compile));
+		const subqueryCTE = subqueryBuilder.toCTE();
+
+		addNamedCTE(builder._cte, name, subqueryCTE);
+
+		return builder;
+	}
+
+	subscribe(onUpdate: (docs: T[]) => void, onError?: (error: Error) => void): UnsubscribeFn {
+		const errorHandler =
+			onError ||
+			((error: Error) => {
+				throw error;
+			});
+
+		return this._compile(this._cte)({
+			onUpdate,
+			onError: errorHandler
+		});
+	}
+
+	toCTE(): CTE {
+		return this.cloneCurrentCTE();
+	}
+
+	compileToFunction(): (docs: T[]) => T[] {
+		const cte = this._cte;
+		return (docs: T[]) => evaluateCTE(cte, docs);
+	}
+}

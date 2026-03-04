@@ -1,38 +1,66 @@
 /**
  * Collection<T> - self-contained collection with CRUD and query operations
+ * REFACTORED VERSION - Uses per-CTE subscriptions instead of global cache
  */
 
-import type {
-	AdapterStatus,
-	CollectionConfig,
-	CTE,
-	ICollection,
-	IQueryBuilder,
-	QueryPredicate,
-	SourceAdapter,
-	UnsubscribeFn
-} from './types.js';
-import { QueryBuilder, type QuerySubscriptionResult } from './queryBuilder.js';
-import { filterDocumentsByPredicates } from './d2ts.js';
+import type { AdapterStatus, SourceAdapter, UnsubscribeFn } from './types.js';
+import type { CTE } from './cte.js';
+import { QueryBuilder, type IQueryBuilder, type QuerySubscriptionResult } from './queryBuilder.js';
+import { toError } from './utils.js';
 
-interface ActiveSubscription<T> {
+export interface CollectionConfig<T> {
+	id: string;
+	source: SourceAdapter<T>;
+	keyOf: (doc: T) => string;
+}
+
+export interface ICollection<T> {
+	readonly id: string;
+	create(doc: T): Promise<void>;
+	update(id: string, changes: Partial<T>): Promise<void>;
+	delete(id: string): Promise<void>;
+	query(): IQueryBuilder<T>;
+	getStatus(): AdapterStatus;
+}
+
+interface QuerySubscription<T> {
 	cte: CTE;
-	predicates: QueryPredicate<T>[];
 	count: number;
-	unsubscribe: UnsubscribeFn;
-	adapterSubscriptionCreated: boolean;
 	lastResults: T[] | null;
 }
 
+interface CteSubscription {
+	count: number;
+	unsubscribe: UnsubscribeFn;
+	documentKeys: Set<string>;
+}
+
 /**
- * Collection - represents a collection of documents with CRUD and query operations
+ * Collection manages document subscriptions using a dual-layer pattern:
+ * 1. Per-CTE adapter subscriptions (_cteSubscriptions) - one per unique query
+ * 2. Query-level subscriptions (_querySubscriptions, _callbacks) - tracks user subscriptions
+ *
+ * This allows multiple user subscriptions to the same query to share a single adapter subscription,
+ * improving efficiency and reducing redundant filtering operations.
  */
 export class Collection<T> implements ICollection<T> {
 	readonly id: string;
 	private _source: SourceAdapter<T>;
 	private _keyOf: (doc: T) => string;
-	private _activeSubscriptions: Map<string, ActiveSubscription<T>> = new Map();
+
+	/** Cache of documents currently needed by active subscriptions */
+	private _cache: Map<string, T> = new Map();
+
+	/** Map of CTE key -> adapter subscription (one per unique query) */
+	private _cteSubscriptions: Map<string, CteSubscription> = new Map();
+
+	/** Map of CTE key -> query metadata (tracks user subscriptions) */
+	private _querySubscriptions: Map<string, QuerySubscription<T>> = new Map();
+
+	/** Map of CTE key -> set of user update callbacks */
 	private _callbacks: Map<string, Set<(docs: T[]) => void>> = new Map();
+
+	/** Map of CTE key -> set of user error callbacks */
 	private _errorCallbacks: Map<string, Set<(error: Error) => void>> = new Map();
 
 	constructor(config: CollectionConfig<T>) {
@@ -54,8 +82,8 @@ export class Collection<T> implements ICollection<T> {
 	}
 
 	query(): IQueryBuilder<T> {
-		return new QueryBuilder((cte: CTE, predicates: QueryPredicate<T>[]) => {
-			return this._createQuerySubscription(cte, predicates);
+		return new QueryBuilder((cte: CTE) => {
+			return this._createQuerySubscription(cte);
 		});
 	}
 
@@ -63,125 +91,225 @@ export class Collection<T> implements ICollection<T> {
 		return this._source.getStatus();
 	}
 
-	/**
-	 * Create a query subscription for the given CTE and predicates
-	 */
-	private _createQuerySubscription(
-		cte: CTE,
-		predicates: QueryPredicate<T>[]
-	): QuerySubscriptionResult<T> {
+	private _createQuerySubscription(cte: CTE): QuerySubscriptionResult<T> {
 		return (callbacks) => {
-			const cteKey = JSON.stringify(cte);
-			const predicateKey = predicates.map((p) => p.toString()).join('|');
-			const subscriptionKey = `${cteKey}:${predicateKey}`;
+			const subscriptionKey = JSON.stringify(cte);
 
-			// Check if we already have an identical subscription
-			let activeSubscription = this._activeSubscriptions.get(subscriptionKey);
+			let callbackSet = this._callbacks.get(subscriptionKey);
+			let errorSet = this._errorCallbacks.get(subscriptionKey);
 
-			if (!activeSubscription) {
-				// Initialize callback storage BEFORE creating adapter subscription
-				// This is important because adapter.subscribe may call onUpdate immediately
-				const callbackSet = new Set<(docs: T[]) => void>();
-				const errorSet = new Set<(error: Error) => void>();
+			const isFirstSubscriber = !callbackSet;
 
+			if (isFirstSubscriber) {
+				callbackSet = new Set<(docs: T[]) => void>();
+				errorSet = new Set<(error: Error) => void>();
 				this._callbacks.set(subscriptionKey, callbackSet);
 				this._errorCallbacks.set(subscriptionKey, errorSet);
 
-				// Create the subscription marker
-				activeSubscription = {
+				this._querySubscriptions.set(subscriptionKey, {
 					cte,
-					predicates,
 					count: 0,
-					unsubscribe: () => {},
-					adapterSubscriptionCreated: false,
 					lastResults: null
-				};
-
-				this._activeSubscriptions.set(subscriptionKey, activeSubscription);
+				});
 			}
 
-			// Register callback BEFORE creating adapter subscription so it's in the set
-			// when the adapter calls onUpdate immediately
-			const callbackSet = this._callbacks.get(subscriptionKey)!;
-			callbackSet.add(callbacks.onUpdate);
+			callbackSet!.add(callbacks.onUpdate);
+			errorSet!.add(callbacks.onError);
 
-			const errorSet = this._errorCallbacks.get(subscriptionKey)!;
-			errorSet.add(callbacks.onError);
+			const querySubscription = this._querySubscriptions.get(subscriptionKey)!;
+			querySubscription.count++;
 
-			activeSubscription.count++;
+			// Check if this CTE was already subscribed before we ensure it
+			const cteWasAlreadySubscribed = this._cteSubscriptions.has(subscriptionKey);
 
-			// Create adapter subscription if not yet created
-			if (!activeSubscription.adapterSubscriptionCreated) {
-				activeSubscription.adapterSubscriptionCreated = true;
-				const unsubscribe = this._source.subscribe(
-					cte,
-					(docs) => this._handleAdapterUpdate(subscriptionKey, docs, predicates),
-					(error) => this._handleAdapterError(subscriptionKey, error)
-				);
+			// Ensure CTE subscription exists (per-query, not global!)
+			this._ensureCteSubscription(subscriptionKey, cte);
 
-				activeSubscription.unsubscribe = unsubscribe;
-			} else if (activeSubscription.lastResults !== null) {
-				// If we already have cached results, emit them immediately to this new subscriber
+			// If CTE was already subscribed when we requested subscription,
+			// send cached results to this subscriber
+			if (cteWasAlreadySubscribed && isFirstSubscriber) {
+				const cteSubscription = this._cteSubscriptions.get(subscriptionKey);
+				const cachedDocs = cteSubscription
+					? Array.from(cteSubscription.documentKeys)
+							.map((key) => this._cache.get(key))
+							.filter((doc): doc is T => doc !== undefined)
+					: [];
+				querySubscription.lastResults = cachedDocs;
 				try {
-					callbacks.onUpdate(activeSubscription.lastResults);
+					callbacks.onUpdate(cachedDocs);
 				} catch (error) {
-					callbacks.onError(error instanceof Error ? error : new Error(String(error)));
+					callbacks.onError(toError(error));
+				}
+			} else if (!isFirstSubscriber && querySubscription.lastResults !== null) {
+				// For non-first subscribers, send cached results if available
+				try {
+					callbacks.onUpdate(querySubscription.lastResults);
+				} catch (error) {
+					callbacks.onError(toError(error));
 				}
 			}
 
 			// Return unsubscribe function
 			return () => {
 				const callbackSet = this._callbacks.get(subscriptionKey);
+				const errorSet = this._errorCallbacks.get(subscriptionKey);
+				const querySubscription = this._querySubscriptions.get(subscriptionKey);
+
 				if (callbackSet) {
 					callbackSet.delete(callbacks.onUpdate);
 				}
 
-				const errorSet = this._errorCallbacks.get(subscriptionKey);
 				if (errorSet) {
 					errorSet.delete(callbacks.onError);
 				}
 
-				const activeSubscription = this._activeSubscriptions.get(subscriptionKey);
-				if (activeSubscription) {
-					activeSubscription.count--;
+				if (querySubscription) {
+					querySubscription.count--;
 
-					// Clean up if no more subscribers
-					if (activeSubscription.count <= 0) {
-						activeSubscription.unsubscribe();
-						this._activeSubscriptions.delete(subscriptionKey);
+					if (querySubscription.count <= 0) {
+						this._querySubscriptions.delete(subscriptionKey);
 						this._callbacks.delete(subscriptionKey);
 						this._errorCallbacks.delete(subscriptionKey);
+
+						// Decrement CTE subscription when query is fully unsubscribed
+						this._decrementCteSubscription(subscriptionKey);
 					}
 				}
 			};
 		};
 	}
 
-	private _handleAdapterUpdate(
-		subscriptionKey: string,
-		docs: T[],
-		predicates: QueryPredicate<T>[]
-	): void {
-		// Filter docs through predicates (D2TS pipeline)
-		const filteredDocs = filterDocumentsByPredicates(docs, predicates);
-
-		// Cache results for new subscribers
-		const activeSubscription = this._activeSubscriptions.get(subscriptionKey);
-		if (activeSubscription) {
-			activeSubscription.lastResults = filteredDocs;
+	/**
+	 * Ensure we have an active CTE subscription for the given query.
+	 *
+	 * Multiple user subscriptions with identical CTEs share a single adapter subscription.
+	 * Reference counting ensures the adapter subscription is cleaned up when all users unsubscribe.
+	 *
+	 * @param cteKey - JSON stringified CTE used as deduplication key
+	 * @param cte - The actual CTE to pass to the adapter
+	 */
+	private _ensureCteSubscription(cteKey: string, cte: CTE): void {
+		// Already subscribed to this specific CTE
+		if (this._cteSubscriptions.has(cteKey)) {
+			this._cteSubscriptions.get(cteKey)!.count++;
+			return;
 		}
 
-		// Notify all callbacks for this subscription
-		const callbackSet = this._callbacks.get(subscriptionKey);
-		if (callbackSet) {
-			for (const callback of callbackSet) {
-				try {
-					callback(filteredDocs);
-				} catch (error) {
-					const errorSet = this._errorCallbacks.get(subscriptionKey);
-					if (errorSet) {
-						for (const errorCallback of errorSet) {
-							errorCallback(error instanceof Error ? error : new Error(String(error)));
+		// Create subscription entry BEFORE subscribing so callbacks can find it
+		const subscriptionEntry: CteSubscription = {
+			count: 1,
+			unsubscribe: () => {},
+			documentKeys: new Set()
+		};
+		this._cteSubscriptions.set(cteKey, subscriptionEntry);
+
+		// Subscribe to source with the ACTUAL CTE (filtered query)
+		const unsubscribe = this._source.subscribe(
+			cte,
+			(docs) => this._handleCteUpdate(cteKey, docs),
+			(error) => this._handleCteError(cteKey, error)
+		);
+
+		subscriptionEntry.unsubscribe = unsubscribe;
+	}
+
+	/**
+	 * Decrement and cleanup CTE subscription reference count.
+	 *
+	 * When count reaches zero:
+	 * 1. Unsubscribe from the adapter
+	 * 2. Remove the CTE subscription entry
+	 * 3. Clean up cached documents that are no longer needed by any active subscription
+	 *
+	 * Called when a query subscription is destroyed.
+	 */
+	private _decrementCteSubscription(cteKey: string): void {
+		const cteSubscription = this._cteSubscriptions.get(cteKey);
+		if (!cteSubscription) return;
+
+		cteSubscription.count--;
+
+		if (cteSubscription.count <= 0) {
+			cteSubscription.unsubscribe();
+			this._cteSubscriptions.delete(cteKey);
+
+			// Clean up cached documents that are no longer needed by any subscription
+			for (const docKey of cteSubscription.documentKeys) {
+				const stillNeeded = Array.from(this._cteSubscriptions.values()).some((sub) =>
+					sub.documentKeys.has(docKey)
+				);
+
+				if (!stillNeeded) {
+					this._cache.delete(docKey);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Update cache from CTE subscription and dispatch to interested queries.
+	 *
+	 * When the adapter emits new results:
+	 * 1. Compare previous vs. next documents to track changes
+	 * 2. Update the cache, removing orphaned docs and adding new ones
+	 * 3. Apply any additional filters (D2TS pipeline)
+	 * 4. Notify all subscribers for this query
+	 */
+	private _handleCteUpdate(cteKey: string, docs: T[]): void {
+		const cteSubscription = this._cteSubscriptions.get(cteKey);
+		if (!cteSubscription) return;
+
+		// Build maps of previous and next documents
+		const previousDocsByKey = new Map<string, T>();
+		for (const key of cteSubscription.documentKeys) {
+			const existing = this._cache.get(key);
+			if (existing !== undefined) {
+				previousDocsByKey.set(key, existing);
+			}
+		}
+
+		const nextDocsByKey = new Map<string, T>();
+		for (const doc of docs) {
+			nextDocsByKey.set(this._keyOf(doc), doc);
+		}
+
+		// Track removed documents
+		for (const oldKey of cteSubscription.documentKeys) {
+			if (!nextDocsByKey.has(oldKey)) {
+				// Check if any other subscription still needs this document
+				const stillNeeded = Array.from(this._cteSubscriptions.values()).some(
+					(sub) => sub !== cteSubscription && sub.documentKeys.has(oldKey)
+				);
+
+				if (!stillNeeded) {
+					this._cache.delete(oldKey);
+				}
+			}
+		}
+
+		// Update with new documents
+		cteSubscription.documentKeys.clear();
+		for (const [key, doc] of nextDocsByKey) {
+			this._cache.set(key, doc);
+			cteSubscription.documentKeys.add(key);
+		}
+
+		// Dispatch to query subscribers for this CTE
+		const querySubscription = this._querySubscriptions.get(cteKey);
+		if (querySubscription) {
+			querySubscription.lastResults = docs;
+
+			const callbackSet = this._callbacks.get(cteKey);
+			if (callbackSet) {
+				for (const callback of callbackSet) {
+					try {
+						callback(docs);
+					} catch (error) {
+						const errorSet = this._errorCallbacks.get(cteKey);
+						if (errorSet) {
+							for (const errorCallback of errorSet) {
+								errorCallback(toError(error));
+							}
 						}
 					}
 				}
@@ -189,16 +317,19 @@ export class Collection<T> implements ICollection<T> {
 		}
 	}
 
-	private _handleAdapterError(subscriptionKey: string, error: Error): void {
-		const errorSet = this._errorCallbacks.get(subscriptionKey);
+	/**
+	 * Handle error from CTE subscription
+	 */
+	private _handleCteError(cteKey: string, error: Error): void {
+		const errorSet = this._errorCallbacks.get(cteKey);
 		if (errorSet) {
 			for (const callback of errorSet) {
-				try {
-					callback(error);
-				} catch {
-					// Silently ignore errors from error handlers to prevent infinite loops
-				}
+				callback(error);
 			}
 		}
 	}
+}
+
+export function createCollection<T>(config: CollectionConfig<T>): ICollection<T> {
+	return new Collection(config);
 }

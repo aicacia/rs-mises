@@ -1,4 +1,5 @@
-import type { IQueryBuilder, UnsubscribeFn } from './types.js';
+import type { UnsubscribeFn } from './types.js';
+import type { IQueryBuilder } from './queryBuilder.js';
 
 export interface StoreState<T> {
 	data: T;
@@ -30,10 +31,8 @@ export function collection<T>(query: IQueryBuilder<T>): {
 	let unsubscribe: UnsubscribeFn | null = null;
 
 	$effect(() => {
-		// Subscribe to query updates
 		unsubscribe = query.subscribe(
 			(docs: T[]) => {
-				// Trigger reactivity by creating a new array reference
 				data = [...docs];
 				error = null;
 			},
@@ -42,7 +41,6 @@ export function collection<T>(query: IQueryBuilder<T>): {
 			}
 		);
 
-		// Return cleanup function
 		return () => {
 			if (unsubscribe) {
 				unsubscribe();

@@ -1,65 +1,51 @@
-/**
- * @aicacia/db - Offline-first local database for JavaScript/TypeScript
- *
- * Public API exports
- */
+// Core types
+export type { AdapterStatus, SourceAdapter, UnsubscribeFn, SubscriptionError } from './types.js';
 
-// Types
+// Collection types and API
+export type { CollectionConfig, ICollection } from './collection.js';
+export { Collection, createCollection } from './collection.js';
+
+// Singleton types and API
+export type { SingletonConfig, ISingleton } from './singleton.js';
+export { Singleton, createSingleton } from './singleton.js';
+
+// Query builder types and API
 export type {
-	AdapterStatus,
-	CTE,
-	CTEFilter,
-	CTEOrderBy,
-	CollectionConfig,
-	D2TSOperation,
-	D2TSPipeline,
-	ICollection,
 	IQueryBuilder,
-	ISingleton,
 	OrderDirection,
-	QueryPredicate,
-	SingletonConfig,
-	SourceAdapter,
-	UnsubscribeFn
-} from './types.js';
+	QueryCompiler,
+	QuerySubscriptionResult,
+	DeepKeyOf
+} from './queryBuilder.js';
+export { QueryBuilder } from './queryBuilder.js';
 
-// Core utilities
+// CTE types and operations
+export type { CTE, CTEFilter, CTEOrderBy } from './cte.js';
 export {
-	addFilterToCTE,
 	addNamedCTE,
-	addOrderByToCTE,
-	areCTEsEqual,
-	cloneCTE,
 	createAndFilter,
 	createCTE,
 	createEqualityFilter,
-	createOrderBy,
-	createOrFilter,
-	deserializeCTE,
+	createOrFilter
+} from './cte.js';
+
+// Adapters
+export { MemoryAdapter, MemorySingletonAdapter } from './memoryAdapter.js';
+
+// Filter engine
+export { applyFilters } from './d2ts.js';
+export {
 	evaluateCTE,
 	evaluateFilter,
 	getFieldValue,
-	serializeCTE,
-	setLimitOnCTE,
-	setOffsetOnCTE
-} from './cte.js';
+	applyOrderBy,
+	applyPagination
+} from './filterEngine.js';
 
-// Query builder
-export { QueryBuilder } from './queryBuilder.js';
-
-// Collections
-export { Collection } from './collection.js';
-export { Singleton } from './singleton.js';
-
-// Factories
-export { createCollection, createSingleton } from './createCollection.js';
-
-// Adapters
-export { MemoryAdapter, MemorySingletonAdapter } from './memory-adapter.js';
-
-// D2TS utilities
+// Test utilities
 export {
-	applyMutationFilterPipeline,
-	compileMutationFilterPipeline,
-	filterDocumentsByPredicates
-} from './d2ts.js';
+	createTestCollection,
+	createTestSingleton,
+	type TestCollectionResult,
+	type TestSingletonResult
+} from './test-utils.js';

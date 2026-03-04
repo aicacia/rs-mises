@@ -1,13 +1,15 @@
-/**
- * Basic tests for @aicacia/db core library
- */
-
 import test from 'tape';
-import { createCollection } from './createCollection.js';
-import { MemoryAdapter } from './memory-adapter.js';
-import { createCTE, evaluateCTE } from './cte.js';
+import { createCollection } from './collection.js';
+import { createSingleton } from './singleton.js';
+import { MemoryAdapter, MemorySingletonAdapter } from './memoryAdapter.js';
+import {
+	createCTE,
+	createEqualityFilter,
+	createComparisonFilter,
+	createAndFilter,
+	createOrFilter
+} from './cte.js';
 
-// Test data interface
 interface Recipe {
 	id: string;
 	name: string;
@@ -74,7 +76,7 @@ test('Query builder: filter', (t) => {
 
 	const unsub = collection
 		.query()
-		.filter((doc) => doc.status === 'active')
+		.where(createEqualityFilter('status', 'active'))
 		.subscribe((docs) => {
 			updates.push([...docs]);
 		});
@@ -108,8 +110,8 @@ test('Query builder: multiple filters compose', (t) => {
 
 	const unsub = collection
 		.query()
-		.filter((doc) => doc.status === 'active')
-		.filter((doc) => doc.prepTime < 40)
+		.where(createEqualityFilter('status', 'active'))
+		.where(createComparisonFilter('prepTime', 'lessThan', 40))
 		.subscribe((docs) => {
 			updates.push([...docs]);
 		});
@@ -206,7 +208,6 @@ test('Collection: mutations', async (t) => {
 		updates.push([...docs]);
 	});
 
-	// Create
 	await collection.create({
 		id: '1',
 		name: 'Pasta',
@@ -218,13 +219,11 @@ test('Collection: mutations', async (t) => {
 	t.equal(updates.length, 2, 'Should receive update after create');
 	t.equal(updates[1].length, 1, 'Should have one document');
 
-	// Update
 	await collection.update('1', { status: 'archived' });
 
 	t.equal(updates.length, 3, 'Should receive update after update');
 	t.equal(updates[2][0].status, 'archived', 'Should be archived');
 
-	// Delete
 	await collection.delete('1');
 
 	t.equal(updates.length, 4, 'Should receive update after delete');
@@ -255,7 +254,6 @@ test('Query: subscription cleanup', (t) => {
 
 	unsub();
 
-	// After unsubscribe, adapter mutations shouldn't trigger updates
 	adapter.create({ id: '2', name: 'Risotto', status: 'active', tags: ['slow'], prepTime: 45 });
 
 	t.equal(updateCount, 1, 'Should not receive update after unsubscribe');
@@ -274,7 +272,7 @@ test('Query: CTE export', (t) => {
 
 	const queryBuilder = collection
 		.query()
-		.filter((doc) => doc.status === 'active')
+		.where(createEqualityFilter('status', 'active'))
 		.orderBy('prepTime', 'asc')
 		.limit(10);
 
@@ -283,6 +281,7 @@ test('Query: CTE export', (t) => {
 	t.equal(cte.version, '1.0', 'CTE should have version');
 	t.equal(cte.limit, 10, 'CTE should have limit');
 	t.equal(cte.orderBy?.length, 1, 'CTE should have one orderBy clause');
+	t.equal(cte.filters?.length, 1, 'CTE should have one filter');
 
 	t.end();
 });
@@ -322,7 +321,7 @@ test('Query: multiple subscriptions to same query share adapter subscription', (
 	const updates1: Recipe[][] = [];
 	const updates2: Recipe[][] = [];
 
-	const query = collection.query().filter((doc) => doc.status === 'active');
+	const query = collection.query().where(createEqualityFilter('status', 'active'));
 
 	const unsub1 = query.subscribe((docs) => {
 		updates1.push([...docs]);
@@ -349,5 +348,512 @@ test('Query: multiple subscriptions to same query share adapter subscription', (
 	unsub1();
 	unsub2();
 
+	t.end();
+});
+
+test('Error handling: error in subscriber is caught', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id', [
+		{ id: '1', name: 'Pasta', status: 'active', tags: ['quick'], prepTime: 20 }
+	]);
+
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	let errorCaught: Error | null = null;
+
+	const unsub = collection.query().subscribe(
+		() => {
+			throw new Error('Subscriber error');
+		},
+		(error) => {
+			errorCaught = error;
+		}
+	);
+
+	t.ok(errorCaught instanceof Error, 'Error should be caught');
+	t.equal(errorCaught?.message, 'Subscriber error', 'Error message should match');
+
+	unsub();
+	t.end();
+});
+
+test('Error handling: multiple subscribers to same query', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id', [
+		{ id: '1', name: 'Pasta', status: 'active', tags: ['quick'], prepTime: 20 }
+	]);
+
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	const updates1: Recipe[][] = [];
+	const updates2: Recipe[][] = [];
+
+	const unsub1 = collection
+		.query()
+		.where(createEqualityFilter('status', 'active'))
+		.subscribe((docs) => {
+			updates1.push([...docs]);
+		});
+
+	const unsub2 = collection
+		.query()
+		.where(createEqualityFilter('status', 'active'))
+		.subscribe((docs) => {
+			updates2.push([...docs]);
+		});
+
+	t.equal(updates1.length, 1, 'First subscriber should receive initial update');
+	t.equal(updates2.length, 1, 'Second subscriber should receive initial update');
+	t.deepEqual(updates1[0], updates2[0], 'Both subscribers should receive same data');
+
+	adapter.create({ id: '2', name: 'Pizza', status: 'active', tags: ['quick'], prepTime: 15 });
+
+	t.equal(updates1.length, 2, 'First subscriber should receive mutation update');
+	t.equal(updates2.length, 2, 'Second subscriber should receive mutation update');
+	t.equal(updates1[1].length, 2, 'First subscriber should have 2 docs');
+	t.equal(updates2[1].length, 2, 'Second subscriber should have 2 docs');
+
+	unsub1();
+	unsub2();
+
+	t.end();
+});
+
+test('Error handling: resubscribe after unsubscribe', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id', [
+		{ id: '1', name: 'Pasta', status: 'active', tags: ['quick'], prepTime: 20 }
+	]);
+
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	const updates1: Recipe[][] = [];
+
+	const unsub1 = collection.query().subscribe((docs) => {
+		updates1.push([...docs]);
+	});
+
+	t.equal(updates1.length, 1, 'Should receive initial update');
+
+	unsub1();
+
+	const updates2: Recipe[][] = [];
+	const unsub2 = collection.query().subscribe((docs) => {
+		updates2.push([...docs]);
+	});
+
+	t.equal(updates2.length, 1, 'Should receive initial update after resubscribe');
+	t.deepEqual(updates2[0], updates1[0], 'Should receive same data');
+
+	unsub2();
+	t.end();
+});
+
+test('Error handling: unsubscribe during callback execution', async (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id', [
+		{ id: '1', name: 'Pasta', status: 'active', tags: ['quick'], prepTime: 20 }
+	]);
+
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	let callCount = 0;
+	let unsub: (() => void) | null = null;
+
+	unsub = collection.query().subscribe((docs) => {
+		callCount++;
+		if (callCount === 1) {
+			unsub?.();
+		}
+	});
+
+	t.equal(callCount, 1, 'Should receive initial callback');
+
+	// The next create will trigger an adapter update. Since we're unsubscribed,
+	// we should not receive a callback for this new document
+	await adapter.create({ id: '2', name: 'Pizza', status: 'active', tags: ['quick'], prepTime: 15 });
+
+	// Wait a tick to ensure any async callbacks are processed
+	await new Promise((resolve) => setTimeout(resolve, 10));
+
+	// Note: The collection may have already processed the create notification
+	// before we unsubscribed if they happen synchronously. The important thing
+	// is that we can safely unsubscribe during a callback without crashing.
+	t.ok(callCount >= 1, 'Should have received at least the initial callback');
+	t.ok(callCount <= 2, 'Should not receive more than 2 callbacks');
+
+	t.end();
+});
+
+test('Functional: default error handler throws', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id');
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	try {
+		collection.query().subscribe(() => {
+			throw new Error('Callback error');
+		});
+		t.fail('Should throw when onError is not provided');
+	} catch (error) {
+		t.ok(error instanceof Error, 'Should throw Error');
+		t.equal((error as Error).message, 'Callback error', 'Should throw callback error');
+	}
+
+	t.end();
+});
+
+test('Functional: custom error handler catches errors', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id');
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	const errors: Error[] = [];
+
+	collection.query().subscribe(
+		() => {
+			throw new Error('Callback error');
+		},
+		(error) => {
+			errors.push(error);
+		}
+	);
+
+	t.equal(errors.length, 1, 'Should have caught one error');
+	t.equal(errors[0].message, 'Callback error', 'Should have correct error message');
+	t.end();
+});
+
+test('Functional: create fails with missing key field', async (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id');
+
+	try {
+		await adapter.create({ name: 'Broken', status: 'active', tags: [], prepTime: 10 } as Recipe);
+		t.fail('Should have thrown error');
+	} catch (error) {
+		t.ok(error instanceof Error, 'Should throw an Error');
+		t.ok(
+			(error as Error).message.includes('missing required key field'),
+			'Should mention missing key field'
+		);
+	}
+
+	t.end();
+});
+
+test('Functional: update fails for non-existent document', async (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id');
+
+	try {
+		await adapter.update('nonexistent', { name: 'Updated' });
+		t.fail('Should have thrown error');
+	} catch (error) {
+		t.ok(error instanceof Error, 'Should throw an Error');
+		t.ok((error as Error).message.includes('not found'), 'Should mention document not found');
+	}
+
+	t.end();
+});
+
+test('Functional: delete fails for non-existent document', async (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id');
+
+	try {
+		await adapter.delete('nonexistent');
+		t.fail('Should have thrown error');
+	} catch (error) {
+		t.ok(error instanceof Error, 'Should throw an Error');
+		t.ok((error as Error).message.includes('not found'), 'Should mention document not found');
+	}
+
+	t.end();
+});
+
+test('Functional: empty collection returns empty results', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id');
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	const updates: Recipe[][] = [];
+
+	const unsub = collection.query().subscribe((docs) => {
+		updates.push([...docs]);
+	});
+
+	t.equal(updates.length, 1, 'Should receive initial update');
+	t.equal(updates[0].length, 0, 'Should have empty array');
+
+	unsub();
+	t.end();
+});
+
+test('Functional: filter with no matches returns empty results', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id', [
+		{ id: '1', name: 'Pasta', status: 'active', tags: ['quick'], prepTime: 20 }
+	]);
+
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	const updates: Recipe[][] = [];
+
+	const unsub = collection
+		.query()
+		.where(createEqualityFilter('status', 'archived'))
+		.subscribe((docs) => {
+			updates.push([...docs]);
+		});
+
+	t.equal(updates.length, 1, 'Should receive initial update');
+	t.equal(updates[0].length, 0, 'Should have no matching documents');
+
+	unsub();
+	t.end();
+});
+
+test('Functional: OR filter matches multiple conditions', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id', [
+		{ id: '1', name: 'Pasta', status: 'active', tags: ['quick'], prepTime: 20 },
+		{ id: '2', name: 'Risotto', status: 'active', tags: ['slow'], prepTime: 45 },
+		{ id: '3', name: 'Soup', status: 'archived', tags: ['quick'], prepTime: 30 }
+	]);
+
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	const updates: Recipe[][] = [];
+
+	const unsub = collection
+		.query()
+		.where(
+			createOrFilter(
+				createEqualityFilter('status', 'archived'),
+				createComparisonFilter('prepTime', 'greaterThan', 40)
+			)
+		)
+		.subscribe((docs) => {
+			updates.push([...docs]);
+		});
+
+	t.equal(updates.length, 1, 'Should receive initial update');
+	t.equal(updates[0].length, 2, 'Should match archived OR prepTime > 40');
+	t.ok(
+		updates[0].some((d) => d.id === '2'),
+		'Should include Risotto (prepTime 45)'
+	);
+	t.ok(
+		updates[0].some((d) => d.id === '3'),
+		'Should include Soup (archived)'
+	);
+
+	unsub();
+	t.end();
+});
+
+test('Functional: AND filter requires all conditions', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id', [
+		{ id: '1', name: 'Pasta', status: 'active', tags: ['quick'], prepTime: 20 },
+		{ id: '2', name: 'Risotto', status: 'active', tags: ['slow'], prepTime: 45 },
+		{ id: '3', name: 'Soup', status: 'active', tags: ['quick'], prepTime: 30 }
+	]);
+
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	const updates: Recipe[][] = [];
+
+	const unsub = collection
+		.query()
+		.where(
+			createAndFilter(
+				createEqualityFilter('status', 'active'),
+				createComparisonFilter('prepTime', 'lessThan', 40)
+			)
+		)
+		.subscribe((docs) => {
+			updates.push([...docs]);
+		});
+
+	t.equal(updates.length, 1, 'Should receive initial update');
+	t.equal(updates[0].length, 2, 'Should match active AND prepTime < 40');
+	t.ok(
+		updates[0].every((d) => d.prepTime < 40),
+		'All results should have prepTime < 40'
+	);
+
+	unsub();
+	t.end();
+});
+
+test('Functional: singleton with default value', (t) => {
+	interface Settings {
+		theme: string;
+		notifications: boolean;
+	}
+
+	const adapter = new MemorySingletonAdapter<Settings>();
+	const singleton = createSingleton({
+		id: 'settings',
+		source: adapter,
+		defaultValue: { theme: 'light', notifications: true }
+	});
+
+	const updates: Array<Settings | undefined> = [];
+
+	const unsub = singleton.subscribe((value) => {
+		updates.push(value);
+	});
+
+	t.equal(updates.length, 1, 'Should receive initial update');
+	t.deepEqual(updates[0], { theme: 'light', notifications: true }, 'Should have default value');
+
+	unsub();
+	t.end();
+});
+
+test('Functional: singleton set and update', async (t) => {
+	interface Settings {
+		theme: string;
+		notifications: boolean;
+	}
+
+	const adapter = new MemorySingletonAdapter<Settings>();
+	const singleton = createSingleton({
+		id: 'settings',
+		source: adapter
+	});
+
+	const updates: Array<Settings | undefined> = [];
+
+	const unsub = singleton.subscribe((value) => {
+		updates.push(value);
+	});
+
+	t.equal(updates[0], undefined, 'Should start undefined');
+
+	await singleton.set({ theme: 'dark', notifications: false });
+
+	t.equal(updates.length, 2, 'Should receive update after set');
+	t.deepEqual(updates[1], { theme: 'dark', notifications: false }, 'Should have set value');
+
+	await singleton.update({ theme: 'light' });
+
+	t.equal(updates.length, 3, 'Should receive update after merge');
+	t.deepEqual(updates[2], { theme: 'light', notifications: false }, 'Should merge changes');
+
+	unsub();
+	t.end();
+});
+
+test('Functional: singleton update fails when not initialized', async (t) => {
+	interface Settings {
+		theme: string;
+	}
+
+	const adapter = new MemorySingletonAdapter<Settings>();
+	const singleton = createSingleton({
+		id: 'settings',
+		source: adapter
+	});
+
+	try {
+		await singleton.update({ theme: 'dark' });
+		t.fail('Should have thrown error');
+	} catch (error) {
+		t.ok(error instanceof Error, 'Should throw an Error');
+		t.ok(
+			(error as Error).message.includes('not initialized'),
+			'Should mention singleton not initialized'
+		);
+	}
+
+	t.end();
+});
+
+test('Functional: singleton default error handler throws', (t) => {
+	interface Settings {
+		theme: string;
+	}
+
+	const adapter = new MemorySingletonAdapter<Settings>();
+	const singleton = createSingleton({
+		id: 'settings',
+		source: adapter
+	});
+
+	try {
+		singleton.subscribe(() => {
+			throw new Error('Singleton callback error');
+		});
+		t.fail('Should throw when onError is not provided');
+	} catch (error) {
+		t.ok(error instanceof Error, 'Should throw Error');
+		t.equal((error as Error).message, 'Singleton callback error', 'Should throw callback error');
+	}
+
+	t.end();
+});
+
+test('Functional: pagination with offset and limit', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id', [
+		{ id: '1', name: 'Pasta', status: 'active', tags: ['quick'], prepTime: 20 },
+		{ id: '2', name: 'Risotto', status: 'active', tags: ['slow'], prepTime: 45 },
+		{ id: '3', name: 'Soup', status: 'active', tags: ['quick'], prepTime: 30 },
+		{ id: '4', name: 'Salad', status: 'active', tags: ['quick'], prepTime: 10 },
+		{ id: '5', name: 'Steak', status: 'active', tags: ['slow'], prepTime: 60 }
+	]);
+
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	const updates: Recipe[][] = [];
+
+	const unsub = collection
+		.query()
+		.orderBy('prepTime', 'asc')
+		.paginate(1, 2)
+		.subscribe((docs) => {
+			updates.push([...docs]);
+		});
+
+	t.equal(updates.length, 1, 'Should receive initial update');
+	t.equal(updates[0].length, 2, 'Should have 2 documents (page size)');
+	t.equal(updates[0][0].name, 'Soup', 'Should skip first 2 (Salad, Pasta) and start at Soup');
+	t.equal(updates[0][1].name, 'Risotto', 'Should include Risotto as second result');
+
+	unsub();
 	t.end();
 });

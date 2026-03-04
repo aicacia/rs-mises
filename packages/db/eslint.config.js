@@ -7,5 +7,16 @@ const tsconfigRootDir = fileURLToPath(new URL('.', import.meta.url));
 export default createTsConfig({
 	gitignorePath,
 	tsconfigRootDir,
-	rules: { '@typescript-eslint/no-explicit-any': 'warn' }
+	rules: {
+		'@typescript-eslint/no-explicit-any': 'warn',
+		'@typescript-eslint/no-unused-vars': [
+			'error',
+			{
+				argsIgnorePattern: '^_',
+				varsIgnorePattern: '^_',
+				caughtErrorsIgnorePattern: '^_',
+				ignoreRestSiblings: true
+			}
+		]
+	}
 });

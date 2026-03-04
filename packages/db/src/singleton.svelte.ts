@@ -1,4 +1,4 @@
-import type { ISingleton } from './types.js';
+import type { ISingleton } from './singleton.js';
 
 /**
  * Create a reactive singleton store for use in Svelte components
@@ -22,7 +22,6 @@ export function singleton<T>(source: ISingleton<T>): {
 	let unsubscribe: (() => void) | null = null;
 
 	$effect(() => {
-		// Subscribe to singleton updates
 		unsubscribe = source.subscribe(
 			(value: T | undefined) => {
 				data = value;
@@ -33,7 +32,6 @@ export function singleton<T>(source: ISingleton<T>): {
 			}
 		);
 
-		// Return cleanup function
 		return () => {
 			if (unsubscribe) {
 				unsubscribe();

@@ -1,5 +1,5 @@
 ---
-applyTo: "**/*.rs, **/*.toml"
+applyTo: "**/*.rs, **/*.toml, **/*.ts, **/*.svelte"
 description: This file describes the project guidelines for the all agents and contributors.
 ---
 
@@ -126,3 +126,15 @@ pub fn do_work() {  } // implementation — NO
 6. New dependencies must set `default-features = false` and enable only required features.
 7. New dependencies must be grouped in the crate's `Cargo.toml` by logical category with a comment header above each group (for example, `# Crypto`, `# Serialization`, `# Logging`). Within each group, list dependencies alphabetically and leave a blank line between groups.
 8. Ensure `cargo test --no-default-features` passes for affected crates; CI enforces `fmt`/`clippy`.
+
+---
+
+## TypeScript & Svelte
+
+- Use **pnpm** for all TypeScript/Svelte package management: `pnpm install`, `pnpm build`, `pnpm dev`
+- Refer to the **svelte skill** for Svelte documentation and best practices
+- Prefer ESM modules; ensure `package.json` has proper `exports` field
+- TypeScript: strict mode enabled, no `any` types without justification
+- Group imports: stdlib → external → internal, alphabetically within groups
+- Keep components focused; extract composition logic into utilities
+- Tests/examples required for new or changed behavior

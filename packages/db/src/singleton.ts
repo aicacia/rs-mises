@@ -2,13 +2,54 @@
  * Singleton<T> - at-most-one document collection for non-ID-based data
  */
 
-import type {
-	AdapterStatus,
-	ISingleton,
-	SingletonConfig,
-	SingletonSourceAdapter,
-	UnsubscribeFn
-} from './types.js';
+import type { AdapterStatus, SingletonSourceAdapter, UnsubscribeFn } from './types.js';
+import { toError } from './utils.js';
+
+/**
+ * Singleton configuration
+ */
+export interface SingletonConfig<T> {
+	/** Unique singleton identifier */
+	id: string;
+
+	/** Source adapter for this singleton */
+	source: SingletonSourceAdapter<T>;
+
+	/** Default value if not yet set */
+	defaultValue?: T;
+}
+
+/**
+ * Singleton interface
+ */
+export interface ISingleton<T> {
+	readonly id: string;
+
+	/**
+	 * Subscribe to singleton value
+	 */
+	subscribe(
+		onUpdate: (value: T | undefined) => void,
+		onError?: (error: Error) => void
+	): UnsubscribeFn;
+
+	/**
+	 * Replace entire singleton value
+	 * @throws Error if set fails
+	 */
+	set(doc: T): Promise<void>;
+
+	/**
+	 * Merge changes into singleton value
+	 * @throws Error if update fails
+	 */
+	update(changes: Partial<T>): Promise<void>;
+
+	/**
+	 * Get current adapter status
+	 */
+	getStatus(): AdapterStatus;
+}
 
 interface SingletonSubscription<T> {
 	onUpdate: (value: T | undefined) => void;
@@ -23,12 +64,15 @@ export class Singleton<T> implements ISingleton<T> {
 	private _source: SingletonSourceAdapter<T>;
 	private _subscriptions: Set<SingletonSubscription<T>> = new Set();
 	private _adapterUnsubscribe: UnsubscribeFn | null = null;
-	private _currentValue: T | undefined;
+	private _cache: T | undefined;
+	private _defaultValue: T | undefined;
+	private _adapterSubscribed: boolean = false;
 
 	constructor(config: SingletonConfig<T>) {
 		this.id = config.id;
 		this._source = config.source;
-		this._currentValue = config.defaultValue;
+		this._cache = config.defaultValue;
+		this._defaultValue = config.defaultValue;
 	}
 
 	subscribe(
@@ -37,28 +81,28 @@ export class Singleton<T> implements ISingleton<T> {
 	): UnsubscribeFn {
 		const subscription: SingletonSubscription<T> = {
 			onUpdate,
-			onError: onError || (() => {})
+			onError:
+				onError ||
+				((error: Error) => {
+					throw error;
+				})
 		};
+
+		try {
+			onUpdate(this._cache);
+		} catch (error) {
+			subscription.onError(toError(error));
+		}
 
 		this._subscriptions.add(subscription);
 
-		// If this is the first subscription, start listening to adapter
 		if (this._subscriptions.size === 1) {
 			this._startAdapterSubscription();
 		}
 
-		// Send current value immediately
-		try {
-			onUpdate(this._currentValue);
-		} catch (error) {
-			onError?.(error instanceof Error ? error : new Error(String(error)));
-		}
-
-		// Return unsubscribe function
 		return () => {
 			this._subscriptions.delete(subscription);
 
-			// If no more subscriptions, stop listening to adapter
 			if (this._subscriptions.size === 0) {
 				this._stopAdapterSubscription();
 			}
@@ -78,6 +122,11 @@ export class Singleton<T> implements ISingleton<T> {
 	}
 
 	private _startAdapterSubscription(): void {
+		if (this._adapterSubscribed) {
+			return;
+		}
+
+		this._adapterSubscribed = true;
 		this._adapterUnsubscribe = this._source.subscribe(
 			(value) => this._handleAdapterUpdate(value),
 			(error) => this._handleAdapterError(error)
@@ -89,17 +138,22 @@ export class Singleton<T> implements ISingleton<T> {
 			this._adapterUnsubscribe();
 			this._adapterUnsubscribe = null;
 		}
+		this._adapterSubscribed = false;
 	}
 
 	private _handleAdapterUpdate(value: T | undefined): void {
-		this._currentValue = value;
+		const effectiveValue =
+			value === undefined && this._defaultValue !== undefined ? this._defaultValue : value;
 
-		// Notify all subscribers
-		for (const subscription of this._subscriptions) {
-			try {
-				subscription.onUpdate(this._currentValue);
-			} catch (error) {
-				this._handleAdapterError(error instanceof Error ? error : new Error(String(error)));
+		if (this._cache !== effectiveValue) {
+			this._cache = effectiveValue;
+
+			for (const subscription of this._subscriptions) {
+				try {
+					subscription.onUpdate(this._cache);
+				} catch (error) {
+					this._handleAdapterError(toError(error));
+				}
 			}
 		}
 	}
@@ -113,4 +167,8 @@ export class Singleton<T> implements ISingleton<T> {
 			}
 		}
 	}
+}
+
+export function createSingleton<T>(config: SingletonConfig<T>): ISingleton<T> {
+	return new Singleton(config);
 }

@@ -126,18 +126,13 @@ const sampleRecipes: Omit<Recipe, 'id' | 'createdAt' | 'updatedAt'>[] = [
 ];
 
 export async function populateSampleRecipes(): Promise<void> {
-	const now = new Date();
-	const recipesWithIds: Recipe[] = sampleRecipes.map((recipe, index) => ({
-		...recipe,
-		id: `recipe-${index + 1}`,
-		createdAt: now,
-		updatedAt: now
-	}));
-
-	for (const recipe of recipesWithIds) {
-		await recipesCollection.create(recipe);
+	for (const sampleRecipe of sampleRecipes) {
+		await recipesCollection.create({
+			...sampleRecipe,
+			id: Math.random().toString(36).substring(2),
+			createdAt: new Date(),
+			updatedAt: new Date()
+		});
 		await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate async delay
 	}
-
-	console.log(`Populated ${recipesWithIds.length} sample recipes`);
 }

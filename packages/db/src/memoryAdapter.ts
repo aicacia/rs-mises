@@ -1,16 +1,12 @@
-/**
- * MemoryAdapter - Reference implementation using in-memory storage
- * Good for testing and demos; no persistence
- */
-
 import type {
 	AdapterStatus,
-	CTE,
 	SingletonSourceAdapter,
 	SourceAdapter,
 	UnsubscribeFn
 } from './types.js';
-import { evaluateCTE } from './cte.js';
+import type { CTE } from './cte.js';
+import { evaluateCTE } from './filterEngine.js';
+import { toError } from './utils.js';
 
 interface SubscriptionEntry<T> {
 	cte: CTE;
@@ -18,10 +14,8 @@ interface SubscriptionEntry<T> {
 	onError: (error: Error) => void;
 }
 
-/**
- * MemoryAdapter - stores documents in memory
- */
-export class MemoryAdapter<T extends Record<string, unknown>> implements SourceAdapter<T> {
+/** In-memory collection adapter intended for tests and demos. */
+export class MemoryAdapter<T extends Record<string, any>> implements SourceAdapter<T> {
 	private _documents: Map<string, T> = new Map();
 	private _subscriptions: SubscriptionEntry<T>[] = [];
 	private _keyField: string;
@@ -50,16 +44,14 @@ export class MemoryAdapter<T extends Record<string, unknown>> implements SourceA
 
 		this._subscriptions.push(entry);
 
-		// Immediately send current matching results
 		try {
 			const allDocs = Array.from(this._documents.values());
 			const results = evaluateCTE(cte, allDocs);
 			onUpdate(results);
 		} catch (error) {
-			onError(error instanceof Error ? error : new Error(String(error)));
+			onError(toError(error));
 		}
 
-		// Return unsubscribe function
 		return () => {
 			const index = this._subscriptions.indexOf(entry);
 			if (index >= 0) {
@@ -99,16 +91,12 @@ export class MemoryAdapter<T extends Record<string, unknown>> implements SourceA
 		return this._status;
 	}
 
-	/**
-	 * Get all documents (for testing)
-	 */
+	/** Return all stored documents. */
 	getAllDocuments(): T[] {
 		return Array.from(this._documents.values());
 	}
 
-	/**
-	 * Clear all documents (for testing)
-	 */
+	/** Remove all stored documents. */
 	clear(): void {
 		this._documents.clear();
 		this._notifySubscribers();
@@ -122,7 +110,7 @@ export class MemoryAdapter<T extends Record<string, unknown>> implements SourceA
 				const results = evaluateCTE(entry.cte, allDocs);
 				entry.onUpdate(results);
 			} catch (error) {
-				entry.onError(error instanceof Error ? error : new Error(String(error)));
+				entry.onError(toError(error));
 			}
 		}
 	}
@@ -133,10 +121,7 @@ interface SingletonSubscriptionEntry<T> {
 	onError: (error: Error) => void;
 }
 
-/**
- * MemorySingletonAdapter - in-memory singleton storage
- * Stores at most one document for non-ID-based data (settings, config, etc.)
- */
+/** In-memory singleton adapter intended for tests and demos. */
 export class MemorySingletonAdapter<T> implements SingletonSourceAdapter<T> {
 	private _value: T | undefined;
 	private _subscriptions: SingletonSubscriptionEntry<T>[] = [];
@@ -157,14 +142,12 @@ export class MemorySingletonAdapter<T> implements SingletonSourceAdapter<T> {
 
 		this._subscriptions.push(entry);
 
-		// Immediately send current value
 		try {
 			onUpdate(this._value);
 		} catch (error) {
-			onError(error instanceof Error ? error : new Error(String(error)));
+			onError(toError(error));
 		}
 
-		// Return unsubscribe function
 		return () => {
 			const index = this._subscriptions.indexOf(entry);
 			if (index >= 0) {
@@ -190,16 +173,12 @@ export class MemorySingletonAdapter<T> implements SingletonSourceAdapter<T> {
 		return this._status;
 	}
 
-	/**
-	 * Get current value (for testing)
-	 */
+	/** Return the current value. */
 	getValue(): T | undefined {
 		return this._value;
 	}
 
-	/**
-	 * Clear the value (for testing)
-	 */
+	/** Clear the current value. */
 	clear(): void {
 		this._value = undefined;
 		this._notifySubscribers();
@@ -210,7 +189,7 @@ export class MemorySingletonAdapter<T> implements SingletonSourceAdapter<T> {
 			try {
 				entry.onUpdate(this._value);
 			} catch (error) {
-				entry.onError(error instanceof Error ? error : new Error(String(error)));
+				entry.onError(toError(error));
 			}
 		}
 	}
