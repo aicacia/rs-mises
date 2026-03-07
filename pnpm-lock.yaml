@@ -241,6 +241,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@aicacia/string-fuzzy_equals':
+        specifier: ^0.1.4
+        version: 0.1.4(tslib@2.8.1)
       '@electric-sql/d2ts':
         specifier: ^0.1.8
         version: 0.1.8
@@ -610,6 +613,11 @@ packages:
 
   '@aicacia/debounce@0.1.25':
     resolution: {integrity: sha512-EurGRRWPcUBL87YSagw5WKS8vwMNkR3OJKjFQv9DEmBZVpH0vc9ulEJw1NDV9OrfnhYmfM2paW90XoIdjRo6QQ==}
+    peerDependencies:
+      tslib: '2'
+
+  '@aicacia/string-fuzzy_equals@0.1.4':
+    resolution: {integrity: sha512-jVGSLKJqZM4Zj5qFJbddF3D33+VYEuPGo0QkyRx0G6D7sD2yJ2WtoHSOf3xdCqOgddREiRc5VnPzdNxH8J1Iag==}
     peerDependencies:
       tslib: '2'
 
@@ -3960,6 +3968,10 @@ packages:
 snapshots:
 
   '@aicacia/debounce@0.1.25(tslib@2.8.1)':
+    dependencies:
+      tslib: 2.8.1
+
+  '@aicacia/string-fuzzy_equals@0.1.4(tslib@2.8.1)':
     dependencies:
       tslib: 2.8.1
 

@@ -26,7 +26,7 @@ npm install @aicacia/db
 #### Collections (Multiple Documents)
 
 ```typescript
-import { createCollection, MemoryAdapter, createEqualityFilter } from '@aicacia/db';
+import { createCollection, MemoryAdapter, equal } from '@aicacia/db';
 
 // Define your schema
 interface Recipe {
@@ -55,7 +55,7 @@ await recipes.create({
 // Query with streaming results
 const unsubscribe = recipes
 	.query()
-	.where(createEqualityFilter('status', 'active'))
+	.where(equal('status', 'active'))
 	.orderBy('name', 'asc')
 	.subscribe(
 		(docs) => console.log('Updated:', docs),
@@ -113,10 +113,10 @@ unsubscribe();
 ```svelte
 <script>
   import { collection, singleton } from '@aicacia/db/svelte';
-  import { createEqualityFilter } from '@aicacia/db';
+  import { equal } from '@aicacia/db';
   import { recipes, settings } from './stores.ts';
 
-  const recipesList = collection(recipes.query().where(createEqualityFilter('status', 'active')));
+  const recipesList = collection(recipes.query().where(equal('status', 'active')));
   const userSettings = singleton(settings);
 </script>
 
@@ -169,58 +169,81 @@ Available Adapters:
 ### Build Queries
 
 ```typescript
-import { createEqualityFilter, createComparisonFilter } from '@aicacia/db';
-
 const query = collection
 	.query()
-	.where(createEqualityFilter('status', 'active'))
-	.where(createComparisonFilter('prepTime', 'lessThan', 30))
+	.equal('status', 'active')
+	.lessThan('prepTime', 30)
 	.orderBy('name', 'asc')
-	.limit(10)
-	.offset(0)
-	.with('recentRecipes', (q) =>
-		q.where(createComparisonFilter('createdAt', 'greaterThan', Date.now() - 86400000))
-	);
+	.paginate(0, 10)
+	.with('recentRecipes', (q) => q.greaterThan('createdAt', Date.now() - 86400000));
 ```
 
 #### Available Methods
 
-- `.where(filter)` — Add CTE filter condition (use `createEqualityFilter`, `createComparisonFilter`, etc.)
+- `.where(filter)` — Add CTE filter condition (use `equal`, `compare`, etc.)
+- `.compare(field, operator, value)` — Add a comparison with explicit operator control
+- `.equal(field, value)` — Add equality filter
+- `.notEqual(field, value)` — Add inequality filter
+- `.greaterThan(field, value)` — Add greater-than filter
+- `.lessThan(field, value)` — Add less-than filter
+- `.greaterThanOrEqual(field, value)` — Add greater-than-or-equal filter
+- `.lessThanOrEqual(field, value)` — Add less-than-or-equal filter
+- `.in(field, value)` — Add `in` filter
+- `.contains(field, value)` — Add contains filter
+- `.containsIgnoreCase(field, value)` — Add case-insensitive contains filter
+- `.fuzzyContains(field, value)` — Add typo-tolerant fuzzy contains filter
+- `.includes(field, value)` — Add includes filter
+- `.and(...filters)` — Add logical AND filter
+- `.or(...filters)` — Add logical OR filter
 - `.orderBy(field, direction?)` — Sort by field ('asc' or 'desc')
 - `.limit(n)` — Limit results to n documents
 - `.offset(n)` — Skip first n results
+- `.paginate(page, pageSize?)` — Apply offset and limit for paging
 - `.with(name, fn)` — Define named CTE subquery
 - `.subscribe(onUpdate, onError?)` — Subscribe to results (streaming)
 - `.toCTE()` — Export as serializable CTE (for adapters)
+- `.compileToFunction()` — Compile query to a pure in-memory filter function
+
+#### Fluent Filter Helpers
+
+The query builder now supports fluent filter helpers directly, so you can skip
+manual `where(...)` calls for common comparisons:
+
+```typescript
+import { equal } from '@aicacia/db';
+
+const unsubscribe = collection
+	.query()
+	.equal('status', 'active')
+	.greaterThanOrEqual('rating', 4)
+	.or(equal('category', 'dinner'), equal('category', 'lunch'))
+	.orderBy('name', 'asc')
+	.subscribe((docs) => console.log(docs));
+```
+
+You can still compose advanced conditions with filter creators and pass them to
+`.where(...)`, `.and(...)`, or `.or(...)` as needed.
 
 #### Filter Creators
 
 ```typescript
-import {
-	createEqualityFilter,
-	createComparisonFilter,
-	createAndFilter,
-	createOrFilter
-} from '@aicacia/db';
+import { equal, compare, and, or } from '@aicacia/db';
 
 // Equality
-createEqualityFilter('status', 'active');
+equal('status', 'active');
 
 // Comparisons
-createComparisonFilter('prepTime', 'lessThan', 30);
-createComparisonFilter('rating', 'greaterThanOrEqual', 4);
+compare('prepTime', 'lessThan', 30);
+compare('rating', 'greaterThanOrEqual', 4);
 
 // Logical operators
-createAndFilter(
-	createEqualityFilter('status', 'active'),
-	createComparisonFilter('prepTime', 'lessThan', 30)
-);
+and(equal('status', 'active'), compare('prepTime', 'lessThan', 30));
 
-createOrFilter(
-	createEqualityFilter('category', 'dessert'),
-	createEqualityFilter('category', 'appetizer')
-);
+or(equal('category', 'dessert'), equal('category', 'appetizer'));
 ```
+
+These filter creators are useful when building nested logic trees or reusing
+conditions across multiple queries.
 
 ### Subscribe to Results
 

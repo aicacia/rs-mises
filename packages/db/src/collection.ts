@@ -24,7 +24,7 @@ export interface ICollection<T> {
 }
 
 interface QuerySubscription<T> {
-	cte: CTE;
+	cte: CTE<T>;
 	count: number;
 	lastResults: T[] | null;
 }
@@ -82,7 +82,7 @@ export class Collection<T> implements ICollection<T> {
 	}
 
 	query(): IQueryBuilder<T> {
-		return new QueryBuilder((cte: CTE) => {
+		return new QueryBuilder((cte: CTE<T>) => {
 			return this._createQuerySubscription(cte);
 		});
 	}
@@ -91,7 +91,7 @@ export class Collection<T> implements ICollection<T> {
 		return this._source.getStatus();
 	}
 
-	private _createQuerySubscription(cte: CTE): QuerySubscriptionResult<T> {
+	private _createQuerySubscription(cte: CTE<T>): QuerySubscriptionResult<T> {
 		return (callbacks) => {
 			const subscriptionKey = JSON.stringify(cte);
 
@@ -188,7 +188,7 @@ export class Collection<T> implements ICollection<T> {
 	 * @param cteKey - JSON stringified CTE used as deduplication key
 	 * @param cte - The actual CTE to pass to the adapter
 	 */
-	private _ensureCteSubscription(cteKey: string, cte: CTE): void {
+	private _ensureCteSubscription(cteKey: string, cte: CTE<T>): void {
 		// Already subscribed to this specific CTE
 		if (this._cteSubscriptions.has(cteKey)) {
 			this._cteSubscriptions.get(cteKey)!.count++;

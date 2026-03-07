@@ -22,22 +22,10 @@
 			"require": "./cjs/index.js"
 		},
 		"./svelte": {
-			"svelte": "./src/svelte.ts",
-			"types": "./types/svelte.d.ts",
-			"import": "./esm/svelte.js",
-			"require": "./cjs/svelte.js"
-		},
-		"./collection.svelte": {
-			"svelte": "./src/collection.svelte.ts",
-			"types": "./types/collection.svelte.d.ts",
-			"import": "./esm/collection.svelte.js",
-			"require": "./cjs/collection.svelte.js"
-		},
-		"./singleton.svelte": {
-			"svelte": "./src/singleton.svelte.ts",
-			"types": "./types/singleton.svelte.d.ts",
-			"import": "./esm/singleton.svelte.js",
-			"require": "./cjs/singleton.svelte.js"
+			"svelte": "./src/svelte.svelte.ts",
+			"types": "./types/svelte.svelte.d.ts",
+			"import": "./esm/svelte.svelte.js",
+			"require": "./cjs/svelte.svelte.js"
 		},
 		"./package.json": "./package.json"
 	},
@@ -63,6 +51,7 @@
 		}
 	},
 	"dependencies": {
+		"@aicacia/string-fuzzy_equals": "^0.1.4",
 		"@electric-sql/d2ts": "^0.1.8",
 		"@standard-schema/spec": "^1.1.0",
 		"eventemitter3": "^5.0.4"

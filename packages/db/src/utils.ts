@@ -1,4 +1,5 @@
 import type { CTEOrderBy } from './cte.js';
+import { FieldPath } from './types.js';
 
 /**
  * Compare two values for sorting.
@@ -19,7 +20,7 @@ export function compareValues(a: unknown, b: unknown): number {
 /**
  * Get nested field value from document using dot notation.
  */
-export function getFieldValue<T>(doc: T, field: string): unknown {
+export function getFieldValue<T>(doc: T, field: FieldPath<T>): unknown {
 	const parts = field.split('.');
 	let value: unknown = doc;
 
@@ -34,7 +35,7 @@ export function getFieldValue<T>(doc: T, field: string): unknown {
 /**
  * Create a comparator function for sorting documents by multiple fields.
  */
-export function createDocComparator<T>(orderBy: CTEOrderBy[]): (a: T, b: T) => number {
+export function createItemSortFunction<T>(orderBy: CTEOrderBy<T>[]): (a: T, b: T) => number {
 	return (a: T, b: T) => {
 		for (const order of orderBy) {
 			const aVal = getFieldValue(a, order.field);

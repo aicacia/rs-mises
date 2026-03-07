@@ -2,13 +2,7 @@ import test from 'tape';
 import { createCollection } from './collection.js';
 import { createSingleton } from './singleton.js';
 import { MemoryAdapter, MemorySingletonAdapter } from './memoryAdapter.js';
-import {
-	createCTE,
-	createEqualityFilter,
-	createComparisonFilter,
-	createAndFilter,
-	createOrFilter
-} from './cte.js';
+import { and, compare, createCTE, equal, greaterThan, lessThan, or } from './cte.js';
 
 interface Recipe {
 	id: string;
@@ -24,9 +18,15 @@ test('MemoryAdapter: create and subscribe', (t) => {
 	const cte = createCTE();
 	const updates: Recipe[][] = [];
 
-	const unsub = adapter.subscribe(cte, (docs) => {
-		updates.push([...docs]);
-	});
+	const unsub = adapter.subscribe(
+		cte,
+		(docs) => {
+			updates.push([...docs]);
+		},
+		() => {
+			t.fail('Unexpected adapter subscription error');
+		}
+	);
 
 	adapter.create({ id: '1', name: 'Pasta', status: 'active', tags: ['quick'], prepTime: 20 });
 
@@ -48,9 +48,15 @@ test('Query builder: adapter with initial docs', (t) => {
 	const cte = createCTE();
 	const updates: Recipe[][] = [];
 
-	const unsub = adapter.subscribe(cte, (docs) => {
-		updates.push([...docs]);
-	});
+	const unsub = adapter.subscribe(
+		cte,
+		(docs) => {
+			updates.push([...docs]);
+		},
+		() => {
+			t.fail('Unexpected adapter subscription error');
+		}
+	);
 
 	t.equal(updates.length, 1, 'Should receive one update from adapter');
 	t.equal(updates[0].length, 3, 'Should have three documents');
@@ -76,7 +82,7 @@ test('Query builder: filter', (t) => {
 
 	const unsub = collection
 		.query()
-		.where(createEqualityFilter('status', 'active'))
+		.where(equal('status', 'active'))
 		.subscribe((docs) => {
 			updates.push([...docs]);
 		});
@@ -110,19 +116,146 @@ test('Query builder: multiple filters compose', (t) => {
 
 	const unsub = collection
 		.query()
-		.where(createEqualityFilter('status', 'active'))
-		.where(createComparisonFilter('prepTime', 'lessThan', 40))
+		.where(equal<Recipe>('status', 'active'))
+		.where(greaterThan<Recipe>('prepTime', 30))
 		.subscribe((docs) => {
 			updates.push([...docs]);
 		});
 
 	t.equal(updates.length, 1, 'Should receive one update');
-	t.equal(updates[0].length, 2, 'Should have two matching documents');
+	t.equal(updates[0].length, 1, 'Should have one matching document');
 	t.equal(
-		updates[0].every((d) => d.prepTime < 40),
+		updates[0].every((d) => d.prepTime > 30),
 		true,
-		'All should have prepTime < 40'
+		'All should have prepTime > 30'
 	);
+
+	unsub();
+	t.end();
+});
+
+test('Query builder: fluent equal helper', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id', [
+		{ id: '1', name: 'Pasta', status: 'active', tags: ['quick'], prepTime: 20 },
+		{ id: '2', name: 'Risotto', status: 'archived', tags: ['slow'], prepTime: 45 },
+		{ id: '3', name: 'Soup', status: 'active', tags: ['quick'], prepTime: 30 }
+	]);
+
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	const updates: Recipe[][] = [];
+
+	const unsub = collection
+		.query()
+		.equal('status', 'active')
+		.subscribe((docs) => {
+			updates.push([...docs]);
+		});
+
+	t.equal(updates.length, 1, 'Should receive one update');
+	t.equal(updates[0].length, 2, 'Should have two active documents');
+	t.ok(
+		updates[0].every((d) => d.status === 'active'),
+		'All should be active'
+	);
+
+	unsub();
+	t.end();
+});
+
+test('Query builder: fluent containsIgnoreCase helper', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id', [
+		{ id: '1', name: 'Pasta', status: 'active', tags: ['quick'], prepTime: 20 },
+		{ id: '2', name: 'PASTA Salad', status: 'active', tags: ['quick'], prepTime: 10 },
+		{ id: '3', name: 'Soup', status: 'active', tags: ['quick'], prepTime: 30 }
+	]);
+
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	const updates: Recipe[][] = [];
+
+	const unsub = collection
+		.query()
+		.containsIgnoreCase('name', 'pAsTa')
+		.subscribe((docs) => {
+			updates.push([...docs]);
+		});
+
+	t.equal(updates.length, 1, 'Should receive one update');
+	t.equal(updates[0].length, 2, 'Should match documents regardless of case');
+	t.deepEqual(
+		updates[0].map((d) => d.id),
+		['1', '2'],
+		'Should return matching ids'
+	);
+
+	unsub();
+	t.end();
+});
+
+test('Query builder: fluent fuzzyContains helper', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id', [
+		{ id: '1', name: 'Spaghetti Bolognese', status: 'active', tags: ['slow'], prepTime: 60 },
+		{ id: '2', name: 'Pasta Salad', status: 'active', tags: ['quick'], prepTime: 10 },
+		{ id: '3', name: 'Soup', status: 'active', tags: ['quick'], prepTime: 30 }
+	]);
+
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	const updates: Recipe[][] = [];
+
+	const unsub = collection
+		.query()
+		.fuzzyContains('name', 'spageti')
+		.subscribe((docs) => {
+			updates.push([...docs]);
+		});
+
+	t.equal(updates.length, 1, 'Should receive one update');
+	t.equal(updates[0].length, 1, 'Should match fuzzy typo against substring');
+	t.equal(updates[0][0].id, '1', 'Should match the spaghetti document');
+
+	unsub();
+	t.end();
+});
+
+test('Query builder: fluent and helper', (t) => {
+	const adapter = new MemoryAdapter<Recipe>('id', [
+		{ id: '1', name: 'Pasta', status: 'active', tags: ['quick'], prepTime: 20 },
+		{ id: '2', name: 'Risotto', status: 'active', tags: ['slow'], prepTime: 45 },
+		{ id: '3', name: 'Soup', status: 'archived', tags: ['quick'], prepTime: 30 }
+	]);
+
+	const collection = createCollection({
+		id: 'recipes',
+		source: adapter,
+		keyOf: (doc) => doc.id
+	});
+
+	const updates: Recipe[][] = [];
+
+	const unsub = collection
+		.query()
+		.and(equal<Recipe>('status', 'active'), greaterThan<Recipe>('prepTime', 30))
+		.subscribe((docs) => {
+			updates.push([...docs]);
+		});
+
+	t.equal(updates.length, 1, 'Should receive one update');
+	t.equal(updates[0].length, 1, 'Should have one matching document');
+	t.equal(updates[0][0].name, 'Risotto', 'Should match active and prepTime > 30');
 
 	unsub();
 	t.end();
@@ -272,7 +405,7 @@ test('Query: CTE export', (t) => {
 
 	const queryBuilder = collection
 		.query()
-		.where(createEqualityFilter('status', 'active'))
+		.where(equal('status', 'active'))
 		.orderBy('prepTime', 'asc')
 		.limit(10);
 
@@ -321,7 +454,7 @@ test('Query: multiple subscriptions to same query share adapter subscription', (
 	const updates1: Recipe[][] = [];
 	const updates2: Recipe[][] = [];
 
-	const query = collection.query().where(createEqualityFilter('status', 'active'));
+	const query = collection.query().where(equal('status', 'active'));
 
 	const unsub1 = query.subscribe((docs) => {
 		updates1.push([...docs]);
@@ -362,19 +495,19 @@ test('Error handling: error in subscriber is caught', (t) => {
 		keyOf: (doc) => doc.id
 	});
 
-	let errorCaught: Error | null = null;
+	const errors: Error[] = [];
 
 	const unsub = collection.query().subscribe(
 		() => {
 			throw new Error('Subscriber error');
 		},
 		(error) => {
-			errorCaught = error;
+			errors.push(error);
 		}
 	);
 
-	t.ok(errorCaught instanceof Error, 'Error should be caught');
-	t.equal(errorCaught?.message, 'Subscriber error', 'Error message should match');
+	t.equal(errors.length, 1, 'Error should be caught');
+	t.equal(errors[0]?.message, 'Subscriber error', 'Error message should match');
 
 	unsub();
 	t.end();
@@ -396,14 +529,14 @@ test('Error handling: multiple subscribers to same query', (t) => {
 
 	const unsub1 = collection
 		.query()
-		.where(createEqualityFilter('status', 'active'))
+		.where(equal('status', 'active'))
 		.subscribe((docs) => {
 			updates1.push([...docs]);
 		});
 
 	const unsub2 = collection
 		.query()
-		.where(createEqualityFilter('status', 'active'))
+		.where(equal('status', 'active'))
 		.subscribe((docs) => {
 			updates2.push([...docs]);
 		});
@@ -472,7 +605,7 @@ test('Error handling: unsubscribe during callback execution', async (t) => {
 	let callCount = 0;
 	let unsub: (() => void) | null = null;
 
-	unsub = collection.query().subscribe((docs) => {
+	unsub = collection.query().subscribe((_docs) => {
 		callCount++;
 		if (callCount === 1) {
 			unsub?.();
@@ -546,7 +679,12 @@ test('Functional: create fails with missing key field', async (t) => {
 	const adapter = new MemoryAdapter<Recipe>('id');
 
 	try {
-		await adapter.create({ name: 'Broken', status: 'active', tags: [], prepTime: 10 } as Recipe);
+		await adapter.create({
+			name: 'Broken',
+			status: 'active',
+			tags: [],
+			prepTime: 10
+		} as unknown as Recipe);
 		t.fail('Should have thrown error');
 	} catch (error) {
 		t.ok(error instanceof Error, 'Should throw an Error');
@@ -623,7 +761,7 @@ test('Functional: filter with no matches returns empty results', (t) => {
 
 	const unsub = collection
 		.query()
-		.where(createEqualityFilter('status', 'archived'))
+		.where(equal('status', 'archived'))
 		.subscribe((docs) => {
 			updates.push([...docs]);
 		});
@@ -652,12 +790,7 @@ test('Functional: OR filter matches multiple conditions', (t) => {
 
 	const unsub = collection
 		.query()
-		.where(
-			createOrFilter(
-				createEqualityFilter('status', 'archived'),
-				createComparisonFilter('prepTime', 'greaterThan', 40)
-			)
-		)
+		.where(or(equal('status', 'archived'), compare('prepTime', 'greaterThan', 40)))
 		.subscribe((docs) => {
 			updates.push([...docs]);
 		});
@@ -694,12 +827,7 @@ test('Functional: AND filter requires all conditions', (t) => {
 
 	const unsub = collection
 		.query()
-		.where(
-			createAndFilter(
-				createEqualityFilter('status', 'active'),
-				createComparisonFilter('prepTime', 'lessThan', 40)
-			)
-		)
+		.where(and<Recipe>(equal('status', 'active'), lessThan('prepTime', 40)))
 		.subscribe((docs) => {
 			updates.push([...docs]);
 		});

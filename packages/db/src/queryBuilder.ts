@@ -2,41 +2,33 @@
  * Query builder with fluent API for composing queryable CTEs
  */
 
-import type { UnsubscribeFn } from './types.js';
-import { type CTE, type CTEFilter, addNamedCTE, createCTE } from './cte.js';
-import { evaluateCTE } from './filterEngine.js';
+import type { FieldPath, UnsubscribeFn } from './types.js';
+import {
+	type CTE,
+	type CTEComparisonOperator,
+	type CTEFilter,
+	and as createAndFilter,
+	compare,
+	contains,
+	containsIgnoreCase,
+	createCTE,
+	equal,
+	fuzzyContains,
+	greaterThan,
+	greaterThanOrEqual,
+	inOperator,
+	includes,
+	lessThan,
+	lessThanOrEqual,
+	notEqual,
+	or as createOrFilter
+} from './cte.js';
+import { applyCTE } from './filterEngine.js';
 
 /**
  * Order direction
  */
 export type OrderDirection = 'asc' | 'desc';
-
-/**
- * Deep key of an object type
- *
- * Generates a union of all possible paths through an object's properties,
- * including nested paths using dot notation (e.g., 'user.name', 'user.address.city').
- *
- * @example
- * ```typescript
- * interface User {
- *   id: string;
- *   profile: {
- *     name: string;
- *     age: number;
- *   };
- * }
- *
- * type UserKeys = DeepKeyOf<User>; // 'id' | 'profile' | 'profile.name' | 'profile.age'
- * ```
- */
-export type DeepKeyOf<T> = T extends object
-	? {
-			[K in keyof T]-?: K extends string
-				? `${K}` | (T[K] extends object ? `${K}.${DeepKeyOf<T[K]> & string}` : never)
-				: never;
-		}[keyof T]
-	: never;
 
 /**
  * Query builder interface
@@ -45,7 +37,77 @@ export interface IQueryBuilder<T> {
 	/**
 	 * Add a filter condition to the CTE
 	 */
-	where(filter: CTEFilter): IQueryBuilder<T>;
+	where(filter: CTEFilter<T>): IQueryBuilder<T>;
+
+	/**
+	 * Add a comparison filter with full operator control.
+	 */
+	compare(field: FieldPath<T>, operator: CTEComparisonOperator, value: unknown): IQueryBuilder<T>;
+
+	/**
+	 * Add equality filter.
+	 */
+	equal(field: FieldPath<T>, value: unknown): IQueryBuilder<T>;
+
+	/**
+	 * Add not-equal filter.
+	 */
+	notEqual(field: FieldPath<T>, value: unknown): IQueryBuilder<T>;
+
+	/**
+	 * Add greater-than filter.
+	 */
+	greaterThan(field: FieldPath<T>, value: unknown): IQueryBuilder<T>;
+
+	/**
+	 * Add less-than filter.
+	 */
+	lessThan(field: FieldPath<T>, value: unknown): IQueryBuilder<T>;
+
+	/**
+	 * Add greater-than-or-equal filter.
+	 */
+	greaterThanOrEqual(field: FieldPath<T>, value: unknown): IQueryBuilder<T>;
+
+	/**
+	 * Add less-than-or-equal filter.
+	 */
+	lessThanOrEqual(field: FieldPath<T>, value: unknown): IQueryBuilder<T>;
+
+	/**
+	 * Add inclusion filter.
+	 */
+	in(field: FieldPath<T>, value: unknown): IQueryBuilder<T>;
+
+	/**
+	 * Add contains filter.
+	 */
+	contains(field: FieldPath<T>, value: unknown): IQueryBuilder<T>;
+
+	/**
+	 * Add case-insensitive contains filter.
+	 */
+	containsIgnoreCase(field: FieldPath<T>, value: unknown): IQueryBuilder<T>;
+
+	/**
+	 * Add fuzzy contains filter.
+	 */
+	fuzzyContains(field: FieldPath<T>, value: unknown): IQueryBuilder<T>;
+
+	/**
+	 * Add includes filter.
+	 */
+	includes(field: FieldPath<T>, value: unknown): IQueryBuilder<T>;
+
+	/**
+	 * Add logical AND filter over provided filters.
+	 */
+	and(...filters: CTEFilter<T>[]): IQueryBuilder<T>;
+
+	/**
+	 * Add logical OR filter over provided filters.
+	 */
+	or(...filters: CTEFilter<T>[]): IQueryBuilder<T>;
 
 	/**
 	 * Order results by field
@@ -61,7 +123,7 @@ export interface IQueryBuilder<T> {
 	 * collection.query().orderBy('user.profile.age', 'desc')
 	 * ```
 	 */
-	orderBy(field: DeepKeyOf<T> | string, direction?: OrderDirection): IQueryBuilder<T>;
+	orderBy(field: FieldPath<T>, direction?: OrderDirection): IQueryBuilder<T>;
 
 	/**
 	 * Limit number of results
@@ -107,7 +169,7 @@ export interface IQueryBuilder<T> {
 	/**
 	 * Export query as JSON-serializable CTE
 	 */
-	toCTE(): CTE;
+	toCTE(): CTE<T>;
 
 	/**
 	 * Compile CTE to executable filter function
@@ -118,7 +180,7 @@ export interface IQueryBuilder<T> {
 /**
  * Query compiler - compiles CTE to executable result
  */
-export type QueryCompiler<T> = (cte: CTE) => QuerySubscriptionResult<T>;
+export type QueryCompiler<T> = (cte: CTE<T>) => QuerySubscriptionResult<T>;
 
 /**
  * Query result subscription callback
@@ -137,7 +199,7 @@ export type QuerySubscriptionResult<T> = (callbacks: QuerySubscriptionCallback<T
  * QueryBuilder - fluent API for building JSON-serializable CTEs that can be compiled
  */
 export class QueryBuilder<T> implements IQueryBuilder<T> {
-	private _cte: CTE;
+	private _cte: CTE<T>;
 	private _compile: QueryCompiler<T>;
 
 	constructor(compile: QueryCompiler<T>) {
@@ -145,62 +207,104 @@ export class QueryBuilder<T> implements IQueryBuilder<T> {
 		this._compile = compile;
 	}
 
-	private cloneCurrentCTE(): CTE {
-		return JSON.parse(JSON.stringify(this._cte));
+	where(filter: CTEFilter<T>): IQueryBuilder<T> {
+		if (!this._cte.filters) {
+			this._cte.filters = [];
+		}
+		this._cte.filters.push(filter);
+		return this;
 	}
 
-	where(filter: CTEFilter): IQueryBuilder<T> {
-		const builder = new QueryBuilder(this._compile);
-		builder._cte = this.cloneCurrentCTE();
-		if (!builder._cte.filters) {
-			builder._cte.filters = [];
-		}
-		builder._cte.filters.push(filter);
-		return builder;
+	compare(field: FieldPath<T>, operator: CTEComparisonOperator, value: unknown): IQueryBuilder<T> {
+		return this.where(compare(field, operator, value));
 	}
 
-	orderBy(field: DeepKeyOf<T> | string, direction: OrderDirection = 'asc'): IQueryBuilder<T> {
-		const builder = new QueryBuilder(this._compile);
-		builder._cte = this.cloneCurrentCTE();
-		if (!builder._cte.orderBy) {
-			builder._cte.orderBy = [];
+	equal(field: FieldPath<T>, value: unknown): IQueryBuilder<T> {
+		return this.where(equal(field, value));
+	}
+
+	notEqual(field: FieldPath<T>, value: unknown): IQueryBuilder<T> {
+		return this.where(notEqual(field, value));
+	}
+
+	greaterThan(field: FieldPath<T>, value: unknown): IQueryBuilder<T> {
+		return this.where(greaterThan(field, value));
+	}
+
+	lessThan(field: FieldPath<T>, value: unknown): IQueryBuilder<T> {
+		return this.where(lessThan(field, value));
+	}
+
+	greaterThanOrEqual(field: FieldPath<T>, value: unknown): IQueryBuilder<T> {
+		return this.where(greaterThanOrEqual(field, value));
+	}
+
+	lessThanOrEqual(field: FieldPath<T>, value: unknown): IQueryBuilder<T> {
+		return this.where(lessThanOrEqual(field, value));
+	}
+
+	in(field: FieldPath<T>, value: unknown): IQueryBuilder<T> {
+		return this.where(inOperator(field, value));
+	}
+
+	contains(field: FieldPath<T>, value: unknown): IQueryBuilder<T> {
+		return this.where(contains(field, value));
+	}
+
+	containsIgnoreCase(field: FieldPath<T>, value: unknown): IQueryBuilder<T> {
+		return this.where(containsIgnoreCase(field, value));
+	}
+
+	fuzzyContains(field: FieldPath<T>, value: unknown): IQueryBuilder<T> {
+		return this.where(fuzzyContains(field, value));
+	}
+
+	includes(field: FieldPath<T>, value: unknown): IQueryBuilder<T> {
+		return this.where(includes(field, value));
+	}
+
+	and(...filters: CTEFilter<T>[]): IQueryBuilder<T> {
+		return this.where(createAndFilter(...filters));
+	}
+
+	or(...filters: CTEFilter<T>[]): IQueryBuilder<T> {
+		return this.where(createOrFilter(...filters));
+	}
+
+	orderBy(field: FieldPath<T>, direction: OrderDirection = 'asc'): IQueryBuilder<T> {
+		if (!this._cte.orderBy) {
+			this._cte.orderBy = [];
 		}
-		builder._cte.orderBy.push({ field: String(field), direction });
-		return builder;
+		this._cte.orderBy.push({ field: field, direction });
+		return this;
 	}
 
 	limit(n: number): IQueryBuilder<T> {
-		const builder = new QueryBuilder(this._compile);
-		builder._cte = this.cloneCurrentCTE();
-		builder._cte.limit = n;
-		return builder;
+		this._cte.limit = n;
+		return this;
 	}
 
 	offset(n: number): IQueryBuilder<T> {
-		const builder = new QueryBuilder(this._compile);
-		builder._cte = this.cloneCurrentCTE();
-		builder._cte.offset = n;
-		return builder;
+		this._cte.offset = n;
+		return this;
 	}
 
 	paginate(page: number, pageSize: number = 10): IQueryBuilder<T> {
-		const builder = new QueryBuilder(this._compile);
-		builder._cte = this.cloneCurrentCTE();
-		builder._cte.offset = page * pageSize;
-		builder._cte.limit = pageSize;
-		return builder;
+		this._cte.offset = page * pageSize;
+		this._cte.limit = pageSize;
+		return this;
 	}
 
 	with(name: string, fn: (q: IQueryBuilder<T>) => IQueryBuilder<T>): IQueryBuilder<T> {
-		const builder = new QueryBuilder(this._compile);
-		builder._cte = this.cloneCurrentCTE();
-
 		const subqueryBuilder = fn(new QueryBuilder(this._compile));
 		const subqueryCTE = subqueryBuilder.toCTE();
 
-		addNamedCTE(builder._cte, name, subqueryCTE);
+		if (!this._cte.ctes) {
+			this._cte.ctes = {};
+		}
+		this._cte.ctes[name] = subqueryCTE;
 
-		return builder;
+		return this;
 	}
 
 	subscribe(onUpdate: (docs: T[]) => void, onError?: (error: Error) => void): UnsubscribeFn {
@@ -216,12 +320,12 @@ export class QueryBuilder<T> implements IQueryBuilder<T> {
 		});
 	}
 
-	toCTE(): CTE {
-		return this.cloneCurrentCTE();
+	toCTE(): CTE<T> {
+		return this._cte;
 	}
 
 	compileToFunction(): (docs: T[]) => T[] {
 		const cte = this._cte;
-		return (docs: T[]) => evaluateCTE(cte, docs);
+		return (docs: T[]) => applyCTE(cte, docs);
 	}
 }

@@ -1,5 +1,5 @@
 // Core types
-export type { AdapterStatus, SourceAdapter, UnsubscribeFn, SubscriptionError } from './types.js';
+export type { AdapterStatus, FieldPath, SourceAdapter, UnsubscribeFn } from './types.js';
 
 // Collection types and API
 export type { CollectionConfig, ICollection } from './collection.js';
@@ -14,33 +14,40 @@ export type {
 	IQueryBuilder,
 	OrderDirection,
 	QueryCompiler,
-	QuerySubscriptionResult,
-	DeepKeyOf
+	QuerySubscriptionResult
 } from './queryBuilder.js';
 export { QueryBuilder } from './queryBuilder.js';
 
 // CTE types and operations
 export type { CTE, CTEFilter, CTEOrderBy } from './cte.js';
 export {
-	addNamedCTE,
-	createAndFilter,
+	and,
+	compare,
+	contains,
+	containsIgnoreCase,
 	createCTE,
-	createEqualityFilter,
-	createOrFilter
+	equal,
+	fuzzyContains,
+	greaterThan,
+	greaterThanOrEqual,
+	inCTE,
+	inOperator,
+	includes,
+	lessThan,
+	lessThanOrEqual,
+	notEqual,
+	notInCTE,
+	or
 } from './cte.js';
 
 // Adapters
 export { MemoryAdapter, MemorySingletonAdapter } from './memoryAdapter.js';
 
 // Filter engine
-export { applyFilters } from './d2ts.js';
-export {
-	evaluateCTE,
-	evaluateFilter,
-	getFieldValue,
-	applyOrderBy,
-	applyPagination
-} from './filterEngine.js';
+export { applyCTE, applyFilter, applyOrderBy, applyPagination } from './filterEngine.js';
+
+// Utilities
+export { getFieldValue } from './utils.js';
 
 // Test utilities
 export {

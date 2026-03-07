@@ -5,16 +5,17 @@ import type {
 	UnsubscribeFn
 } from './types.js';
 import type { CTE } from './cte.js';
-import { evaluateCTE } from './filterEngine.js';
+import { applyCTE } from './filterEngine.js';
 import { toError } from './utils.js';
 
 interface SubscriptionEntry<T> {
-	cte: CTE;
+	cte: CTE<T>;
 	onUpdate: (docs: T[]) => void;
 	onError: (error: Error) => void;
 }
 
 /** In-memory collection adapter intended for tests and demos. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class MemoryAdapter<T extends Record<string, any>> implements SourceAdapter<T> {
 	private _documents: Map<string, T> = new Map();
 	private _subscriptions: SubscriptionEntry<T>[] = [];
@@ -32,7 +33,7 @@ export class MemoryAdapter<T extends Record<string, any>> implements SourceAdapt
 	}
 
 	subscribe(
-		cte: CTE,
+		cte: CTE<T>,
 		onUpdate: (docs: T[]) => void,
 		onError: (error: Error) => void
 	): UnsubscribeFn {
@@ -46,7 +47,7 @@ export class MemoryAdapter<T extends Record<string, any>> implements SourceAdapt
 
 		try {
 			const allDocs = Array.from(this._documents.values());
-			const results = evaluateCTE(cte, allDocs);
+			const results = applyCTE(cte, allDocs);
 			onUpdate(results);
 		} catch (error) {
 			onError(toError(error));
@@ -107,7 +108,7 @@ export class MemoryAdapter<T extends Record<string, any>> implements SourceAdapt
 
 		for (const entry of this._subscriptions) {
 			try {
-				const results = evaluateCTE(entry.cte, allDocs);
+				const results = applyCTE(entry.cte, allDocs);
 				entry.onUpdate(results);
 			} catch (error) {
 				entry.onError(toError(error));

@@ -1,5 +1,10 @@
 import type { CTE } from './cte.js';
 
+export type FieldPath<T> = {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	[K in keyof T & string]: T[K] extends Record<string, any> ? K | `${K}.${FieldPath<T[K]>}` : K;
+}[keyof T & string];
+
 /** Runtime state reported by adapters. */
 export interface AdapterStatus {
 	state: 'idle' | 'syncing' | 'offline' | 'error';
@@ -11,7 +16,7 @@ export interface AdapterStatus {
 export interface SourceAdapter<T> {
 	/** Subscribe to query results and return an unsubscribe function. */
 	subscribe(
-		cte: CTE,
+		cte: CTE<T>,
 		onUpdate: (docs: T[]) => void,
 		onError: (error: Error) => void
 	): UnsubscribeFn;
@@ -49,12 +54,3 @@ export interface SingletonSourceAdapter<T> {
 
 /** Function that stops an active subscription. */
 export type UnsubscribeFn = () => void;
-
-/** Structured error metadata for subscription failures. */
-export interface SubscriptionError extends Error {
-	/** Error source. */
-	type: 'adapter' | 'filter' | 'subscriber';
-
-	/** Original underlying error. */
-	originalError: Error;
-}

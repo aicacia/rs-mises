@@ -15,16 +15,14 @@ import {
 	type Message
 } from '@electric-sql/d2ts';
 import type { CTE } from './cte.js';
-import type { CTEOrderBy } from './cte.js';
-import { evaluateCTE, evaluateFilter } from './filterEngine.js';
-import { createDocComparator } from './utils.js';
+import { applyFilter } from './filterEngine.js';
+import { createItemSortFunction } from './utils.js';
 
 export type KeyedChange<T> = [KeyValue<string, T>, number];
 
 export interface IncrementalQuery<T> {
 	getResults(): T[];
 	applyChanges(changes: KeyedChange<T>[]): T[];
-	dispose(): void;
 }
 
 interface MaterializedDoc<T> {
@@ -32,7 +30,7 @@ interface MaterializedDoc<T> {
 	multiplicity: number;
 }
 
-function toResultArray<T>(materialized: Map<string, MaterializedDoc<T>>, cte: CTE): T[] {
+function toResultArray<T>(materialized: Map<string, MaterializedDoc<T>>, cte: CTE<T>): T[] {
 	const results: T[] = [];
 
 	for (const { doc, multiplicity } of materialized.values()) {
@@ -43,7 +41,7 @@ function toResultArray<T>(materialized: Map<string, MaterializedDoc<T>>, cte: CT
 	}
 
 	if (cte.orderBy && cte.orderBy.length > 0) {
-		results.sort(createDocComparator(cte.orderBy));
+		results.sort(createItemSortFunction(cte.orderBy));
 	}
 
 	if (cte.offset !== undefined && cte.offset > 0) {
@@ -57,7 +55,7 @@ function toResultArray<T>(materialized: Map<string, MaterializedDoc<T>>, cte: CT
 	return results;
 }
 
-export function createIncrementalQuery<T>(cte: CTE): IncrementalQuery<T> {
+export function createIncrementalQuery<T>(cte: CTE<T>): IncrementalQuery<T> {
 	const graph = new D2({ initialFrontier: 0 });
 	const input = graph.newInput<KeyValue<string, T>>();
 
@@ -65,15 +63,15 @@ export function createIncrementalQuery<T>(cte: CTE): IncrementalQuery<T> {
 	if (cte.filters && cte.filters.length > 0) {
 		stream = stream.pipe(
 			filter(([_, doc]) => {
-				return cte.filters!.every((entry) => evaluateFilter(entry, doc));
+				return cte.filters!.every((entry) => applyFilter(entry, doc));
 			})
 		);
 	}
 
 	if (cte.orderBy && cte.orderBy.length > 0) {
 		stream = stream.pipe(
-			orderBy((doc) => doc, {
-				comparator: createDocComparator(cte.orderBy!)
+			orderBy<KeyValue<string, T>, T>((doc) => doc, {
+				comparator: createItemSortFunction(cte.orderBy!)
 			})
 		);
 	}
@@ -150,19 +148,6 @@ export function createIncrementalQuery<T>(cte: CTE): IncrementalQuery<T> {
 			}
 
 			return computeResults();
-		},
-
-		dispose(): void {}
+		}
 	};
-}
-
-/**
- * Apply filters, sorting, and limits from a CTE to documents
- *
- * @param docs - Array of documents to filter
- * @param cte - CTE containing filters, orderBy, limit, and offset
- * @returns Filtered and sorted documents
- */
-export function applyFilters<T>(docs: T[], cte: CTE): T[] {
-	return evaluateCTE(cte, docs);
 }

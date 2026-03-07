@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { userSettingsSingleton } from './collections/userSettings.js';
-	import { singleton } from '@aicacia/db/singleton.svelte';
+	import { singleton } from '@aicacia/db/svelte';
 	import Recipes from './Recipes.svelte';
 
 	const userSettings = singleton(userSettingsSingleton);
