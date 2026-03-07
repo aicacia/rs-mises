@@ -3,11 +3,12 @@
     "allowImportingTsExtensions": true,
     "allowJs": true,
     "checkJs": true,
-    "importHelpers": false,
     "declaration": true,
     "declarationMap": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "importHelpers": false,
+    "incremental": true,
     "lib": [
       "ES2021",
       "DOM",

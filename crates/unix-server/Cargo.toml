@@ -69,6 +69,7 @@ tracing-subscriber = { version = "0.3", features = [
 serde = { workspace = true, features = ["derive"] }
 
 # Utils
+url = { version = "2.5", default-features = false, features = ["std"] }
 chrono = { workspace = true, features = ["std"] }
 config = { version = "0.15", features = ["json"], default-features = false }
 machine-uid = { version = "0.5.4", default-features = false, features = [] }

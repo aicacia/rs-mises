@@ -7,6 +7,7 @@ cjs/
 esm/
 .nyc_output/
 npm-debug.log
+*.tsbuildinfo
 
 # OpenAPI
 **/.openapi-generator

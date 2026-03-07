@@ -1,11 +1,13 @@
 <script lang="ts">
-	import { getUserManager } from '$lib/common/state/user.svelte';
+	import { needsRegistration, signin, startRegistration } from '$lib/common/state/user.svelte';
 
 	async function onSubmit(e: SubmitEvent) {
 		e.preventDefault();
-
-		const userManager = await getUserManager();
-		await userManager.signinRedirect();
+		if (needsRegistration()) {
+			await startRegistration();
+			return;
+		}
+		await signin(false);
 	}
 </script>
 

@@ -39,6 +39,7 @@
 		"vite-plugin-wasm": "^3.5.0"
 	},
 	"dependencies": {
+		"@aicacia/oidc-client": "workspace:*",
 		"@aicacia/svelte-headless": "workspace:*",
 		"@lucide/svelte": "0.575.0",
 		"eventemitter3": "^5.0.4",

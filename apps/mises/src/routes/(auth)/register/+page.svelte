@@ -6,6 +6,7 @@
 	import { oidcClient } from '$lib/common/util/grpcClient';
 	import { isTauri } from '@tauri-apps/api/core';
 	import { openUrl } from '@tauri-apps/plugin-opener';
+	import { redirectToUrl } from '$lib/common/util/redirectToUrl';
 
 	let urlRegistration = $derived(page.url.searchParams.get('registration') ?? undefined);
 	let urlRedirect = $derived(page.url.searchParams.get('redirect_uri') ?? undefined);
@@ -31,9 +32,11 @@
 			if (urlRedirect) {
 				const u = new URL(urlRedirect!);
 				u.searchParams.append('client_id', client.clientId || client.id);
-				if (urlState) u.searchParams.append('state', urlState!);
-				if (isTauri()) await openUrl(u.toString());
-				else window.location.href = u.toString();
+				if (urlState) {
+					u.searchParams.append('state', urlState!);
+				}
+
+				await redirectToUrl(u);
 			}
 		} catch (e) {
 			console.error('Error registering client', e);
@@ -42,13 +45,15 @@
 		}
 	}
 
-	function onReject() {
+	async function onReject() {
 		if (urlRedirect) {
 			const u = new URL(urlRedirect!);
 			u.searchParams.append('error', 'registration_denied');
-			if (urlState) u.searchParams.append('state', urlState!);
-			if (isTauri()) openUrl(u.toString());
-			else window.location.href = u.toString();
+			if (urlState) {
+				u.searchParams.append('state', urlState!);
+			}
+
+			await redirectToUrl(u);
 		}
 	}
 </script>

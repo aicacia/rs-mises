@@ -11,5 +11,8 @@
 /master.key
 /mises.sock
 
+# TypeScript incremental build files
+*.tsbuildinfo
+
 # ignore generated javascript from ts-node tests
 /packages/db/src/**/*.js

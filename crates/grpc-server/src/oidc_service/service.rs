@@ -24,7 +24,7 @@ where
   device_id: String,
   store: S,
   issuer: String,
-  public_uri: Option<Url>,
+  public_uri: Url,
   sign_in_url: Option<String>,
 }
 
@@ -38,7 +38,7 @@ where
     device_id: String,
     store: S,
     issuer: String,
-    public_uri: Option<Url>,
+    public_uri: Url,
     sign_in_url: Option<String>,
   ) -> Self {
     Self {

@@ -147,6 +147,8 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
     .map_err(|e| io::Error::other(format!("failed to build reflection service: {}", e)))?;
 
   let service_store = InMemoryKeyValueStore::new();
+  let public_uri = url::Url::parse("mises://app")
+    .map_err(|e| io::Error::other(format!("failed to parse public URI: {}", e)))?;
 
   let server_result = Server::builder()
     .add_service(OidcServiceServer::new(OidcService::new(
@@ -154,14 +156,14 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
       device_id.clone(),
       service_store.clone(),
       issuer.clone(),
-      None,
+      public_uri.clone(),
       config.sign_in_url.clone(),
     )))
     .add_service(ConfigurationServiceServer::new(ConfigurationService::new(
       repo.clone(),
       device_id.clone(),
       issuer,
-      None,
+      public_uri,
     )))
     .add_service(ClientServiceServer::new(ClientService::new(
       repo.clone(),

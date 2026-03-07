@@ -1,13 +1,12 @@
 import { oidcClient } from '$lib/common/util/grpcClient';
-import type { AuthorizeRequest, Client, ClientRegisterRequest } from '$lib/proto/mises';
-import { isTauri } from '@tauri-apps/api/core';
-import { openUrl } from '@tauri-apps/plugin-opener';
+import { redirectToUrl } from '$lib/common/util/redirectToUrl';
+import type { AuthorizeRequest } from '$lib/proto/mises';
 
 // helper utilities used by authorization pages
 
 // url helpers
 
-export function rejectAuthorizeRequest(
+export async function rejectAuthorizeRequest(
 	authorizeRequest: Pick<AuthorizeRequest, 'redirectUri' | 'state' | 'nonce'>,
 	error: string,
 	errorDescription: string
@@ -21,12 +20,10 @@ export function rejectAuthorizeRequest(
 	}
 	url.searchParams.append('error', error);
 	url.searchParams.append('error_description', errorDescription);
-	window.location.href = url.toString();
+	await redirectToUrl(url);
 }
 
 export async function resolveAuthorizeRequest(authorizeRequest: AuthorizeRequest) {
-	console.log(authorizeRequest);
-
 	const authorizeResponse = await oidcClient().authorize(authorizeRequest);
 
 	const url = new URL(authorizeResponse.redirectUri!);
@@ -37,12 +34,7 @@ export async function resolveAuthorizeRequest(authorizeRequest: AuthorizeRequest
 		url.searchParams.append('nonce', authorizeRequest.nonce);
 	}
 
-	if (isTauri()) {
-		await openUrl(url.toString());
-	} else {
-		window.location.href = url.toString();
-	}
-	return;
+	return await redirectToUrl(url);
 	// TODO: change response type to include all possible response parameters, and handle them accordingly
 	switch (authorizeRequest.responseMode) {
 		case 'fragment':
@@ -63,11 +55,7 @@ export async function resolveAuthorizeRequest(authorizeRequest: AuthorizeRequest
 					break;
 				}
 			}
-			if (isTauri()) {
-				await openUrl(url.toString());
-			} else {
-				window.location.href = url.toString();
-			}
+			await redirectToUrl(url);
 			break;
 		}
 		case 'form_post': {

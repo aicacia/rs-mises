@@ -10,14 +10,14 @@ where
   repo: R,
   device_id: String,
   issuer: String,
-  public_uri: Option<Url>,
+  public_uri: Url,
 }
 
 impl<R> ConfigurationService<R>
 where
   R: Repository,
 {
-  pub fn new(repo: R, device_id: String, issuer: String, public_uri: Option<Url>) -> Self {
+  pub fn new(repo: R, device_id: String, issuer: String, public_uri: Url) -> Self {
     Self {
       repo,
       device_id,
@@ -50,7 +50,7 @@ where
     // TODO: we need an actual client_id here, but for now we can just use the service_id as a placeholder
     // we will need to implement client registration in the future to get a real client_id
     let client_id = service_id.clone();
-    let public_uri = self.public_uri.as_ref().map(|uri| uri.to_string());
+    let public_uri = self.public_uri.to_string();
 
     Ok(Response::new(mises_proto::Configuration {
       issuer,

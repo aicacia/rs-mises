@@ -1,3 +1,5 @@
+import { OpenIdConfigurationJSON } from './OpenIdConfigurationJSON.js';
+
 export type OidcClientConfig = {
 	/**
 	 * Base URL of the OIDC provider (issuer).
@@ -10,11 +12,11 @@ export type OidcClientConfig = {
 	/**
 	 * Cached or preloaded provider configuration JSON.
 	 */
-	configuration?: Record<string, unknown>;
+	configuration?: Partial<OpenIdConfigurationJSON>;
 	/**
 	 * Initial configuration used to seed a fetch when network is unavailable.
 	 */
-	configurationSeed?: Record<string, unknown>;
+	configurationSeed?: Partial<OpenIdConfigurationJSON>;
 	/**
 	 * JWKS signing keys provided by the provider.
 	 */

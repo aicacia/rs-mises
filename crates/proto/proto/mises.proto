@@ -413,7 +413,7 @@ message Configuration {
     string device_id = 2;
     string service_id = 3;
     string client_id = 4;
-    optional string public_uri = 5;
+    string public_uri = 5;
 }
 
 service ClientService {

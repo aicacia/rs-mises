@@ -1,9 +1,11 @@
 import { EventEmitter } from 'eventemitter3';
 import type { OidcClientConfig } from './OidcClientConfig.js';
 import type { OpenIdConfigurationJSON } from './OpenIdConfigurationJSON.js';
-import { createFetchWithTimeout, Fetch } from './util/createFetchWithTimeout.js';
+import { openUrl } from './util/openUrl.js';
+import { createFetchWithTimeout, type Fetch } from './util/createFetchWithTimeout.js';
 import { generateState } from './util/generateState.js';
 import { snakeCase } from './util/snakeCase.js';
+import { nativeFetch } from './NativeFetch.js';
 
 export type OidcClientEvents = {
 	error: (error: unknown) => void;
@@ -17,6 +19,18 @@ export type OidcClientOptions = {
 export type AuthorizationUrlOptions = {
 	state?: string;
 	extraParams?: Record<string, string | number | boolean>;
+};
+
+export type RegistrationOptions = {
+	redirectUri?: string;
+	registration?: Record<string, unknown>;
+	popup?: boolean;
+	windowFeatures?: string;
+};
+
+type DynamicClientRegistrationResponse = {
+	client_id?: string;
+	client_secret?: string;
 };
 
 const OPTIONAL_AUTHORIZATION_PARAMS = [
@@ -48,6 +62,32 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 			: (options.fetch ?? fetch);
 	}
 
+	setClientId(clientId: string, clientSecret?: string): void {
+		this.config.clientId = clientId;
+		if (clientSecret) {
+			this.config.clientSecret = clientSecret;
+		}
+	}
+
+	handleRegistrationCallback(url?: string | URL): string | null {
+		const currentUrl =
+			typeof url === 'string'
+				? new URL(url)
+				: (url ?? (typeof window !== 'undefined' ? new URL(window.location.href) : null));
+		if (!currentUrl) {
+			return null;
+		}
+
+		const clientId = currentUrl.searchParams.get('client_id');
+		if (!clientId) {
+			return null;
+		}
+
+		const clientSecret = currentUrl.searchParams.get('client_secret');
+		this.setClientId(clientId, clientSecret ?? undefined);
+		return clientId;
+	}
+
 	static validateConfig(config: OidcClientConfig): OidcClientConfig {
 		if (!config.authority || typeof config.authority !== 'string') {
 			throw new Error('Invalid authority URL');
@@ -63,6 +103,14 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 
 	private async fetchOpenIdConfiguration(): Promise<OpenIdConfigurationJSON> {
 		const url = `${this.config.authority}/.well-known/openid-configuration`;
+		const urlObj = new URL(url);
+		const isNative = urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:';
+
+		if (isNative) {
+			const res = await nativeFetch<OpenIdConfigurationJSON>(urlObj);
+			return res;
+		}
+
 		const res = await this.fetch(url, {
 			credentials: this.config.fetchRequestCredentials ?? 'same-origin'
 		});
@@ -79,47 +127,54 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 		return this.openIdConfigPromise;
 	}
 
-	async signin(options: SigninOptions = {}): Promise<[window: Window | null, url: URL]> {
+	async signin(options: SigninOptions = {}): Promise<URL> {
 		const url = await this.getAuthorizationUrl(options);
-
-		if (options.popup) {
-			let childWindow: Window | null = null;
-
-			if (typeof window !== 'undefined' && typeof window.open === 'function') {
-				childWindow = window.open(url, '_blank', options.windowFeatures ?? '');
-			}
-			return [childWindow, url];
-		} else {
-			if (typeof window !== 'undefined' && window.location) {
-				window.location.assign(url);
-			}
-			return [null, url];
-		}
+		await openUrl(url, {
+			popup: options.popup,
+			windowFeatures: options.windowFeatures
+		});
+		return url;
 	}
 
-	private async getClientId(config: OpenIdConfigurationJSON): Promise<string> {
-		if (this.config.clientId) {
-			return this.config.clientId;
-		}
-
+	async getRegistrationUrl(options: RegistrationOptions = {}): Promise<URL> {
+		const config = await this.getOpenIdConfiguration();
 		if (!config.registration_endpoint) {
-			throw new Error('clientId is required for signin');
+			throw new Error('Provider does not support dynamic client registration');
 		}
 
-		// if running in browser, perform an interactive registration
-		// by navigating to the provider's registration endpoint. the
-		// caller is expected to handle the redirect and retry after a
-		// client_id has been returned in the query string.
-		if (typeof window !== 'undefined') {
-			const url = new URL(config.registration_endpoint);
-			url.searchParams.set('redirect_uri', window.location.href);
-			window.location.assign(url.toString());
-			// never resolves because we navigated away
-			return new Promise(() => {});
+		const url = new URL(config.registration_endpoint);
+		url.searchParams.set('redirect_uri', options.redirectUri ?? this.config.redirectUri);
+		if (options.registration) {
+			url.searchParams.set('registration', JSON.stringify(options.registration));
+		}
+		return url;
+	}
+
+	async startRegistration(options: RegistrationOptions = {}): Promise<URL> {
+		const url = await this.getRegistrationUrl(options);
+		await openUrl(url, {
+			popup: options.popup,
+			windowFeatures: options.windowFeatures
+		});
+		return url;
+	}
+
+	private async registerClient(config: OpenIdConfigurationJSON): Promise<string> {
+		const endpoint = config.registration_endpoint as string;
+		const endpointUrl = new URL(endpoint);
+		const isNative = endpointUrl.protocol !== 'http:' && endpointUrl.protocol !== 'https:';
+
+		if (isNative) {
+			endpointUrl.searchParams.set('redirect_uris', JSON.stringify([this.config.redirectUri]));
+			const response = await nativeFetch<DynamicClientRegistrationResponse>(endpointUrl);
+			if (!response.client_id) {
+				throw new Error('registration response missing client_id');
+			}
+			this.setClientId(response.client_id, response.client_secret);
+			return response.client_id;
 		}
 
-		// fallback for non-browser environments: do a POST
-		const res = await this.fetch(config.registration_endpoint, {
+		const res = await this.fetch(endpoint, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
@@ -129,15 +184,31 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 		if (!res.ok) {
 			throw new Error(`Failed dynamic client registration: ${res.status}`);
 		}
-		const json = await res.json();
+
+		const json = (await res.json()) as DynamicClientRegistrationResponse;
 		if (!json.client_id) {
 			throw new Error('registration response missing client_id');
 		}
-		this.config.clientId = json.client_id;
-		if (json.client_secret) {
-			this.config.clientSecret = json.client_secret;
-		}
+
+		this.setClientId(json.client_id, json.client_secret);
 		return json.client_id;
+	}
+
+	private async getClientId(config: OpenIdConfigurationJSON): Promise<string> {
+		if (this.config.clientId) {
+			return this.config.clientId;
+		}
+		if (!config.registration_endpoint) {
+			throw new Error('clientId is required for signin');
+		}
+
+		if (typeof window === 'undefined') {
+			return this.registerClient(config);
+		}
+
+		throw new Error(
+			'clientId is required for signin; call startRegistration/getRegistrationUrl and then setClientId or handleRegistrationCallback'
+		);
 	}
 
 	async getAuthorizationUrl(options: AuthorizationUrlOptions = {}): Promise<URL> {
@@ -158,7 +229,6 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 
 		for (const key of OPTIONAL_AUTHORIZATION_PARAMS) {
 			const value = this.config[key];
-
 			if (value !== undefined && value !== null) {
 				url.searchParams.set(snakeCase(key), String(value));
 			}

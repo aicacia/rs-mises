@@ -15,7 +15,7 @@ pub async fn get_open_id_configuration<R>(
   repo: &R,
   device_id: &str,
   issuer: String,
-  public_uri: &Option<Url>,
+  public_uri: &Url,
 ) -> Result<mises_proto::OpenIdConfiguration, Status>
 where
   R: Repository + Clone + Send + Sync + 'static,
@@ -55,7 +55,7 @@ where
     device_authorization_endpoint,
     pushed_authorization_request_endpoint,
     check_session_iframe,
-  ) = if let Some(public_uri) = public_uri {
+  ) = {
     (
       public_uri.join("/jwks.json").map(|u| u.to_string()).ok(),
       public_uri.join("/authorize").map(|u| u.to_string()).ok(),
@@ -77,10 +77,6 @@ where
         .join("/check_session")
         .map(|u| u.to_string())
         .ok(),
-    )
-  } else {
-    (
-      None, None, None, None, None, None, None, None, None, None, None,
     )
   };
 

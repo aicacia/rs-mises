@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/db" },
+    { "path": "./packages/oidc-client" },
+    { "path": "./packages/svelte-headless" },
+    { "path": "./apps/mises" },
+    { "path": "./examples/simple" }
+  ]
+}

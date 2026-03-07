@@ -9,6 +9,10 @@
 	import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 	import type { UnlistenFn } from '@tauri-apps/api/event';
 	import { goto } from '$app/navigation';
+	import { oidcClient } from '$lib/common/util/grpcClient';
+	import { callbackUrlFromRequestUrl } from '$lib/common/util/callbackUrlFromRequestUrl';
+	import { redirectToUrl } from '$lib/common/util/redirectToUrl';
+	import { toSnakeCase } from '$lib/common/util/toSnakeCase';
 
 	let { children }: LayoutProps = $props();
 
@@ -33,11 +37,22 @@
 
 			const url = new URL(urlString);
 
-			switch (url.hostname) {
-				case 'authorize': {
+			switch (url.pathname) {
+				case '/authorize': {
 					const authorizePath = resolve('/(auth)/authorize');
 					// eslint-disable-next-line svelte/no-navigation-without-resolve
 					await goto(`${authorizePath}${url.search}`);
+					break;
+				}
+				case '/register': {
+					const registerPath = resolve('/(auth)/register');
+					// eslint-disable-next-line svelte/no-navigation-without-resolve
+					await goto(`${registerPath}${url.search}`);
+					break;
+				}
+				case '/.well-known/openid-configuration': {
+					const callbackUrl = callbackUrlFromRequestUrl(url, toSnakeCase(await oidcClient().getOpenIdConfiguration({})));
+					await redirectToUrl(callbackUrl);
 					break;
 				}
 				default: {

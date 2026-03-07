@@ -159,6 +159,9 @@ importers:
 
   examples/simple:
     dependencies:
+      '@aicacia/oidc-client':
+        specifier: workspace:*
+        version: link:../../packages/oidc-client
       '@aicacia/svelte-headless':
         specifier: workspace:*
         version: link:../../packages/svelte-headless
