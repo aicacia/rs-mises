@@ -9,7 +9,7 @@ type SnakeCase<T> = {
   [K in keyof T as K extends string ? UncapitalizeSnakeCase<K> : never]: T[K]
 };
 
-export function toSnakeCase<T>(object: T): SnakeCase<T> {
+export function snakeCaseKeys<T>(object: T): SnakeCase<T> {
   return Object.fromEntries(Object.entries(object).map(([k, v]) => 
     [k.replace(/([A-Z])/g, '_$1').toLowerCase(), v]
   )) as SnakeCase<T>;

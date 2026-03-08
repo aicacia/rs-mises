@@ -43,6 +43,7 @@
 	"signin_password_label": "Password",
 	"signin_password_placeholder": "Enter your password",
 	"authorize_invalid_request": "Invalid Request",
+	"authorize_client_not_found": "Client Not Found",
 	"authorize_invalid_client_id_label": "Invalid Client ID:",
 	"authorize_invalid_response_type_label": "Invalid Response Type:",
 	"authorize_invalid_response_mode_label": "Invalid Response Mode:",

@@ -4,7 +4,6 @@ import { openUrl } from './openUrl.js';
 export type NativeFetchOptions = {
 	callbackUrl?: string;
 	timeout?: number;
-	stateParam?: string;
 };
 
 /**
@@ -26,10 +25,9 @@ export async function nativeFetch<T = unknown>(
 	const urlObj = typeof url === 'string' ? new URL(url) : url;
 	const state = generateState();
 	const callbackUrl = options.callbackUrl ?? `${window.location.origin}/native-callback`;
-	const stateParam = options.stateParam ?? 'state';
 	const timeout = options.timeout;
 
-	urlObj.searchParams.set(stateParam, state);
+	urlObj.searchParams.set('native_state', state);
 	urlObj.searchParams.set('callback_url', callbackUrl);
 
 	return new Promise<T>((resolve, reject) => {
@@ -97,7 +95,7 @@ export async function nativeFetch<T = unknown>(
  * @param searchParams - URLSearchParams from the callback URL
  */
 export function handleNativeFetchCallback(searchParams: URLSearchParams): void {
-	const state = searchParams.get('state');
+	const state = searchParams.get('native_state');
 	if (!state) {
 		console.warn('No state parameter in native fetch callback');
 		return;

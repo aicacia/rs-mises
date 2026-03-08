@@ -32,7 +32,7 @@ const oidcClient = new OidcClient({
 });
 
 
-export async function getOidcClient() {
+export function getOidcClient() {
 	return oidcClient;
 }
 

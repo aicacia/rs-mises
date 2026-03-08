@@ -1,13 +1,10 @@
-import { redirect } from '@sveltejs/kit';
 import type { LayoutLoad } from './$types';
-import { resolve } from '$app/paths';
-import { needsRegistration } from '$lib/common/state/user.svelte';
+import { getOidcClient } from '$lib/common/state/user.svelte';
 
 export const load: LayoutLoad = async (event) => {
 	await event.parent();
-	if (needsRegistration()) {
-		redirect(302, resolve('/signin'));
-	}
+	const oidcClient = getOidcClient();
+	// const user = await oidcClient.getUser();
 
 	return {
 		user: {

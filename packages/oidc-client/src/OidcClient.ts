@@ -47,6 +47,10 @@ const OPTIONAL_AUTHORIZATION_PARAMS = [
 	'responseMode'
 ] as const;
 
+const AUTHORIZATION_PARAMS_DEFAULTS: Partial<Record<typeof OPTIONAL_AUTHORIZATION_PARAMS[number], string>> = {
+	"responseMode": "query"
+};
+
 export type SigninOptions = AuthorizationUrlOptions & {
 	popup?: boolean;
 	windowFeatures?: string;
@@ -251,7 +255,7 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 					? this.config.clientMetadata?.defaultMaxAge
 					: key === 'acrValues'
 						? this.config.clientMetadata?.defaultAcrValues?.join(' ')
-						: undefined);
+						: key === 'responseMode' ? "query" : undefined);
 			if (value !== undefined && value !== null) {
 				url.searchParams.set(snakeCase(key), String(value));
 			}

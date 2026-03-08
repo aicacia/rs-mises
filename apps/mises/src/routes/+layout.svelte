@@ -10,9 +10,9 @@
 	import type { UnlistenFn } from '@tauri-apps/api/event';
 	import { goto } from '$app/navigation';
 	import { oidcClient } from '$lib/common/util/grpcClient';
-	import { callbackUrlFromRequestUrl } from '$lib/common/util/callbackUrlFromRequestUrl';
+	import { nativeCallbackUrlFromRequestUrl } from '$lib/common/util/nativeCallbackUrlFromRequestUrl';
 	import { redirectToUrl } from '$lib/common/util/redirectToUrl';
-	import { toSnakeCase } from '$lib/common/util/toSnakeCase';
+	import { snakeCaseKeys } from '$lib/common/util/snakeCaseKeys';
 
 	let { children }: LayoutProps = $props();
 
@@ -53,7 +53,8 @@
 					break;
 				}
 				case '/.well-known/openid-configuration': {
-					const callbackUrl = callbackUrlFromRequestUrl(url, toSnakeCase(await oidcClient().getOpenIdConfiguration({})));
+					const openIdConfiguration = await oidcClient().getOpenIdConfiguration({});
+					const callbackUrl = nativeCallbackUrlFromRequestUrl(url, snakeCaseKeys(openIdConfiguration));
 					await redirectToUrl(callbackUrl);
 					break;
 				}
