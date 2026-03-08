@@ -37,6 +37,8 @@
 
 			const url = new URL(urlString);
 
+			console.debug('Deep link received', url);
+
 			switch (url.pathname) {
 				case '/authorize': {
 					const authorizePath = resolve('/(auth)/authorize');

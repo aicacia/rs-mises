@@ -231,7 +231,6 @@ where
     application_type: None,
     contacts: vec![],
     service_id: Some(oidc_meta.service_id.clone()),
-    audience: Some(oidc_meta.service_id.clone()),
     client_uri: None,
     logo_uri: None,
     policy_uri: None,

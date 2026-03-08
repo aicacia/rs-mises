@@ -1,4 +1,4 @@
-import { OpenIdConfigurationJSON } from './OpenIdConfigurationJSON.js';
+import type { OidcClientMetadata } from './OidcClientMetadata.js';
 
 export type OidcClientConfig = {
 	/**
@@ -6,21 +6,9 @@ export type OidcClientConfig = {
 	 */
 	authority: string;
 	/**
-	 * Optional explicit OIDC configuration endpoint URL. If not set, it's constructed from the authority.
+	 * OpenID Connect client metadata.
 	 */
-	configurationUrl?: string;
-	/**
-	 * Cached or preloaded provider configuration JSON.
-	 */
-	configuration?: Partial<OpenIdConfigurationJSON>;
-	/**
-	 * Initial configuration used to seed a fetch when network is unavailable.
-	 */
-	configurationSeed?: Partial<OpenIdConfigurationJSON>;
-	/**
-	 * JWKS signing keys provided by the provider.
-	 */
-	signingKeys?: Record<string, unknown>[];
+	clientMetadata: OidcClientMetadata;
 	/**
 	 * Client identifier issued by the provider.
 	 */
@@ -34,25 +22,10 @@ export type OidcClientConfig = {
 	 */
 	responseType?: string;
 	/**
-	 * Requested OAuth2 scopes (space‑delimited).
-	 */
-	scope?: string;
-	/**
 	 * Redirect URI where the provider will send responses.
+	 * If omitted, the first entry in clientMetadata.redirectUris is used.
 	 */
-	redirectUri: string;
-	/**
-	 * URI to return users after logout.
-	 */
-	postLogoutRedirectUri?: string;
-	/**
-	 * Method used to authenticate the client at the token endpoint.
-	 */
-	clientAuthentication?: 'client_secret_basic' | 'client_secret_post' | 'client_secret_jwt';
-	/**
-	 * Algorithm for signing client authentication JWTs if used.
-	 */
-	tokenEndpointAuthSigningAlg?: 'HS256' | 'HS384' | 'HS512';
+	redirectUri?: string;
 	/**
 	 * Prompt parameter to control UI (login, consent, etc.).
 	 */
@@ -82,57 +55,13 @@ export type OidcClientConfig = {
 	 */
 	responseMode?: 'query' | 'fragment';
 	/**
-	 * Whether to filter out standard protocol claims from the id_token.
-	 */
-	filterProtocolClaims?: boolean | string[];
-	/**
-	 * Load userinfo endpoint after authentication.
-	 */
-	loadUserInfo?: boolean;
-	/**
-	 * Maximum age of a state object before considering it stale.
-	 */
-	staleStateAgeInSeconds?: number;
-	/**
-	 * Strategy for merging array claims when combining metadata/keys.
-	 */
-	mergeClaimsStrategy?: { array: 'replace' | 'merge' };
-	/**
-	 * Custom storage for state objects.
-	 */
-	stateStore?: unknown;
-	/**
 	 * Additional query parameters for authorization requests.
 	 */
 	extraQueryParams?: Record<string, string | number | boolean>;
 	/**
-	 * Additional parameters for token requests.
-	 */
-	extraTokenParams?: Record<string, unknown>;
-	/**
-	 * Extra headers to include on HTTP requests.
-	 */
-	extraHeaders?: Record<string, string | (() => string)>;
-	/**
-	 * DPoP key material or configuration.
-	 */
-	dpop?: unknown;
-	/**
-	 * Additional Content-Type values for token revocation.
-	 */
-	revokeTokenAdditionalContentTypes?: string[];
-	/**
-	 * Disable PKCE for the authorization request.
-	 */
-	disablePkce?: boolean;
-	/**
 	 * Credentials option passed to fetch calls.
 	 */
 	fetchRequestCredentials?: RequestCredentials;
-	/**
-	 * Scope that is allowed for refresh tokens.
-	 */
-	refreshTokenAllowedScope?: string;
 	/**
 	 * Timeout for network requests in seconds.
 	 */

@@ -1,13 +1,17 @@
 import { EventEmitter } from 'eventemitter3';
+import type { OidcClientMetadata, OidcClientMetadataJSON } from './OidcClientMetadata.js';
+import type { OidcClientRegistrationResponse } from './OidcClientRegistrationResponse.js';
 import type { OidcClientConfig } from './OidcClientConfig.js';
-import type { OpenIdConfigurationJSON } from './OpenIdConfigurationJSON.js';
+import type { OidcConfigurationJSON } from './OidcConfigurationJSON.js';
 import { openUrl } from './util/openUrl.js';
 import { createFetchWithTimeout, type Fetch } from './util/createFetchWithTimeout.js';
 import { generateState } from './util/generateState.js';
 import { snakeCase } from './util/snakeCase.js';
-import { nativeFetch } from './NativeFetch.js';
+import { snakeCaseObject } from './util/snakeCaseObject.js';
+import { nativeFetch } from './util/nativeFetch.js';
 
 export type OidcClientEvents = {
+	registered: (clientId: string, clientSecret?: string) => void;
 	error: (error: unknown) => void;
 };
 
@@ -23,7 +27,7 @@ export type AuthorizationUrlOptions = {
 
 export type RegistrationOptions = {
 	redirectUri?: string;
-	registration?: Record<string, unknown>;
+	registration?: OidcClientMetadata;
 	popup?: boolean;
 	windowFeatures?: string;
 };
@@ -52,7 +56,7 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 	private readonly config: OidcClientConfig;
 	private readonly fetch: Fetch;
 
-	private openIdConfigPromise: Promise<OpenIdConfigurationJSON> | null = null;
+	private oidcConfigPromise: Promise<OidcConfigurationJSON> | null = null;
 
 	constructor(options: OidcClientOptions) {
 		super();
@@ -67,23 +71,16 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 		if (clientSecret) {
 			this.config.clientSecret = clientSecret;
 		}
+		this.emit('registered', clientId, clientSecret);
 	}
 
-	handleRegistrationCallback(url?: string | URL): string | null {
-		const currentUrl =
-			typeof url === 'string'
-				? new URL(url)
-				: (url ?? (typeof window !== 'undefined' ? new URL(window.location.href) : null));
-		if (!currentUrl) {
-			return null;
-		}
-
-		const clientId = currentUrl.searchParams.get('client_id');
+	handleRegistrationCallback(searchParams?: URLSearchParams): string | null {
+		const clientId = searchParams?.get('client_id');
 		if (!clientId) {
 			return null;
 		}
-
-		const clientSecret = currentUrl.searchParams.get('client_secret');
+		const clientSecret = searchParams?.get('client_secret');
+		
 		this.setClientId(clientId, clientSecret ?? undefined);
 		return clientId;
 	}
@@ -95,19 +92,42 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 		config.authority = config.authority.endsWith('/')
 			? config.authority.slice(0, -1)
 			: config.authority;
-		if (!config.redirectUri || typeof config.redirectUri !== 'string') {
+
+		if (config.redirectUri !== undefined && typeof config.redirectUri !== 'string') {
 			throw new Error('Invalid redirectUri');
 		}
+
+	if (!config.redirectUri && !config.clientMetadata?.redirectUris?.[0]) {
+		throw new Error('Missing redirectUri: set redirectUri or clientMetadata.redirectUris[0]');
+		}
+
 		return config;
 	}
 
-	private async fetchOpenIdConfiguration(): Promise<OpenIdConfigurationJSON> {
+	private getRedirectUri(): string {
+		return this.config.redirectUri ?? this.config.clientMetadata?.redirectUris?.[0] ?? '';
+	}
+
+	private metadataToJSON(metadata: OidcClientMetadata): OidcClientMetadataJSON {
+		return snakeCaseObject(metadata) as OidcClientMetadataJSON;
+	}
+
+	private getRegistrationMetadata(): OidcClientMetadata {
+		if (!this.config.clientMetadata) {
+			throw new Error('Missing clientMetadata for dynamic client registration');
+		}
+		return this.config.clientMetadata;
+	}
+
+	private async fetchOidcConfiguration(): Promise<OidcConfigurationJSON> {
 		const url = `${this.config.authority}/.well-known/openid-configuration`;
 		const urlObj = new URL(url);
 		const isNative = urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:';
 
 		if (isNative) {
-			const res = await nativeFetch<OpenIdConfigurationJSON>(urlObj);
+			const res = await nativeFetch<OidcConfigurationJSON>(urlObj, {
+				timeout: this.config.requestTimeoutInSeconds ? this.config.requestTimeoutInSeconds * 1000 : undefined
+			});
 			return res;
 		}
 
@@ -117,14 +137,14 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 		if (!res.ok) {
 			throw new Error(`Failed to fetch OIDC configuration: ${res.status} ${res.statusText}`);
 		}
-		return res.json() as Promise<OpenIdConfigurationJSON>;
+		return res.json() as Promise<OidcConfigurationJSON>;
 	}
 
-	async getOpenIdConfiguration(): Promise<OpenIdConfigurationJSON> {
-		if (!this.openIdConfigPromise) {
-			this.openIdConfigPromise = this.fetchOpenIdConfiguration();
+	async getOidcConfiguration(): Promise<OidcConfigurationJSON> {
+		if (!this.oidcConfigPromise) {
+			this.oidcConfigPromise = this.fetchOidcConfiguration();
 		}
-		return this.openIdConfigPromise;
+		return this.oidcConfigPromise;
 	}
 
 	async signin(options: SigninOptions = {}): Promise<URL> {
@@ -137,15 +157,15 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 	}
 
 	async getRegistrationUrl(options: RegistrationOptions = {}): Promise<URL> {
-		const config = await this.getOpenIdConfiguration();
+		const config = await this.getOidcConfiguration();
 		if (!config.registration_endpoint) {
 			throw new Error('Provider does not support dynamic client registration');
 		}
 
 		const url = new URL(config.registration_endpoint);
-		url.searchParams.set('redirect_uri', options.redirectUri ?? this.config.redirectUri);
+		url.searchParams.set('redirect_uri', options.redirectUri ?? this.getRedirectUri());
 		if (options.registration) {
-			url.searchParams.set('registration', JSON.stringify(options.registration));
+			url.searchParams.set('registration', JSON.stringify(this.metadataToJSON(options.registration)));
 		}
 		return url;
 	}
@@ -159,14 +179,16 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 		return url;
 	}
 
-	private async registerClient(config: OpenIdConfigurationJSON): Promise<string> {
+	private async registerClient(config: OidcConfigurationJSON): Promise<string> {
 		const endpoint = config.registration_endpoint as string;
 		const endpointUrl = new URL(endpoint);
 		const isNative = endpointUrl.protocol !== 'http:' && endpointUrl.protocol !== 'https:';
 
 		if (isNative) {
-			endpointUrl.searchParams.set('redirect_uris', JSON.stringify([this.config.redirectUri]));
-			const response = await nativeFetch<DynamicClientRegistrationResponse>(endpointUrl);
+			const registrationMetadata = this.getRegistrationMetadata();
+			endpointUrl.searchParams.set('redirect_uri', this.getRedirectUri());
+			endpointUrl.searchParams.set('registration', JSON.stringify(this.metadataToJSON(registrationMetadata)));
+			const response = await nativeFetch<OidcClientRegistrationResponse>(endpointUrl);
 			if (!response.client_id) {
 				throw new Error('registration response missing client_id');
 			}
@@ -177,9 +199,7 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 		const res = await this.fetch(endpoint, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				redirect_uris: [this.config.redirectUri]
-			})
+			body: JSON.stringify(this.metadataToJSON(this.getRegistrationMetadata()))
 		});
 		if (!res.ok) {
 			throw new Error(`Failed dynamic client registration: ${res.status}`);
@@ -194,7 +214,7 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 		return json.client_id;
 	}
 
-	private async getClientId(config: OpenIdConfigurationJSON): Promise<string> {
+	private async getClientId(config: OidcConfigurationJSON): Promise<string> {
 		if (this.config.clientId) {
 			return this.config.clientId;
 		}
@@ -202,33 +222,36 @@ export class OidcClient extends EventEmitter<OidcClientEvents> {
 			throw new Error('clientId is required for signin');
 		}
 
-		if (typeof window === 'undefined') {
-			return this.registerClient(config);
-		}
-
-		throw new Error(
-			'clientId is required for signin; call startRegistration/getRegistrationUrl and then setClientId or handleRegistrationCallback'
-		);
+		return this.registerClient(config);
 	}
 
 	async getAuthorizationUrl(options: AuthorizationUrlOptions = {}): Promise<URL> {
-		const config = await this.getOpenIdConfiguration();
+		const config = await this.getOidcConfiguration();
 		const clientId = await this.getClientId(config);
 		const url = new URL(config.authorization_endpoint);
 
 		url.searchParams.set('client_id', clientId);
-		url.searchParams.set('redirect_uri', this.config.redirectUri);
-		url.searchParams.set('response_type', this.config.responseType ?? 'code');
+		url.searchParams.set('redirect_uri', this.getRedirectUri());
+		url.searchParams.set(
+			'response_type',
+			this.config.responseType ?? this.config.clientMetadata?.responseTypes?.[0] ?? 'code'
+		);
 
 		if (!this.config.omitScopeWhenRequesting) {
-			url.searchParams.set('scope', this.config.scope ?? 'openid');
+			url.searchParams.set('scope', this.config.clientMetadata?.scope ?? 'openid');
 		}
 
 		const state = options.state ?? generateState();
 		url.searchParams.set('state', state);
 
 		for (const key of OPTIONAL_AUTHORIZATION_PARAMS) {
-			const value = this.config[key];
+			const value =
+				this.config[key] ??
+				(key === 'maxAge'
+					? this.config.clientMetadata?.defaultMaxAge
+					: key === 'acrValues'
+						? this.config.clientMetadata?.defaultAcrValues?.join(' ')
+						: undefined);
 			if (value !== undefined && value !== null) {
 				url.searchParams.set(snakeCase(key), String(value));
 			}

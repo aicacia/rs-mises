@@ -1,8 +1,8 @@
 <script lang="ts" module>
-	import type { ClientInfo } from './_utils';
+	import type { ClientRegisterRequest } from '$lib/proto/mises';
 
 	export interface ClientHeaderProps {
-		client: Partial<ClientInfo> & Pick<ClientInfo, 'logoUri' | 'name'>;
+		client: Partial<ClientRegisterRequest> & Pick<ClientRegisterRequest, 'logoUri' | 'name'>;
 	}
 </script>
 

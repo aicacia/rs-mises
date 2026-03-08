@@ -1,8 +1,8 @@
 <script lang="ts" module>
-	import type { ClientInfo } from './_utils';
+	import type { ClientRegisterRequest } from '$lib/proto/mises';
 
 	export interface ClientFieldsProps {
-		client: Partial<ClientInfo>;
+		client: Partial<ClientRegisterRequest>;
 	}
 </script>
 

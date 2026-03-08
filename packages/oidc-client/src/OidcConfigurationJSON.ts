@@ -1,4 +1,4 @@
-export type OpenIdConfigurationJSON = {
+export type OidcConfigurationJSON = {
 	issuer: string;
 	authorization_endpoint: string;
 	token_endpoint: string;

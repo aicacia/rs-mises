@@ -1,5 +1,5 @@
-import { generateState } from './util/generateState.js';
-import { openUrl } from './util/openUrl.js';
+import { generateState } from './generateState.js';
+import { openUrl } from './openUrl.js';
 
 export type NativeFetchOptions = {
 	callbackUrl?: string;
@@ -25,9 +25,9 @@ export async function nativeFetch<T = unknown>(
 
 	const urlObj = typeof url === 'string' ? new URL(url) : url;
 	const state = generateState();
-	const callbackUrl = options.callbackUrl || `${window.location.origin}/native-callback`;
-	const timeout = options.timeout || 60000;
-	const stateParam = options.stateParam || 'state';
+	const callbackUrl = options.callbackUrl ?? `${window.location.origin}/native-callback`;
+	const stateParam = options.stateParam ?? 'state';
+	const timeout = options.timeout;
 
 	urlObj.searchParams.set(stateParam, state);
 	urlObj.searchParams.set('callback_url', callbackUrl);
@@ -35,24 +35,28 @@ export async function nativeFetch<T = unknown>(
 	return new Promise<T>((resolve, reject) => {
 		let popupWindow: Window | null = null;
 		let timeoutId: ReturnType<typeof setTimeout> | null = null;
-		let checkInterval: ReturnType<typeof setInterval> | null = null;
 		let messageListener: ((event: MessageEvent) => void) | null = null;
+		let storageListener: ((event: StorageEvent) => void) | null = null;
 
 		const cleanup = () => {
 			if (timeoutId) clearTimeout(timeoutId);
-			if (checkInterval) clearInterval(checkInterval);
 			if (messageListener) {
 				window.removeEventListener('message', messageListener);
+			}
+			if (storageListener) {
+				window.removeEventListener('storage', storageListener);
 			}
 			if (popupWindow && !popupWindow.closed) {
 				popupWindow.close();
 			}
 		};
 
-		timeoutId = setTimeout(() => {
-			cleanup();
-			reject(new Error(`Native fetch timeout after ${timeout}ms`));
-		}, timeout);
+		if (timeout) {
+			timeoutId = setTimeout(() => {
+				cleanup();
+				reject(new Error(`Native fetch timeout after ${timeout}ms`));
+			}, timeout);
+		}
 
 		messageListener = (event: MessageEvent) => {
 			if (event.data?.type === 'native-fetch-response' && event.data?.state === state) {
@@ -61,22 +65,24 @@ export async function nativeFetch<T = unknown>(
 			}
 		};
 
-		window.addEventListener('message', messageListener);
-
-		checkInterval = setInterval(() => {
+		storageListener = (event: StorageEvent) => {
 			const storageKey = `native-fetch-response-${state}`;
-			const storedResponse = localStorage.getItem(storageKey);
-			if (storedResponse) {
-				localStorage.removeItem(storageKey);
-				cleanup();
-				try {
-					const data = JSON.parse(storedResponse);
-					resolve(data as T);
-				} catch (error) {
-					reject(new Error(`Failed to parse native fetch response: ${error}`));
-				}
+			if (event.key !== storageKey || event.newValue == null) {
+				return;
 			}
-		}, 100);
+
+			localStorage.removeItem(storageKey);
+			cleanup();
+			try {
+				const data = JSON.parse(event.newValue);
+				resolve(data as T);
+			} catch (error) {
+				reject(new Error(`Failed to parse native fetch response: ${error}`));
+			}
+		};
+
+		window.addEventListener('message', messageListener);
+		window.addEventListener('storage', storageListener);
 
 		popupWindow = openUrl(urlObj, {
 			popup: true

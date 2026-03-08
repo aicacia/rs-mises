@@ -1,19 +1,19 @@
 <script lang="ts" module>
-	import type { ClientInfo } from './_utils';
+	import type { ClientRegisterRequest } from '$lib/proto/mises';
 
 	export interface ClientInfoProps {
-		client: Partial<ClientInfo> & Pick<ClientInfo, 'logoUri' | 'name'>;
+		client: Partial<ClientRegisterRequest> & Pick<ClientRegisterRequest, 'logoUri' | 'name'>;
 		disabled?: boolean;
 		isNew: boolean;
-		onAccept: (updates: ClientInfo) => Promise<void>;
+		onAccept: (updates: ClientRegisterRequest) => Promise<void>;
 		onReject: () => Promise<void>;
 	}
 </script>
 
 <script lang="ts">
 	import { m } from '$lib/paraglide/messages';
-	import ClientHeader from './_ClientHeader.svelte';
-	import ClientFields from './_ClientFields.svelte';
+	import ClientHeader from './ClientHeader.svelte';
+	import ClientFields from './ClientFields.svelte';
 
 	let { client, disabled, isNew, onAccept, onReject }: ClientInfoProps = $props();
 
@@ -22,7 +22,7 @@
 	async function onAcceptInternal() {
 		try {
 			loading = true;
-			await onAccept(client as ClientInfo);
+			await onAccept(client as ClientRegisterRequest);
 		} finally {
 			loading = false;
 		}
@@ -52,6 +52,7 @@
 <hr />
 
 <section>
+	<!-- true here until we return the user permissions -->
 	{#if true}
 		<div class="mt-4 flex flex-row justify-center gap-4">
 			<button class="btn secondary" disabled={disabled || loading} onclick={onRejectInternal}

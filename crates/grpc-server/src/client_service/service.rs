@@ -107,7 +107,6 @@ where
       require_pkce: None,
       application_type: None,
       contacts: vec![],
-      audience: Some(oidc_client.service_id.clone()),
       service_id: Some(oidc_client.service_id.clone()),
       client_uri: None,
       logo_uri: None,
