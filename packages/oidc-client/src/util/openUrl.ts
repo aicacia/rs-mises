@@ -1,12 +1,9 @@
+import { isNativeProtocol } from "./isNativeProtocol.js";
+
 export type RedirectOptions = {
 	popup?: boolean;
 	windowFeatures?: string;
 };
-
-export function isNativeProtocol(url: URL): boolean {
-	const protocol = url.protocol.toLowerCase();
-	return protocol !== 'http:' && protocol !== 'https:' && protocol !== 'about:';
-}
 
 export function openUrl(url: URL, options?: RedirectOptions): Window | null {
 	if (typeof window === 'undefined') {

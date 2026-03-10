@@ -135,6 +135,10 @@ pub fn do_work() {  } // implementation — NO
 - Refer to the **svelte skill** for Svelte documentation and best practices
 - Prefer ESM modules; ensure `package.json` has proper `exports` field
 - TypeScript: strict mode enabled, no `any` types without justification
+- Keep TypeScript code simple and readable: prefer straightforward logic over clever abstractions
+- Use clear names and small functions; split complex branches into focused helpers
+- Prefer early returns and shallow control flow to reduce nesting
+- Keep files focused on one responsibility and remove dead or unused code promptly
 - Group imports: stdlib → external → internal, alphabetically within groups
 - Keep components focused; extract composition logic into utilities
 - Tests/examples required for new or changed behavior

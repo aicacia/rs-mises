@@ -16,7 +16,9 @@ use crate::{
   error::ToStatus,
   helpers::{OptionExt, ResultExt},
   jwt::TokenBuilder,
-  oidc_service::authorization_code::get_and_delete_authorization_code,
+  oidc_service::authorization_code::{
+    delete_authorization_code, get_authorization_code,
+  },
 };
 
 const BUILTIN_CLIENT_IDS: &[&str] = &["mises-desktop", "mises-web"];
@@ -134,11 +136,17 @@ where
   R: Repository + Clone + Send + Sync + 'static,
   S: KeyValueStoreExecutor,
 {
-  let code_data = get_and_delete_authorization_code(store, &authorization_code.code)
+  let code = authorization_code.code.trim();
+  if code.is_empty() {
+    return Err(Status::invalid_argument("code is required"));
+  }
+
+  let code_data = get_authorization_code(store, code)
     .await?
     .or_invalid_argument("invalid or expired authorization code")?;
 
   if code_data.is_expired() {
+    delete_authorization_code(store, code).await?;
     return Err(Status::invalid_argument("authorization code expired"));
   }
 
@@ -184,6 +192,8 @@ where
       ));
     }
   }
+
+  delete_authorization_code(store, code).await?;
 
   let identity_service = IdentityService::new(repo.clone(), device_id.to_string());
 
@@ -252,10 +262,18 @@ where
     None
   };
 
+  log::debug!(
+    "Issued tokens for client_id: {}, subject: {}, scope: {:?}",
+    app_id_str,
+    subject_str,
+    code_data.scope
+  );
+
   Ok(mises_proto::TokenResponse {
+    expires_in: Some(access_token_expiry as u64),
     access_token,
     token_type: "Bearer".to_string(),
-    expires_in: Some(access_token_expiry as u64),
+    refresh_token_expires_in: Some(refresh_token_expiry as u64),
     refresh_token: Some(refresh_token),
     id_token,
     scope: code_data.scope,
@@ -342,9 +360,10 @@ where
     .build()?;
 
   Ok(mises_proto::TokenResponse {
+    expires_in: Some(access_token_expiry as u64),
     access_token,
     token_type: "Bearer".to_string(),
-    expires_in: Some(access_token_expiry as u64),
+    refresh_token_expires_in: Some(refresh_token_expiry as u64),
     refresh_token: Some(refresh_token),
     id_token: Some(id_token),
     scope: grant.scope,
@@ -443,9 +462,10 @@ where
   };
 
   Ok(mises_proto::TokenResponse {
+    expires_in: Some(access_token_expiry as u64),
     access_token,
     token_type: "Bearer".to_string(),
-    expires_in: Some(access_token_expiry as u64),
+    refresh_token_expires_in: Some(refresh_token_expiry as u64),
     refresh_token: Some(refresh_token),
     id_token,
     scope: grant.scope,

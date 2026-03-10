@@ -3,7 +3,7 @@
 
 	async function onSubmit(e: SubmitEvent) {
 		e.preventDefault();
-		await signin(false);
+		await signin();
 	}
 </script>
 

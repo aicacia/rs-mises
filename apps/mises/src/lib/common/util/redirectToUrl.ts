@@ -3,7 +3,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 
 export async function redirectToUrl(url: URL | string) {
 	if (isTauri()) {
-		await openUrl(url.toString());
+		await openUrl(url);
 	} else {
 		window.location.href = url.toString();
 	}

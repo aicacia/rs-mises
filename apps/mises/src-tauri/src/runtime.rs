@@ -41,6 +41,11 @@ pub fn start() {
         .build(),
     )
     .setup(move |app| {
+      #[cfg(all(debug_assertions, desktop))]
+      if let Some(window) = app.get_webview_window("main") {
+        window.open_devtools();
+      }
+
       #[cfg(any(windows, target_os = "linux"))]
       {
         let _ = app.deep_link().register_all();

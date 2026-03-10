@@ -1,17 +1,33 @@
-<script>
+<script context="module">
+	export const prerender = false;
+	export const ssr = false;
+</script>
+
+<script lang="ts">
 	import { onMount } from 'svelte';
+	import { handleNativeFetchCallback } from '@aicacia/oidc-client';
+	import { page } from '$app/state';
+
+	let callbackError = '';
 
 	onMount(() => {
-		setTimeout(() => {
-			if (window.history.length > 1) {
-				window.history.back();
-			} else {
-				window.close();
-			}
-		}, 1000);
+		try {
+			handleNativeFetchCallback(page.url.searchParams);
+		} catch (err) {
+			callbackError = err instanceof Error ? err.message : String(err);
+		}
 	});
 </script>
 
 <div class="flex min-h-screen items-center justify-center">
-	<p>Processing native callback...</p>
+	{#if callbackError}
+		<div class="max-w-xl space-y-2 px-6 text-center">
+			<p class="font-semibold">Native Callback failed</p>
+			{#if callbackError}
+				<p class="text-sm wrap-break-word opacity-80">{callbackError}</p>
+			{/if}
+		</div>
+	{:else}
+		<p>Processing native callback...</p>
+	{/if}
 </div>

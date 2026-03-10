@@ -13,13 +13,13 @@ export async function rejectAuthorizeRequest(
 ) {
 	const url = new URL(authorizeRequest.redirectUri!);
 	if (authorizeRequest.state) {
-		url.searchParams.append('state', authorizeRequest.state);
+		url.searchParams.set('state', authorizeRequest.state);
 	}
 	if (authorizeRequest.nonce) {
-		url.searchParams.append('nonce', authorizeRequest.nonce);
+		url.searchParams.set('nonce', authorizeRequest.nonce);
 	}
-	url.searchParams.append('error', error);
-	url.searchParams.append('error_description', errorDescription);
+	url.searchParams.set('error', error);
+	url.searchParams.set('error_description', errorDescription);
 	await redirectToUrl(url);
 }
 
@@ -28,10 +28,10 @@ export async function resolveAuthorizeRequest(authorizeRequest: AuthorizeRequest
 
 	const url = new URL(authorizeResponse.redirectUri!);
 	if (authorizeRequest.state) {
-		url.searchParams.append('state', authorizeRequest.state);
+		url.searchParams.set('state', authorizeRequest.state);
 	}
 	if (authorizeRequest.nonce) {
-		url.searchParams.append('nonce', authorizeRequest.nonce);
+		url.searchParams.set('nonce', authorizeRequest.nonce);
 	}
 
 	return await redirectToUrl(url);

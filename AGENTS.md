@@ -7,14 +7,14 @@ Mesh identity and security enforcement system for managing identities, keys, res
 ## Monorepo Layout
 
 - apps/: SvelteKit web apps
-- crates/: Rust libraries (default to no_std)
+- crates/: Rust libraries
 - examples/: Minimal usage demos
 - packages/: Shared Svelte components/utilities
 - docs/: Design, spec, and examples
 
 ## What We Use
 
-- Rust (no_std by default, std only for adapters)
+- Rust (no_std by when possible)
 - SvelteKit, TailwindCSS, Vite, ESLint, Paraglide
 - Tauri for desktop integration
 - GitHub Actions for CI

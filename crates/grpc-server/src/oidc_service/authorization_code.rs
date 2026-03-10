@@ -52,7 +52,7 @@ where
   Ok(())
 }
 
-pub async fn get_and_delete_authorization_code<S>(
+pub async fn get_authorization_code<S>(
   store: &S,
   code: &str,
 ) -> Result<Option<AuthorizationCodeData>, Status>
@@ -65,18 +65,23 @@ where
     .await
     .map_err(|e| Status::internal(format!("failed to retrieve authorization code: {}", e)))?;
 
-  if let Some(bytes) = value {
-    store
-      .delete(key)
-      .await
-      .map_err(|e| Status::internal(format!("failed to delete authorization code: {}", e)))?;
+  value
+    .map(|bytes| {
+      serde_json::from_slice(&bytes)
+        .map_err(|e| Status::internal(format!("deserialization failed: {}", e)))
+    })
+    .transpose()
+}
 
-    let data: AuthorizationCodeData = serde_json::from_slice(&bytes)
-      .map_err(|e| Status::internal(format!("deserialization failed: {}", e)))?;
-    Ok(Some(data))
-  } else {
-    Ok(None)
-  }
+pub async fn delete_authorization_code<S>(store: &S, code: &str) -> Result<(), Status>
+where
+  S: KeyValueStoreExecutor,
+{
+  let key = authorization_code_key(code);
+  store
+    .delete(key)
+    .await
+    .map_err(|e| Status::internal(format!("failed to delete authorization code: {}", e)))
 }
 
 impl AuthorizationCodeData {

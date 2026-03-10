@@ -247,6 +247,10 @@ where
       }
     }
 
+    if allowed_scopes.is_empty() {
+      return Err(Status::permission_denied("User is not allowed to access this client"));
+    }
+
     Ok(Response::new(mises_proto::ClientAllowed {
       scope: allowed_scopes.join(" "),
     }))

@@ -24,6 +24,12 @@ await client.signin();
 
 // or open a popup
 const { url, window } = await client.signin({ popup: true });
+
+// later, after handling the callback, load userinfo explicitly
+const tokenResponse = await client.handleSigninCallback();
+const userInfo = tokenResponse?.accessToken
+	? await client.getUserInfo(tokenResponse.accessToken)
+	: null;
 ```
 
 ## Features

@@ -90,10 +90,11 @@ export interface DeviceCredentials {
 export interface TokenResponse {
   accessToken: string;
   tokenType: string;
-  expiresIn?: number | undefined;
   refreshToken?: string | undefined;
   idToken?: string | undefined;
   scope?: string | undefined;
+  expiresIn?: number | undefined;
+  refreshTokenExpiresIn?: number | undefined;
 }
 
 export interface DeviceAuthorizeRequest {
@@ -197,7 +198,6 @@ export interface ClientRegisterRequest {
   subjectType?: string | undefined;
   idTokenSignedResponseAlg?: string | undefined;
   idTokenEncryptedResponseAlg?: string | undefined;
-  audience?: string | undefined;
   idTokenEncryptedResponseEnc?: string | undefined;
   userinfoSignedResponseAlg?: string | undefined;
   userinfoEncryptedResponseAlg?: string | undefined;
@@ -275,7 +275,6 @@ export interface Client {
   backchannelLogoutSessionRequired?: boolean | undefined;
   accessTokenExpiry?: number | undefined;
   refreshTokenExpiry?: number | undefined;
-  audience?: string | undefined;
 }
 
 export interface EndSessionRequest {
@@ -1150,10 +1149,11 @@ function createBaseTokenResponse(): TokenResponse {
   return {
     accessToken: "",
     tokenType: "",
-    expiresIn: undefined,
     refreshToken: undefined,
     idToken: undefined,
     scope: undefined,
+    expiresIn: undefined,
+    refreshTokenExpiresIn: undefined,
   };
 }
 
@@ -1165,17 +1165,20 @@ export const TokenResponse: MessageFns<TokenResponse> = {
     if (message.tokenType !== "") {
       writer.uint32(18).string(message.tokenType);
     }
-    if (message.expiresIn !== undefined) {
-      writer.uint32(24).uint64(message.expiresIn);
-    }
     if (message.refreshToken !== undefined) {
-      writer.uint32(34).string(message.refreshToken);
+      writer.uint32(26).string(message.refreshToken);
     }
     if (message.idToken !== undefined) {
-      writer.uint32(42).string(message.idToken);
+      writer.uint32(34).string(message.idToken);
     }
     if (message.scope !== undefined) {
-      writer.uint32(50).string(message.scope);
+      writer.uint32(42).string(message.scope);
+    }
+    if (message.expiresIn !== undefined) {
+      writer.uint32(48).uint64(message.expiresIn);
+    }
+    if (message.refreshTokenExpiresIn !== undefined) {
+      writer.uint32(56).uint64(message.refreshTokenExpiresIn);
     }
     return writer;
   },
@@ -1204,11 +1207,11 @@ export const TokenResponse: MessageFns<TokenResponse> = {
           continue;
         }
         case 3: {
-          if (tag !== 24) {
+          if (tag !== 26) {
             break;
           }
 
-          message.expiresIn = longToNumber(reader.uint64());
+          message.refreshToken = reader.string();
           continue;
         }
         case 4: {
@@ -1216,7 +1219,7 @@ export const TokenResponse: MessageFns<TokenResponse> = {
             break;
           }
 
-          message.refreshToken = reader.string();
+          message.idToken = reader.string();
           continue;
         }
         case 5: {
@@ -1224,15 +1227,23 @@ export const TokenResponse: MessageFns<TokenResponse> = {
             break;
           }
 
-          message.idToken = reader.string();
+          message.scope = reader.string();
           continue;
         }
         case 6: {
-          if (tag !== 50) {
+          if (tag !== 48) {
             break;
           }
 
-          message.scope = reader.string();
+          message.expiresIn = longToNumber(reader.uint64());
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.refreshTokenExpiresIn = longToNumber(reader.uint64());
           continue;
         }
       }
@@ -1251,10 +1262,11 @@ export const TokenResponse: MessageFns<TokenResponse> = {
     const message = createBaseTokenResponse();
     message.accessToken = object.accessToken ?? "";
     message.tokenType = object.tokenType ?? "";
-    message.expiresIn = object.expiresIn ?? undefined;
     message.refreshToken = object.refreshToken ?? undefined;
     message.idToken = object.idToken ?? undefined;
     message.scope = object.scope ?? undefined;
+    message.expiresIn = object.expiresIn ?? undefined;
+    message.refreshTokenExpiresIn = object.refreshTokenExpiresIn ?? undefined;
     return message;
   },
 };
@@ -2171,7 +2183,6 @@ function createBaseClientRegisterRequest(): ClientRegisterRequest {
     subjectType: undefined,
     idTokenSignedResponseAlg: undefined,
     idTokenEncryptedResponseAlg: undefined,
-    audience: undefined,
     idTokenEncryptedResponseEnc: undefined,
     userinfoSignedResponseAlg: undefined,
     userinfoEncryptedResponseAlg: undefined,
@@ -2259,9 +2270,6 @@ export const ClientRegisterRequest: MessageFns<ClientRegisterRequest> = {
     }
     if (message.idTokenEncryptedResponseAlg !== undefined) {
       writer.uint32(170).string(message.idTokenEncryptedResponseAlg);
-    }
-    if (message.audience !== undefined) {
-      writer.uint32(354).string(message.audience);
     }
     if (message.idTokenEncryptedResponseEnc !== undefined) {
       writer.uint32(178).string(message.idTokenEncryptedResponseEnc);
@@ -2501,14 +2509,6 @@ export const ClientRegisterRequest: MessageFns<ClientRegisterRequest> = {
           message.idTokenEncryptedResponseAlg = reader.string();
           continue;
         }
-        case 44: {
-          if (tag !== 354) {
-            break;
-          }
-
-          message.audience = reader.string();
-          continue;
-        }
         case 22: {
           if (tag !== 178) {
             break;
@@ -2704,7 +2704,6 @@ export const ClientRegisterRequest: MessageFns<ClientRegisterRequest> = {
     message.subjectType = object.subjectType ?? undefined;
     message.idTokenSignedResponseAlg = object.idTokenSignedResponseAlg ?? undefined;
     message.idTokenEncryptedResponseAlg = object.idTokenEncryptedResponseAlg ?? undefined;
-    message.audience = object.audience ?? undefined;
     message.idTokenEncryptedResponseEnc = object.idTokenEncryptedResponseEnc ?? undefined;
     message.userinfoSignedResponseAlg = object.userinfoSignedResponseAlg ?? undefined;
     message.userinfoEncryptedResponseAlg = object.userinfoEncryptedResponseAlg ?? undefined;
@@ -2844,7 +2843,6 @@ function createBaseClient(): Client {
     backchannelLogoutSessionRequired: undefined,
     accessTokenExpiry: undefined,
     refreshTokenExpiry: undefined,
-    audience: undefined,
   };
 }
 
@@ -2978,9 +2976,6 @@ export const Client: MessageFns<Client> = {
     }
     if (message.refreshTokenExpiry !== undefined) {
       writer.uint32(344).uint64(message.refreshTokenExpiry);
-    }
-    if (message.audience !== undefined) {
-      writer.uint32(354).string(message.audience);
     }
     return writer;
   },
@@ -3336,14 +3331,6 @@ export const Client: MessageFns<Client> = {
           message.refreshTokenExpiry = longToNumber(reader.uint64());
           continue;
         }
-        case 44: {
-          if (tag !== 354) {
-            break;
-          }
-
-          message.audience = reader.string();
-          continue;
-        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -3401,7 +3388,6 @@ export const Client: MessageFns<Client> = {
     message.backchannelLogoutSessionRequired = object.backchannelLogoutSessionRequired ?? undefined;
     message.accessTokenExpiry = object.accessTokenExpiry ?? undefined;
     message.refreshTokenExpiry = object.refreshTokenExpiry ?? undefined;
-    message.audience = object.audience ?? undefined;
     return message;
   },
 };

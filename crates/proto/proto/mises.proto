@@ -106,10 +106,11 @@ message DeviceCredentials {
 message TokenResponse {
     string access_token = 1;
     string token_type = 2;
-    optional uint64 expires_in = 3;
-    optional string refresh_token = 4;
-    optional string id_token = 5;
-    optional string scope = 6;
+    optional string refresh_token = 3;
+    optional string id_token = 4;
+    optional string scope = 5;
+    optional uint64 expires_in = 6;
+    optional uint64 refresh_token_expires_in = 7;
 }
 
 message DeviceAuthorizeRequest {

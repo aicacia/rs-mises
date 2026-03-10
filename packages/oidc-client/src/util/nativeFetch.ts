@@ -1,49 +1,92 @@
 import { generateState } from './generateState.js';
 import { openUrl } from './openUrl.js';
 
-export type NativeFetchOptions = {
+export type NativeFetchInit = RequestInit & {
 	callbackUrl?: string;
+	channelName?: string;
 	timeout?: number;
 };
+
+export type HandleNativeFetchCallbackOptions = {
+	channelName?: string;
+};
+
+export const NATIVE_FETCH_CHANNEL_NAME = 'native-fetch';
+
+export type NativeRequest = {
+	url: URL;
+	headers: HeadersInit;
+	method: string;
+	body: string | null;
+	state: string;
+	callbackUrl: string;
+};
+
+export type NativeResponse = {
+	headers: HeadersInit;
+	status: number;
+	statusText: string;
+	body: string | null;
+	state: string;
+};
+
+async function bodyInitToString(body: BodyInit | null | undefined): Promise<string | null> {
+	if (body == null) {
+		return null;
+	}
+	if (typeof body === 'string') {
+		return body;
+	}
+	return new Response(body).text();
+}
+
+export function nativeFetch(input: URL | RequestInfo, init?: NativeFetchInit): Promise<Response>;
+export function nativeFetch(
+	input: string | URL | Request,
+	init?: NativeFetchInit
+): Promise<Response>;
 
 /**
  * Opens a native protocol URL and waits for the native app to respond
  * by opening a callback URL with the response data.
- *
- * @param url - The native protocol URL to open (e.g., mises://register-client)
- * @param options - Configuration options
- * @returns Promise that resolves when the native app responds via callback
  */
-export async function nativeFetch<T = unknown>(
-	url: string | URL,
-	options: NativeFetchOptions = {}
-): Promise<T> {
-	if (typeof window === 'undefined') {
-		throw new Error('nativeFetch can only be used in browser environments');
-	}
-
+export async function nativeFetch(
+	input: string | URL | RequestInfo | Request,
+	init?: NativeFetchInit
+) {
 	const originUrl = window.location.origin;
-	const urlObj = typeof url === 'string' ? new URL(url) : url;
+	const url = new URL(input instanceof Request ? input.url : input.toString());
 	const state = generateState();
-	const callbackUrl = options.callbackUrl ?? `${originUrl}/native-callback`;
-	const timeout = options.timeout;
+	const callbackUrl = init?.callbackUrl ?? `${originUrl}/native-callback`;
+	const timeout = init?.timeout;
+	const channelName = init?.channelName ?? NATIVE_FETCH_CHANNEL_NAME;
+	const body = await bodyInitToString(init?.body);
 
-	urlObj.searchParams.set('native_state', state);
-	urlObj.searchParams.set('callback_url', callbackUrl);
+	const native: NativeRequest = {
+		url,
+		headers: init?.headers ? Object.fromEntries(new Headers(init.headers)) : {},
+		method: init?.method ?? 'GET',
+		body,
+		state,
+		callbackUrl
+	};
+	url.searchParams.set('native', JSON.stringify(native));
 
-	return new Promise<T>((resolve, reject) => {
+	return new Promise<Response>((resolve, reject) => {
 		let popupWindow: Window | null = null;
 		let timeoutId: ReturnType<typeof setTimeout> | null = null;
-		let messageListener: ((event: MessageEvent) => void) | null = null;
-		let storageListener: ((event: StorageEvent) => void) | null = null;
+		let responseChannel: BroadcastChannel | null = null;
+		let channelListener: ((event: MessageEvent) => void) | null = null;
 
 		const cleanup = () => {
-			if (timeoutId) clearTimeout(timeoutId);
-			if (messageListener) {
-				window.removeEventListener('message', messageListener);
+			if (timeoutId) {
+				clearTimeout(timeoutId);
 			}
-			if (storageListener) {
-				window.removeEventListener('storage', storageListener);
+			if (responseChannel && channelListener) {
+				responseChannel.removeEventListener('message', channelListener);
+			}
+			if (responseChannel) {
+				responseChannel.close();
 			}
 			if (popupWindow && !popupWindow.closed) {
 				popupWindow.close();
@@ -57,40 +100,29 @@ export async function nativeFetch<T = unknown>(
 			}, timeout);
 		}
 
-		messageListener = (event: MessageEvent) => {
-			if (event.origin !== originUrl) {
-				return;
-			}
+		responseChannel = new BroadcastChannel(channelName);
+
+		channelListener = (event: MessageEvent) => {
 			if (event.data?.type !== 'native-fetch-response') {
 				return;
 			}
-			if (event.data?.state !== state) {
+			const nativeResponse = event.data.data as NativeResponse | undefined;
+			if (nativeResponse?.state !== state) {
 				return;
 			}
 			cleanup();
-			resolve(event.data.data as T);
+			resolve(
+				new Response(nativeResponse.body, {
+					headers: nativeResponse.headers,
+					status: nativeResponse.status,
+					statusText: nativeResponse.statusText
+				})
+			);
 		};
 
-		storageListener = (event: StorageEvent) => {
-			const storageKey = `native-fetch-response-${state}`;
-			if (event.key !== storageKey || event.newValue == null) {
-				return;
-			}
+		responseChannel.addEventListener('message', channelListener);
 
-			localStorage.removeItem(storageKey);
-			cleanup();
-			try {
-				const data = JSON.parse(event.newValue);
-				resolve(data as T);
-			} catch (error) {
-				reject(new Error(`Failed to parse native fetch response: ${error}`));
-			}
-		};
-
-		window.addEventListener('message', messageListener);
-		window.addEventListener('storage', storageListener);
-
-		popupWindow = openUrl(urlObj, {
+		popupWindow = openUrl(url, {
 			popup: true
 		});
 	});
@@ -99,31 +131,73 @@ export async function nativeFetch<T = unknown>(
 /**
  * Helper to handle native fetch callback in the callback page.
  * Call this in your callback route to send the response back to the waiting fetch.
- *
- * @param searchParams - URLSearchParams from the callback URL
  */
-export function handleNativeFetchCallback(searchParams: URLSearchParams): void {
-	const state = searchParams.get('native_state');
-	if (!state) {
-		console.warn('No state parameter in native fetch callback');
+export function handleNativeFetchCallback(
+	searchParams: URLSearchParams,
+	{ channelName = NATIVE_FETCH_CHANNEL_NAME }: HandleNativeFetchCallbackOptions = {}
+): void {
+	const native = searchParams.get('native');
+	if (!native) {
+		console.warn('No native parameter in fetch callback');
 		return;
 	}
-	const response = searchParams.get('response') ?? 'null';
+	const responseChannel = new BroadcastChannel(channelName);
 
-	if (window.opener && !window.opener.closed) {
-		window.opener.postMessage(
-			{
-				type: 'native-fetch-response',
-				state,
-				data: JSON.parse(response)
-			},
-			'*'
-		);
-		window.close();
-	} else {
-		localStorage.setItem(`native-fetch-response-${state}`, response);
-		if (window.history.length > 1) {
-			window.history.back();
-		}
+	responseChannel.postMessage({
+		type: 'native-fetch-response',
+		data: JSON.parse(native)
+	});
+	responseChannel.close();
+
+	if (window.history.length > 1) {
+		window.history.back();
 	}
+	window.close();
+}
+
+export async function handleNativeCallbackRequestUrl(
+	requestUrlOrString: URL | string,
+	callback: (request: Request) => Response | Promise<Response>
+): Promise<URL> {
+	const requestUrl = new URL(requestUrlOrString);
+	const nativeRequestParam = requestUrl.searchParams.get('native');
+	if (!nativeRequestParam) {
+		throw new Error('Missing `native` parameter');
+	}
+	const nativeRequest = JSON.parse(nativeRequestParam) as NativeRequest;
+	return handleNativeCallbackRequest(nativeRequest, callback);
+}
+
+export async function handleNativeCallbackRequest(
+	nativeRequest: NativeRequest,
+	callback: (request: Request) => Response | Promise<Response>
+): Promise<URL> {
+	const request = new Request(nativeRequest.url, {
+		method: nativeRequest.method,
+		headers: nativeRequest.headers,
+		body: nativeRequest.body
+	});
+	let nativeResponse: NativeResponse;
+	try {
+		const response = await callback(request);
+		nativeResponse = {
+			headers: response.headers ? Object.fromEntries(response.headers) : {},
+			status: response.status,
+			statusText: response.statusText,
+			body: await response.text(),
+			state: nativeRequest.state
+		};
+	} catch (error) {
+		nativeResponse = {
+			headers: {},
+			status: 500,
+			statusText: (error as Error).message,
+			body: (error as Error).message,
+			state: nativeRequest.state
+		};
+	}
+
+	const callbackUrl = new URL(nativeRequest.callbackUrl);
+	callbackUrl.searchParams.set('native', JSON.stringify(nativeResponse));
+	return callbackUrl;
 }

@@ -1,69 +1,151 @@
+<script lang="ts" module>
+	import { resolve } from '$app/paths';
+	import type { TokenRequest } from '$lib/proto/mises';
+
+	const AUTHORIZE_PATH = resolve('/(auth)/authorize');
+	const REGISTER_PATH = resolve('/(auth)/register');
+
+	function createTokenRequest(url: URL, code: string): TokenRequest {
+		return {
+			authorizationCode: {
+				code,
+				clientId: url.searchParams.get('client_id') ?? undefined,
+				redirectUri: url.searchParams.get('redirect_uri') ?? undefined,
+				codeVerifier: url.searchParams.get('code_verifier') ?? undefined
+			}
+		};
+	}
+</script>
+
 <script lang="ts">
 	import './layout.css';
-
 	import favicon from '$lib/assets/favicon.svg';
 	import type { LayoutProps } from './$types';
-	import { resolve } from '$app/paths';
 	import { getTheme } from '@aicacia/svelte-headless';
 	import Notifications from '$lib/common/components/Notifications.svelte';
 	import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 	import type { UnlistenFn } from '@tauri-apps/api/event';
 	import { goto } from '$app/navigation';
 	import { oidcClient } from '$lib/common/util/grpcClient';
-	import { nativeCallbackUrlFromRequestUrl } from '$lib/common/util/nativeCallbackUrlFromRequestUrl';
+	import { handleNativeCallbackRequestUrl } from '@aicacia/oidc-client';
 	import { redirectToUrl } from '$lib/common/util/redirectToUrl';
 	import { snakeCaseKeys } from '$lib/common/util/snakeCaseKeys';
+	import { onMount } from 'svelte';
+
+	async function redirectWithError(
+		url: URL,
+		error: string,
+		errorDescription: string
+	): Promise<void> {
+		await redirectToUrl(
+			await handleNativeCallbackRequestUrl(
+				url,
+				() =>
+					new Response(
+						JSON.stringify({
+							error,
+							error_description: errorDescription
+						})
+					)
+			)
+		);
+	}
+
+	async function handleNativeTokenRequest(url: URL): Promise<void> {
+		const code = url.searchParams.get('code');
+		if (!code) {
+			await redirectWithError(url, 'invalid_request', 'Missing `code` parameter');
+			return;
+		}
+
+		try {
+			const tokenResponse = await oidcClient().token(createTokenRequest(url, code));
+			await redirectToUrl(
+				await handleNativeCallbackRequestUrl(
+					url,
+					() => new Response(JSON.stringify(snakeCaseKeys(tokenResponse)))
+				)
+			);
+		} catch (error) {
+			console.error('Error handling token deep link', error);
+			await redirectWithError(
+				url,
+				'server_error',
+				error instanceof Error ? error.message : 'Failed to handle token request'
+			);
+		}
+	}
+
+	async function handleNativeOpenIdConfigurationRequest(url: URL): Promise<void> {
+		try {
+			const openIdConfiguration = await oidcClient().getOpenIdConfiguration({});
+			await redirectToUrl(
+				await handleNativeCallbackRequestUrl(
+					url,
+					() => new Response(JSON.stringify(snakeCaseKeys(openIdConfiguration)))
+				)
+			);
+		} catch (error) {
+			console.error('Error handling openid-configuration deep link', error);
+			await redirectWithError(
+				url,
+				'server_error',
+				error instanceof Error ? error.message : 'Failed to handle openid-configuration request'
+			);
+		}
+	}
+
+	async function handleDeepLink(urlStrings: string[]): Promise<void> {
+		const [urlString] = urlStrings;
+		if (!urlString) {
+			return;
+		}
+
+		const url = new URL(urlString);
+
+		console.debug('Deep link received', url);
+
+		switch (url.pathname) {
+			case '/authorize': {
+				// eslint-disable-next-line svelte/no-navigation-without-resolve
+				await goto(`${AUTHORIZE_PATH}${url.search}`);
+				break;
+			}
+			case '/register': {
+				// eslint-disable-next-line svelte/no-navigation-without-resolve
+				await goto(`${REGISTER_PATH}${url.search}`);
+				break;
+			}
+			case '/.well-known/openid-configuration': {
+				await handleNativeOpenIdConfigurationRequest(url);
+				break;
+			}
+			case '/token': {
+				await handleNativeTokenRequest(url);
+				break;
+			}
+			default: {
+				console.warn(`Unknown deep link: ${urlString}`);
+				break;
+			}
+		}
+	}
 
 	let { children }: LayoutProps = $props();
 
 	$effect(() => {
 		if (getTheme() === 'dark') {
 			document.body.classList.add('dark');
-		} else {
-			document.body.classList.remove('dark');
+			return;
 		}
+
+		document.body.classList.remove('dark');
 	});
 
-	$effect.pre(() => {
+	onMount(() => {
 		document.body.classList.add('hydrated');
 
 		let onOpenUrlUnlistenFn: UnlistenFn | undefined;
-
-		const handleDeepLink = async (urlStrings: string[]) => {
-			const [urlString] = urlStrings;
-			if (!urlString) {
-				return;
-			}
-
-			const url = new URL(urlString);
-
-			console.debug('Deep link received', url);
-
-			switch (url.pathname) {
-				case '/authorize': {
-					const authorizePath = resolve('/(auth)/authorize');
-					// eslint-disable-next-line svelte/no-navigation-without-resolve
-					await goto(`${authorizePath}${url.search}`);
-					break;
-				}
-				case '/register': {
-					const registerPath = resolve('/(auth)/register');
-					// eslint-disable-next-line svelte/no-navigation-without-resolve
-					await goto(`${registerPath}${url.search}`);
-					break;
-				}
-				case '/.well-known/openid-configuration': {
-					const openIdConfiguration = await oidcClient().getOpenIdConfiguration({});
-					const callbackUrl = nativeCallbackUrlFromRequestUrl(url, snakeCaseKeys(openIdConfiguration));
-					await redirectToUrl(callbackUrl);
-					break;
-				}
-				default: {
-					console.warn(`Unknown deep link: ${urlString}`);
-					break;
-				}
-			}
-		};
 
 		onOpenUrl(handleDeepLink).then((unlisten) => {
 			onOpenUrlUnlistenFn = unlisten;

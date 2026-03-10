@@ -10,9 +10,6 @@ export const load: LayoutLoad = async (event) => {
 	const currentUserInfo = await getCurrentUserInfo();
 
 	if (currentUserInfo) {
-		// if (currentUserInfo.requiresPasswordReset) {
-		// 	redirect(302, resolve('/password-reset'));
-		// }
 		return {
 			userInfo: currentUserInfo
 		};

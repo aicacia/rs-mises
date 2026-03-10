@@ -6,11 +6,21 @@ type UncapitalizeSnakeCase<S extends string> =
     : S;
 
 type SnakeCase<T> = {
-  [K in keyof T as K extends string ? UncapitalizeSnakeCase<K> : never]: T[K]
+  [K in keyof T as K extends string ? UncapitalizeSnakeCase<K> : never]: T[K] extends object
+    ? SnakeCase<T[K]>
+    : T[K];
 };
 
 export function snakeCaseKeys<T>(object: T): SnakeCase<T> {
-  return Object.fromEntries(Object.entries(object).map(([k, v]) => 
-    [k.replace(/([A-Z])/g, '_$1').toLowerCase(), v]
-  )) as SnakeCase<T>;
+  if (Array.isArray(object)) {
+    return object.map(snakeCaseKeys) as SnakeCase<T>;
+  } else if (object && typeof object === 'object') {
+    return Object.fromEntries(
+      Object.entries(object).map(([key, value]) => [
+        key.replace(/([A-Z])/g, '_$1').toLowerCase(),
+        snakeCaseKeys(value)
+      ])
+    ) as SnakeCase<T>;
+  }
+  return object as SnakeCase<T>;
 }

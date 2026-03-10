@@ -68,6 +68,7 @@
 	let loadingAuthorizeRequest = $state(false);
 	async function onAuthorize() {
 		loadingAuthorizeRequest = true;
+		console.debug('Resolving authorize request for clientId', authorizeRequest.clientId);
 		try {
 			await resolveAuthorizeRequest(authorizeRequest);
 		} catch (e) {
