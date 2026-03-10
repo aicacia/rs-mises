@@ -22,9 +22,10 @@ export async function nativeFetch<T = unknown>(
 		throw new Error('nativeFetch can only be used in browser environments');
 	}
 
+	const originUrl = window.location.origin;
 	const urlObj = typeof url === 'string' ? new URL(url) : url;
 	const state = generateState();
-	const callbackUrl = options.callbackUrl ?? `${window.location.origin}/native-callback`;
+	const callbackUrl = options.callbackUrl ?? `${originUrl}/native-callback`;
 	const timeout = options.timeout;
 
 	urlObj.searchParams.set('native_state', state);
@@ -57,10 +58,17 @@ export async function nativeFetch<T = unknown>(
 		}
 
 		messageListener = (event: MessageEvent) => {
-			if (event.data?.type === 'native-fetch-response' && event.data?.state === state) {
-				cleanup();
-				resolve(event.data.data as T);
+			if (event.origin !== originUrl) {
+				return;
 			}
+			if (event.data?.type !== 'native-fetch-response') {
+				return;
+			}
+			if (event.data?.state !== state) {
+				return;
+			}
+			cleanup();
+			resolve(event.data.data as T);
 		};
 
 		storageListener = (event: StorageEvent) => {

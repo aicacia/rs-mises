@@ -16,6 +16,7 @@ export function setTokenResponse(tokenResponse: TokenResponse | null): void {
 export async function getCurrentUserInfo(): Promise<UserInfo | null> {
 	const tokenResponse = tokenResponseStorage.item;
 	if (!tokenResponse) {
+		console.log('No token response found');
 		return null;
 	}
 
