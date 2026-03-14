@@ -2,7 +2,7 @@
 
 # What is this?
 
-Mesh identity and security enforcement system for managing identities, keys, resources, and access policies using a graph-based model.
+Mesh identity and security enforcement system for managing identities, keys, resources, and access policies.
 
 ## Monorepo Layout
 
