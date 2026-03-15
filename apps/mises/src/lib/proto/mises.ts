@@ -389,6 +389,14 @@ export interface GetClientRequest {
   clientId: string;
 }
 
+export interface ListByServiceRequest {
+  serviceId: string;
+}
+
+export interface ListClientsResponse {
+  clients: Client[];
+}
+
 export interface IsAllowedForUserRequest {
   clientId: string;
   scope: string;
@@ -4571,6 +4579,98 @@ export const GetClientRequest: MessageFns<GetClientRequest> = {
   },
 };
 
+function createBaseListByServiceRequest(): ListByServiceRequest {
+  return { serviceId: "" };
+}
+
+export const ListByServiceRequest: MessageFns<ListByServiceRequest> = {
+  encode(message: ListByServiceRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.serviceId !== "") {
+      writer.uint32(10).string(message.serviceId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListByServiceRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListByServiceRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.serviceId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<ListByServiceRequest>): ListByServiceRequest {
+    return ListByServiceRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListByServiceRequest>): ListByServiceRequest {
+    const message = createBaseListByServiceRequest();
+    message.serviceId = object.serviceId ?? "";
+    return message;
+  },
+};
+
+function createBaseListClientsResponse(): ListClientsResponse {
+  return { clients: [] };
+}
+
+export const ListClientsResponse: MessageFns<ListClientsResponse> = {
+  encode(message: ListClientsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.clients) {
+      Client.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListClientsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListClientsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.clients.push(Client.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<ListClientsResponse>): ListClientsResponse {
+    return ListClientsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListClientsResponse>): ListClientsResponse {
+    const message = createBaseListClientsResponse();
+    message.clients = object.clients?.map((e) => Client.fromPartial(e)) || [];
+    return message;
+  },
+};
+
 function createBaseIsAllowedForUserRequest(): IsAllowedForUserRequest {
   return { clientId: "", scope: "" };
 }
@@ -4956,6 +5056,14 @@ export const ClientServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    listByService: {
+      name: "ListByService",
+      requestType: ListByServiceRequest,
+      requestStream: false,
+      responseType: ListClientsResponse,
+      responseStream: false,
+      options: {},
+    },
     isAllowedForUser: {
       name: "IsAllowedForUser",
       requestType: IsAllowedForUserRequest,
@@ -4977,6 +5085,10 @@ export const ClientServiceDefinition = {
 
 export interface ClientServiceImplementation<CallContextExt = {}> {
   get(request: GetClientRequest, context: CallContext & CallContextExt): Promise<DeepPartial<Client>>;
+  listByService(
+    request: ListByServiceRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ListClientsResponse>>;
   isAllowedForUser(
     request: IsAllowedForUserRequest,
     context: CallContext & CallContextExt,
@@ -4986,6 +5098,10 @@ export interface ClientServiceImplementation<CallContextExt = {}> {
 
 export interface ClientServiceClient<CallOptionsExt = {}> {
   get(request: DeepPartial<GetClientRequest>, options?: CallOptions & CallOptionsExt): Promise<Client>;
+  listByService(
+    request: DeepPartial<ListByServiceRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ListClientsResponse>;
   isAllowedForUser(
     request: DeepPartial<IsAllowedForUserRequest>,
     options?: CallOptions & CallOptionsExt,

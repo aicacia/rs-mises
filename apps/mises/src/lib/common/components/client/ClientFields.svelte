@@ -72,17 +72,6 @@
 	</section>
 {/if}
 
-{#if client.audience?.length}
-	<section>
-		<h5>{m.authorize_audience_label()}</h5>
-		<ul class="list-inside list-disc space-y-1 text-sm">
-			{#each client.audience as a (a)}
-				<li>{a}</li>
-			{/each}
-		</ul>
-	</section>
-{/if}
-
 {#if client.accessTokenExpiry || client.refreshTokenExpiry}
 	<section>
 		<h5>{m.authorize_token_expiry_label()}</h5>

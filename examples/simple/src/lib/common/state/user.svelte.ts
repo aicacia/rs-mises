@@ -31,7 +31,6 @@ const oidcClient = new OidcClient({
 	}
 });
 
-
 export function getOidcClient() {
 	return oidcClient;
 }
@@ -41,6 +40,6 @@ export async function signin() {
 	return await client.signin();
 }
 
-oidcClient.on("registered", (clientId, _clientSecret) => {
+oidcClient.on('registered', (clientId, _clientSecret) => {
 	clientIdStorage.item = clientId;
 });

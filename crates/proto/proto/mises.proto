@@ -417,12 +417,21 @@ message Configuration {
 
 service ClientService {
     rpc Get (GetClientRequest) returns (Client);
+    rpc ListByService (ListByServiceRequest) returns (ListClientsResponse);
     rpc IsAllowedForUser (IsAllowedForUserRequest) returns (ClientAllowed);
     rpc ApproveForUser (ApproveForUserRequest) returns (google.protobuf.Empty);
 }
 
 message GetClientRequest {
     string client_id = 1;
+}
+
+message ListByServiceRequest {
+    string service_id = 1;
+}
+
+message ListClientsResponse {
+    repeated Client clients = 1;
 }
 
 message IsAllowedForUserRequest {

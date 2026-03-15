@@ -6,6 +6,7 @@ use mises_core::{
   model::{
     identity::{IdentityMeta, IdentityType},
     node::NodeMeta,
+    oidc::ApplicationType,
   },
   service::identity::IdentityService,
   traits::Repository,
@@ -25,6 +26,29 @@ pub async fn client_register<R>(
 where
   R: Repository + Clone + Send + Sync + 'static,
 {
+  fn optional_string(value: &str) -> Option<String> {
+    if value.is_empty() {
+      None
+    } else {
+      Some(value.to_string())
+    }
+  }
+
+  fn parse_application_type(value: &str) -> Option<ApplicationType> {
+    match value {
+      "web" => Some(ApplicationType::Web),
+      "native" => Some(ApplicationType::Native),
+      _ => None,
+    }
+  }
+
+  fn application_type_to_string(application_type: ApplicationType) -> String {
+    match application_type {
+      ApplicationType::Web => "web".to_string(),
+      ApplicationType::Native => "native".to_string(),
+    }
+  }
+
   let client_id = request
     .client_id
     .and_then(|id| if id.trim().is_empty() { None } else { Some(id) });
@@ -178,6 +202,51 @@ where
     oidc_meta.token_endpoint_auth_method = method;
   }
 
+  if let Some(application_type) = request
+    .application_type
+    .as_deref()
+    .map(str::trim)
+    .and_then(parse_application_type)
+  {
+    oidc_meta.application_type = application_type;
+  }
+
+  if let Some(require_pkce) = request.require_pkce {
+    oidc_meta.require_pkce = require_pkce;
+  }
+
+  if !request.contacts.is_empty() {
+    oidc_meta.contacts = request.contacts;
+  }
+
+  if let Some(client_uri) = request.client_uri.filter(|uri| !uri.trim().is_empty()) {
+    oidc_meta.client_uri = client_uri;
+  }
+
+  if let Some(logo_uri) = request.logo_uri.filter(|uri| !uri.trim().is_empty()) {
+    oidc_meta.logo_uri = logo_uri;
+  }
+
+  if !request.post_logout_redirect_uris.is_empty() {
+    oidc_meta.post_logout_redirect_uris = request.post_logout_redirect_uris;
+  }
+
+  if let Some(policy_uri) = request.policy_uri.filter(|uri| !uri.trim().is_empty()) {
+    oidc_meta.policy_uri = policy_uri;
+  }
+
+  if let Some(tos_uri) = request.tos_uri.filter(|uri| !uri.trim().is_empty()) {
+    oidc_meta.tos_uri = tos_uri;
+  }
+
+  if let Some(access_token_expiry) = request.access_token_expiry {
+    oidc_meta.access_token_expiry = access_token_expiry;
+  }
+
+  if let Some(refresh_token_expiry) = request.refresh_token_expiry {
+    oidc_meta.refresh_token_expiry = refresh_token_expiry;
+  }
+
   oidc_meta.service_id = service_id;
 
   if let Some(name) = request.name.filter(|n| !n.trim().is_empty()) {
@@ -227,14 +296,22 @@ where
       Some(oidc_meta.scope)
     },
     token_endpoint_auth_method: Some(oidc_meta.token_endpoint_auth_method.as_str().to_string()),
-    require_pkce: None,
-    application_type: None,
-    contacts: vec![],
+    require_pkce: Some(oidc_meta.require_pkce),
+    application_type: Some(application_type_to_string(oidc_meta.application_type)),
+    contacts: oidc_meta.contacts,
     service_id: Some(oidc_meta.service_id.clone()),
-    client_uri: None,
-    logo_uri: None,
-    policy_uri: None,
-    tos_uri: None,
+    client_uri: optional_string(&oidc_meta.client_uri),
+    logo_uri: optional_string(&oidc_meta.logo_uri),
+    policy_uri: if oidc_meta.policy_uri.is_empty() {
+      None
+    } else {
+      Some(oidc_meta.policy_uri)
+    },
+    tos_uri: if oidc_meta.tos_uri.is_empty() {
+      None
+    } else {
+      Some(oidc_meta.tos_uri)
+    },
     jwks_uri: None,
     jwks: None,
     sector_identifier_uri: None,
@@ -254,12 +331,12 @@ where
     default_acr_values: vec![],
     initiate_login_uri: None,
     request_uris: vec![],
-    post_logout_redirect_uris: vec![],
+    post_logout_redirect_uris: oidc_meta.post_logout_redirect_uris,
     frontchannel_logout_uri: None,
     frontchannel_logout_session_required: None,
     backchannel_logout_uri: None,
     backchannel_logout_session_required: None,
-    access_token_expiry: None,
-    refresh_token_expiry: None,
+    access_token_expiry: Some(oidc_meta.access_token_expiry),
+    refresh_token_expiry: Some(oidc_meta.refresh_token_expiry),
   })
 }

@@ -1,11 +1,13 @@
 <script lang="ts" module>
 	import type { ClientRegisterRequest } from '$lib/proto/mises';
+	import type { ClientRegisterChangedFields } from '$lib/common/util/clientRegisterDiff';
 
 	export interface ClientInfoProps {
 		client: Partial<ClientRegisterRequest> & Pick<ClientRegisterRequest, 'logoUri' | 'name'>;
+		changedFields: ClientRegisterChangedFields | null;
 		disabled?: boolean;
 		isNew: boolean;
-		onAccept: (updates: ClientRegisterRequest) => Promise<void>;
+		onAccept: () => Promise<void>;
 		onReject: () => Promise<void>;
 	}
 </script>
@@ -15,14 +17,14 @@
 	import ClientHeader from './ClientHeader.svelte';
 	import ClientFields from './ClientFields.svelte';
 
-	let { client, disabled, isNew, onAccept, onReject }: ClientInfoProps = $props();
+	let { client, changedFields, disabled, isNew, onAccept, onReject }: ClientInfoProps = $props();
 
 	let loading = $state(false);
 
 	async function onAcceptInternal() {
 		try {
 			loading = true;
-			await onAccept(client as ClientRegisterRequest);
+			await onAccept();
 		} finally {
 			loading = false;
 		}
@@ -43,11 +45,15 @@
 
 {#if isNew}
 	<p>{m.authorize_new_client_request()}</p>
-{:else}
+{:else if changedFields}
 	<p>{m.authorize_updated_client_request()}</p>
+{:else}
+	<p>
+		{m.authorize_unchanged_client_request()}
+	</p>
 {/if}
 
-<ClientFields {client} />
+<ClientFields client={isNew ? (client ?? changedFields) : (changedFields ?? {})} />
 
 <hr />
 

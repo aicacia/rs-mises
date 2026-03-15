@@ -8,6 +8,7 @@ use mises_core::{
     edge::EdgeType,
     identity::{IdentityMeta, IdentityType},
     node::{NodeMeta, NodeType},
+    oidc::ApplicationType,
     requests::RequestStatus,
   },
   service::identity::IdentityService,
@@ -32,6 +33,21 @@ impl<R> ClientService<R>
 where
   R: Repository,
 {
+  fn optional_string(value: &str) -> Option<String> {
+    if value.is_empty() {
+      None
+    } else {
+      Some(value.to_string())
+    }
+  }
+
+  fn application_type_to_string(application_type: ApplicationType) -> String {
+    match application_type {
+      ApplicationType::Web => "web".to_string(),
+      ApplicationType::Native => "native".to_string(),
+    }
+  }
+
   pub fn new(repo: R, device_id: String) -> Self {
     Self { repo, device_id }
   }
@@ -48,6 +64,83 @@ where
         }
       }
       _ => Err(Status::not_found("Client not found")),
+    }
+  }
+
+  fn map_oidc_client_to_proto(
+    client: &Node<Uuid, NodeMeta>,
+    oidc_client: &mises_core::model::oidc::OidcClientMeta,
+  ) -> mises_proto::Client {
+    mises_proto::Client {
+      id: client.id.to_string(),
+      client_id: if oidc_client.client_id.is_empty() {
+        client.id.to_string()
+      } else {
+        oidc_client.client_id.clone()
+      },
+      client_secret: if oidc_client.client_secret.is_empty() {
+        None
+      } else {
+        Some(oidc_client.client_secret.clone())
+      },
+      name: Some(oidc_client.client_name.clone()),
+      redirect_uris: oidc_client.redirect_uris.clone(),
+      grant_types: oidc_client
+        .grant_types
+        .iter()
+        .map(|gt| gt.as_str().to_string())
+        .collect(),
+      response_types: oidc_client
+        .response_types
+        .iter()
+        .map(|rt| rt.as_str().to_string())
+        .collect(),
+      scope: Some(oidc_client.scope.clone()),
+      token_endpoint_auth_method: Some(oidc_client.token_endpoint_auth_method.as_str().to_string()),
+      require_pkce: Some(oidc_client.require_pkce),
+      application_type: Some(Self::application_type_to_string(
+        oidc_client.application_type,
+      )),
+      contacts: oidc_client.contacts.clone(),
+      service_id: Some(oidc_client.service_id.clone()),
+      client_uri: Self::optional_string(&oidc_client.client_uri),
+      logo_uri: Self::optional_string(&oidc_client.logo_uri),
+      policy_uri: if oidc_client.policy_uri.is_empty() {
+        None
+      } else {
+        Some(oidc_client.policy_uri.clone())
+      },
+      tos_uri: if oidc_client.tos_uri.is_empty() {
+        None
+      } else {
+        Some(oidc_client.tos_uri.clone())
+      },
+      jwks_uri: None,
+      jwks: None,
+      sector_identifier_uri: None,
+      subject_type: None,
+      id_token_signed_response_alg: None,
+      id_token_encrypted_response_alg: None,
+      id_token_encrypted_response_enc: None,
+      userinfo_signed_response_alg: None,
+      userinfo_encrypted_response_alg: None,
+      userinfo_encrypted_response_enc: None,
+      request_object_signing_alg: None,
+      request_object_encryption_alg: None,
+      request_object_encryption_enc: None,
+      token_endpoint_auth_signing_alg: None,
+      default_max_age: None,
+      require_auth_time: None,
+      default_acr_values: vec![],
+      initiate_login_uri: None,
+      request_uris: vec![],
+      post_logout_redirect_uris: oidc_client.post_logout_redirect_uris.clone(),
+      frontchannel_logout_uri: None,
+      frontchannel_logout_session_required: None,
+      backchannel_logout_uri: None,
+      backchannel_logout_session_required: None,
+      access_token_expiry: Some(oidc_client.access_token_expiry),
+      refresh_token_expiry: Some(oidc_client.refresh_token_expiry),
     }
   }
 }
@@ -78,67 +171,41 @@ where
 
     let oidc_client = Self::extract_oidc_client(&client)?;
 
-    Ok(Response::new(mises_proto::Client {
-      id: client.id.to_string(),
-      client_id: if oidc_client.client_id.is_empty() {
-        client.id.to_string()
-      } else {
-        oidc_client.client_id.clone()
-      },
-      client_secret: if oidc_client.client_secret.is_empty() {
+    Ok(Response::new(Self::map_oidc_client_to_proto(
+      &client,
+      oidc_client,
+    )))
+  }
+
+  async fn list_by_service(
+    &self,
+    request: Request<mises_proto::ListByServiceRequest>,
+  ) -> Result<Response<mises_proto::ListClientsResponse>, Status> {
+    let service_id = request.into_inner().service_id;
+    if service_id.trim().is_empty() {
+      return Err(Status::invalid_argument("missing service_id"));
+    }
+
+    let identity_service = IdentityService::new(self.repo.clone(), self.device_id.clone());
+
+    let applications = identity_service
+      .list_applications()
+      .await
+      .map_err(|e| Status::internal(format!("list_applications error: {}", e)))?;
+
+    let clients = applications
+      .into_iter()
+      .filter_map(|node| {
+        if let Ok(oidc_client) = Self::extract_oidc_client(&node) {
+          if oidc_client.service_id == service_id {
+            return Some(Self::map_oidc_client_to_proto(&node, oidc_client));
+          }
+        }
         None
-      } else {
-        Some(oidc_client.client_secret.clone())
-      },
-      name: Some(oidc_client.client_name.clone()),
-      redirect_uris: oidc_client.redirect_uris.clone(),
-      grant_types: oidc_client
-        .grant_types
-        .iter()
-        .map(|gt| gt.as_str().to_string())
-        .collect(),
-      response_types: oidc_client
-        .response_types
-        .iter()
-        .map(|rt| rt.as_str().to_string())
-        .collect(),
-      scope: Some(oidc_client.scope.clone()),
-      token_endpoint_auth_method: None,
-      require_pkce: None,
-      application_type: None,
-      contacts: vec![],
-      service_id: Some(oidc_client.service_id.clone()),
-      client_uri: None,
-      logo_uri: None,
-      policy_uri: None,
-      tos_uri: None,
-      jwks_uri: None,
-      jwks: None,
-      sector_identifier_uri: None,
-      subject_type: None,
-      id_token_signed_response_alg: None,
-      id_token_encrypted_response_alg: None,
-      id_token_encrypted_response_enc: None,
-      userinfo_signed_response_alg: None,
-      userinfo_encrypted_response_alg: None,
-      userinfo_encrypted_response_enc: None,
-      request_object_signing_alg: None,
-      request_object_encryption_alg: None,
-      request_object_encryption_enc: None,
-      token_endpoint_auth_signing_alg: None,
-      default_max_age: None,
-      require_auth_time: None,
-      default_acr_values: vec![],
-      initiate_login_uri: None,
-      request_uris: vec![],
-      post_logout_redirect_uris: vec![],
-      frontchannel_logout_uri: None,
-      frontchannel_logout_session_required: None,
-      backchannel_logout_uri: None,
-      backchannel_logout_session_required: None,
-      access_token_expiry: None,
-      refresh_token_expiry: None,
-    }))
+      })
+      .collect();
+
+    Ok(Response::new(mises_proto::ListClientsResponse { clients }))
   }
 
   /// Checks if a user is allowed to access a specific client with requested scopes.
@@ -248,7 +315,9 @@ where
     }
 
     if allowed_scopes.is_empty() {
-      return Err(Status::permission_denied("User is not allowed to access this client"));
+      return Err(Status::permission_denied(
+        "User is not allowed to access this client",
+      ));
     }
 
     Ok(Response::new(mises_proto::ClientAllowed {

@@ -24,5 +24,16 @@
 	"profile_given_name_placeholder": "Introduzca su nombre",
 	"profile_family_name_placeholder": "Introduzca su apellido",
 	"profile_website_placeholder": "https://ejemplo.com",
-	"profile_locale_placeholder": "es-ES"
+	"profile_locale_placeholder": "es-ES",
+	"authorize_new_client_request": "Este cliente solicita ser agregado a tu proveedor OIDC. Revisa los detalles.",
+	"authorize_updated_client_request": "Este cliente actualizo su configuracion y solicita cambios en tu proveedor OIDC. Revisa los detalles.",
+	"authorize_unchanged_client_request": "Este cliente no cambio su configuracion. Estas devolviendo la informacion del cliente a tu aplicacion.",
+	"client_accept": "Aceptar",
+	"client_reject": "Rechazar",
+	"client_not_allowed_to_approve": "No tienes permiso para aprobar este cliente.",
+	"client_close": "Cerrar",
+	"register_existing_client_selection_label": "Seleccionar un cliente existente lo reutilizara en lugar de crear uno nuevo.",
+	"register_create_new_client_option": "Crear cliente nuevo",
+	"register_invalid_request_title": "Solicitud de registro invalida",
+	"register_invalid_request_description": "Falta informacion de registro o tiene un formato incorrecto."
 }
