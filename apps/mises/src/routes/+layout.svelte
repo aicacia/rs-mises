@@ -32,6 +32,8 @@
 	import { snakeCaseKeys } from '$lib/common/util/snakeCaseKeys';
 	import { onMount } from 'svelte';
 
+	const JSON_CONTENT_TYPE = 'application/json;charset=UTF-8';
+
 	async function redirectWithError(
 		url: URL,
 		error: string,
@@ -95,6 +97,29 @@
 		}
 	}
 
+	async function handleNativeUserInfoRequest(url: URL): Promise<void> {
+		try {
+			await redirectToUrl(
+				await handleNativeCallbackRequestUrl(url, async () => {
+					const userInfo = await oidcClient().getUserInfo({});
+
+					return new Response(JSON.stringify(snakeCaseKeys(userInfo)), {
+						headers: {
+							'content-type': JSON_CONTENT_TYPE
+						}
+					});
+				})
+			);
+		} catch (error) {
+			console.error('Error handling user-info deep link', error);
+			await redirectWithError(
+				url,
+				'server_error',
+				error instanceof Error ? error.message : 'Failed to handle user-info request'
+			);
+		}
+	}
+
 	async function handleDeepLink(urlStrings: string[]): Promise<void> {
 		const [urlString] = urlStrings;
 		if (!urlString) {
@@ -122,6 +147,10 @@
 			}
 			case '/token': {
 				await handleNativeTokenRequest(url);
+				break;
+			}
+			case '/user-info': {
+				await handleNativeUserInfoRequest(url);
 				break;
 			}
 			default: {

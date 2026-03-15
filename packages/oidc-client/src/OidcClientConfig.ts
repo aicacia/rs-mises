@@ -8,7 +8,7 @@ export type OidcClientConfig = {
 	/**
 	 * OpenID Connect client metadata.
 	 */
-	clientMetadata: OidcClientMetadata;
+	registration: OidcClientMetadata;
 	/**
 	 * Client identifier issued by the provider.
 	 */
@@ -23,7 +23,7 @@ export type OidcClientConfig = {
 	responseType?: string;
 	/**
 	 * Redirect URI where the provider will send responses.
-	 * If omitted, the first entry in clientMetadata.redirectUris is used.
+	 * If omitted, the first entry in registration.redirectUris is used.
 	 */
 	redirectUri?: string;
 	/**

@@ -11,7 +11,7 @@ const oidcClient = new OidcClient({
 		redirectUri: `${env.PUBLIC_URL}/callback`,
 		clientId: clientIdStorage.item ?? undefined,
 		responseType: 'code',
-		clientMetadata: {
+		registration: {
 			clientName: 'Simple Example',
 			serviceId: 'mises-simple-example',
 			scope: 'openid profile address offline email phone',
@@ -40,6 +40,6 @@ export async function signin() {
 	return await client.signin();
 }
 
-oidcClient.on('registered', (clientId, _clientSecret) => {
-	clientIdStorage.item = clientId;
+oidcClient.on('registered', (registration) => {
+	clientIdStorage.item = registration.client_id ?? null;
 });

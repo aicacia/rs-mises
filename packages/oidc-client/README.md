@@ -19,6 +19,10 @@ const client = new OidcClient({
 	}
 });
 
+client.on('registered', (registration) => {
+	console.log('dynamic registration client id', registration.client_id);
+});
+
 // redirect-based sign in
 await client.signin();
 
@@ -27,9 +31,7 @@ const { url, window } = await client.signin({ popup: true });
 
 // later, after handling the callback, load userinfo explicitly
 const tokenResponse = await client.handleSigninCallback();
-const userInfo = tokenResponse?.accessToken
-	? await client.getUserInfo(tokenResponse.accessToken)
-	: null;
+const userInfo = tokenResponse ? await client.getUserInfo() : null;
 ```
 
 ## Features
@@ -46,3 +48,8 @@ const userInfo = tokenResponse?.accessToken
 - Emitted `error` events for unexpected issues.
 
 See the `src` directory for more API details and tests.
+
+## Breaking change
+
+- The `registered` event now emits the full dynamic client registration response object.
+- `setClientId` has been removed from `OidcClient`.

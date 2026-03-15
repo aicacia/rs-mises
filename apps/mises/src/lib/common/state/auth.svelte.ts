@@ -1,4 +1,5 @@
 import type { TokenResponse, UserInfo } from '$lib/proto/mises';
+import { OidcClientError } from '@aicacia/oidc-client';
 import { createStorage } from '@aicacia/svelte-headless';
 import { oidcClient, setAuthorizationToken } from '$lib/common/util/grpcClient';
 import { browser } from '$app/environment';
@@ -7,9 +8,27 @@ const tokenResponseStorage = createStorage<TokenResponse | null>('mises-token', 
 
 let tokenExpiryTimeout: ReturnType<typeof setTimeout> | null = null;
 let tokenGeneration = 0;
+let currentUserInfoFailureReason: CurrentUserInfoFailureReason | null = null;
+
+type CurrentUserInfoFailureReason =
+	| 'NO_TOKEN_RESPONSE'
+	| 'NO_ACCESS_TOKEN'
+	| 'NO_USERINFO_ENDPOINT'
+	| 'HTTP_ERROR'
+	| 'JSON_PARSE_ERROR'
+	| 'NETWORK_TIMEOUT'
+	| 'NETWORK_ERROR'
+	| 'INVALID_USERINFO_RESPONSE'
+	| 'GRPC_UNAUTHENTICATED'
+	| 'GRPC_UNAVAILABLE'
+	| 'UNKNOWN';
 
 export function getTokenResponse(): TokenResponse | null {
 	return tokenResponseStorage.item;
+}
+
+export function getCurrentUserInfoFailureReason(): CurrentUserInfoFailureReason | null {
+	return currentUserInfoFailureReason;
 }
 
 export function setTokenResponse(tokenResponse: TokenResponse | null): void {
@@ -37,14 +56,21 @@ export function setTokenResponse(tokenResponse: TokenResponse | null): void {
 export async function getCurrentUserInfo(): Promise<UserInfo | null> {
 	const tokenResponse = getTokenResponse();
 	if (!tokenResponse) {
+		currentUserInfoFailureReason = 'NO_TOKEN_RESPONSE';
 		console.log('No token response found');
 		return null;
 	}
 
 	try {
-		return await oidcClient().getUserInfo({});
+		const userInfo = await oidcClient().getUserInfo({});
+		currentUserInfoFailureReason = null;
+		return userInfo;
 	} catch (e) {
-		console.error('getCurrentUserInfo error', e);
+		currentUserInfoFailureReason = toCurrentUserInfoFailureReason(e);
+		console.error('getCurrentUserInfo error', {
+			reason: currentUserInfoFailureReason,
+			error: e
+		});
 		return null;
 	}
 }
@@ -75,6 +101,25 @@ function clearTokenExpiryTimeout(): void {
 
 function clearAuthState(): void {
 	tokenResponseStorage.item = null;
+	currentUserInfoFailureReason = null;
+}
+
+function toCurrentUserInfoFailureReason(error: unknown): CurrentUserInfoFailureReason {
+	if (error instanceof OidcClientError) {
+		return error.code;
+	}
+
+	if (typeof error === 'object' && error !== null && 'code' in error) {
+		const code = (error as { code?: unknown }).code;
+		if (code === 16 || code === 'UNAUTHENTICATED') {
+			return 'GRPC_UNAUTHENTICATED';
+		}
+		if (code === 14 || code === 'UNAVAILABLE') {
+			return 'GRPC_UNAVAILABLE';
+		}
+	}
+
+	return 'UNKNOWN';
 }
 
 async function refreshTokenResponse(tokenResponse: TokenResponse): Promise<TokenResponse | null> {

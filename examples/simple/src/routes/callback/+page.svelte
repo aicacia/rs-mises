@@ -4,12 +4,16 @@
 </script>
 
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { getOidcClient } from '$lib/common/state/user.svelte';
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 
 	let callbackError = '';
 	let callbackErrorDescription = '';
+	let callbackComplete = false;
+	let popupCallback = false;
 
 	onMount(async () => {
 		const searchParams = new URLSearchParams(page.url.searchParams);
@@ -27,6 +31,12 @@
 
 		try {
 			await getOidcClient().handleSigninCallback();
+			popupCallback = window.opener != null && window.opener !== window;
+			if (popupCallback) {
+				callbackComplete = true;
+				return;
+			}
+			await goto(resolve('/'));
 		} catch (err) {
 			callbackError = 'callback_error';
 			callbackErrorDescription = err instanceof Error ? err.message : String(err);
@@ -42,6 +52,11 @@
 			{#if callbackErrorDescription}
 				<p class="text-sm wrap-break-word opacity-80">{callbackErrorDescription}</p>
 			{/if}
+		</div>
+	{:else if callbackComplete && popupCallback}
+		<div class="max-w-xl space-y-2 px-6 text-center">
+			<p class="font-semibold">Sign in complete</p>
+			<p>You can close this window and return to the app.</p>
 		</div>
 	{:else}
 		<p>Processing callback...</p>

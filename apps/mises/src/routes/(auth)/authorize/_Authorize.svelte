@@ -6,12 +6,15 @@
 </script>
 
 <script lang="ts">
-	import { rejectAuthorizeRequest, resolveAuthorizeRequest } from './_utils';
-	import { m } from '$lib/paraglide/messages';
 	import { LoaderCircle } from '@lucide/svelte';
-	import AuthorizeClient from './_AuthorizeClient.svelte';
-	import type { AuthorizeRequest, Client, UserInfo } from '$lib/proto/mises';
+	import { isTauri } from '@tauri-apps/api/core';
+
+	import { goto } from '$app/navigation';
 	import { clientClient } from '$lib/common/util/grpcClient';
+	import { m } from '$lib/paraglide/messages';
+	import type { AuthorizeRequest, Client, UserInfo } from '$lib/proto/mises';
+	import AuthorizeClient from './_AuthorizeClient.svelte';
+	import { rejectAuthorizeRequest, resolveAuthorizeRequest } from './_utils';
 
 	let { userInfo, authorizeRequest }: AuthorizeProps = $props();
 
@@ -71,6 +74,9 @@
 		console.debug('Resolving authorize request for clientId', authorizeRequest.clientId);
 		try {
 			await resolveAuthorizeRequest(authorizeRequest);
+			if (isTauri()) {
+				await goto('/');
+			}
 		} catch (e) {
 			console.error('Error resolving authorize request', e);
 		} finally {

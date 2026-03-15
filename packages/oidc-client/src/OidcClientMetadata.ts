@@ -32,7 +32,7 @@ export type JsonWebKey = {
 	k?: string;
 };
 
-export type JsonWebKeySetJSON = {
+export type JsonWebKeySet = {
 	keys: JsonWebKey[];
 };
 
@@ -55,7 +55,7 @@ export type OidcClientMetadata = {
 	tosUri?: string;
 	policyUri?: string;
 	jwksUri?: string;
-	jwks?: JsonWebKeySetJSON;
+	jwks?: JsonWebKeySet;
 	softwareId?: string;
 	softwareVersion?: string;
 	sectorIdentifierUri?: string;
@@ -103,7 +103,7 @@ export type OidcClientMetadataJSON = {
 	tos_uri?: string;
 	policy_uri?: string;
 	jwks_uri?: string;
-	jwks?: JsonWebKeySetJSON;
+	jwks?: JsonWebKeySet;
 	software_id?: string;
 	software_version?: string;
 	sector_identifier_uri?: string;

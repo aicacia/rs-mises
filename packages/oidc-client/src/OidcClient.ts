@@ -2,7 +2,8 @@ import { EventEmitter } from 'eventemitter3';
 import type { OidcClientMetadata } from './OidcClientMetadata.js';
 import type { OidcClientRegistrationResponse } from './OidcClientRegistrationResponse.js';
 import type { OidcClientConfig } from './OidcClientConfig.js';
-import type { OidcConfigurationJSON } from './OidcConfigurationJSON.js';
+import type { OidcConfiguration } from './OidcConfiguration.js';
+import { OidcClientError } from './OidcClientError.js';
 import { openUrl } from './util/openUrl.js';
 import { createFetchWithTimeout, type Fetch } from './util/createFetchWithTimeout.js';
 import { generateState } from './util/generateState.js';
@@ -12,7 +13,7 @@ import { isNativeProtocol } from './util/isNativeProtocol.js';
 import { snakeCaseKeys, snakeCase } from './util/snakeCaseKeys.js';
 
 export type OidcClientEvents = {
-	registered: (clientId: string, clientSecret?: string) => void;
+	registered: (response: OidcClientRegistrationResponse) => void;
 	error: (error: unknown) => void;
 };
 
@@ -31,11 +32,6 @@ export type RegistrationOptions = {
 	registration?: OidcClientMetadata;
 	popup?: boolean;
 	windowFeatures?: string;
-};
-
-type DynamicClientRegistrationResponse = {
-	client_id?: string;
-	client_secret?: string;
 };
 
 const PKCE_STORAGE_PREFIX = 'oidc.pkce';
@@ -61,7 +57,7 @@ export type OidcUserInfo = {
 	[key: string]: unknown;
 };
 
-export type OidcTokenResponseJSON = {
+export type OidcTokenResponse = {
 	access_token?: string;
 	id_token?: string;
 	refresh_token?: string;
@@ -79,7 +75,7 @@ export class OidcClient<
 	private readonly config: OidcClientConfig;
 	private readonly fetch: Fetch;
 
-	private oidcConfigPromise: Promise<OidcConfigurationJSON> | null = null;
+	private oidcConfigPromise: Promise<OidcConfiguration> | null = null;
 	private readonly pkceVerifiersByState = new Map<string, string>();
 	private lastPkceVerifier: string | null = null;
 	private readonly pkceStoragePrefix: string;
@@ -118,7 +114,7 @@ export class OidcClient<
 		return `${this.tokenStoragePrefix}:response`;
 	}
 
-	private rememberTokenResponse(tokenResponse: OidcTokenResponseJSON): void {
+	private rememberTokenResponse(tokenResponse: OidcTokenResponse): void {
 		const storage = this.getStorage();
 		if (!storage) {
 			return;
@@ -126,7 +122,7 @@ export class OidcClient<
 		storage.setItem(this.getTokenStorageKey(), JSON.stringify(tokenResponse));
 	}
 
-	getStoredTokenResponse(): OidcTokenResponseJSON | null {
+	getStoredTokenResponse(): OidcTokenResponse | null {
 		const storage = this.getStorage();
 		if (!storage) {
 			return null;
@@ -136,7 +132,7 @@ export class OidcClient<
 			return null;
 		}
 		try {
-			return JSON.parse(value) as OidcTokenResponseJSON;
+			return JSON.parse(value) as OidcTokenResponse;
 		} catch {
 			return null;
 		}
@@ -181,14 +177,6 @@ export class OidcClient<
 		return last ?? undefined;
 	}
 
-	setClientId(clientId: string, clientSecret?: string): void {
-		this.config.clientId = clientId;
-		if (clientSecret) {
-			this.config.clientSecret = clientSecret;
-		}
-		this.emit('registered', clientId, clientSecret);
-	}
-
 	private readCallbackParam(
 		queryParams: URLSearchParams,
 		hashParams: URLSearchParams,
@@ -211,7 +199,7 @@ export class OidcClient<
 		return new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
 	}
 
-	private normalizeTokenResponse(input: OidcTokenResponseJSON): OidcTokenResponseJSON {
+	private normalizeTokenResponse(input: OidcTokenResponse): OidcTokenResponse {
 		const expiresInRaw = input.expires_in;
 		const expiresIn =
 			typeof expiresInRaw === 'number'
@@ -247,7 +235,7 @@ export class OidcClient<
 		code: string,
 		codeVerifier?: string
 	): { headers: Record<string, string>; body: URLSearchParams } {
-		const tokenEndpointAuthMethod = this.config.clientMetadata?.tokenEndpointAuthMethod;
+		const tokenEndpointAuthMethod = this.config.registration?.tokenEndpointAuthMethod;
 		const body = new URLSearchParams();
 		const headers: Record<string, string> = {
 			'Content-Type': 'application/x-www-form-urlencoded'
@@ -295,31 +283,102 @@ export class OidcClient<
 		throw new Error('No base64 encoder available for basic auth');
 	}
 
-	async getUserInfo(accessToken: string): Promise<UserInfo> {
+	private isTimeoutError(error: unknown): boolean {
+		if (!(error instanceof Error)) {
+			return false;
+		}
+		if (error.name === 'AbortError') {
+			return true;
+		}
+		return error.message.toLowerCase().includes('timeout');
+	}
+
+	private async getResponseText(response: Response): Promise<string | undefined> {
+		try {
+			const responseText = await response.clone().text();
+			return responseText ? responseText : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	async getUserInfo(): Promise<UserInfo> {
+		const tokenResponse = this.getStoredTokenResponse();
+		const accessToken = tokenResponse?.access_token;
+		if (!accessToken) {
+			throw new OidcClientError('NO_ACCESS_TOKEN', 'Missing access token in stored token response');
+		}
+
 		const config = await this.getOidcConfiguration();
 		if (!config.userinfo_endpoint) {
-			throw new Error('Provider does not support userinfo endpoint');
+			throw new OidcClientError(
+				'NO_USERINFO_ENDPOINT',
+				'Provider does not support userinfo endpoint',
+				{ endpoint: this.config.authority }
+			);
 		}
 		const userInfoUrl = new URL(config.userinfo_endpoint);
 
-		const userInfoResponse = await nativeFetch(userInfoUrl, {
-			method: 'GET',
-			headers: {
-				'Content-Type': 'application/json;charset=UTF-8',
-				Authorization: `Bearer ${accessToken}`
-			},
-			credentials: this.config.fetchRequestCredentials ?? 'same-origin'
-		});
+		let userInfoResponse: Response;
+		try {
+			userInfoResponse = await nativeFetch(userInfoUrl, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json;charset=UTF-8',
+					Authorization: `Bearer ${accessToken}`
+				},
+				credentials: this.config.fetchRequestCredentials ?? 'same-origin',
+				timeout: this.config.requestTimeoutInSeconds
+					? this.config.requestTimeoutInSeconds * 1000
+					: undefined
+			});
+		} catch (error: unknown) {
+			if (this.isTimeoutError(error)) {
+				throw new OidcClientError('NETWORK_TIMEOUT', 'Userinfo request timed out', {
+					endpoint: userInfoUrl.toString(),
+					cause: error
+				});
+			}
+			throw new OidcClientError('NETWORK_ERROR', 'Userinfo request failed', {
+				endpoint: userInfoUrl.toString(),
+				cause: error
+			});
+		}
 		if (!userInfoResponse.ok) {
-			throw new Error(
-				`Failed userinfo request: ${userInfoResponse.status} ${userInfoResponse.statusText}`
+			throw new OidcClientError(
+				'HTTP_ERROR',
+				`Failed userinfo request: ${userInfoResponse.status} ${userInfoResponse.statusText}`,
+				{
+					status: userInfoResponse.status,
+					statusText: userInfoResponse.statusText,
+					endpoint: userInfoUrl.toString(),
+					responseText: await this.getResponseText(userInfoResponse)
+				}
 			);
 		}
 
-		const userInfo = (await userInfoResponse.json()) as UserInfo;
+		let userInfo: UserInfo;
+		try {
+			userInfo = (await userInfoResponse.json()) as UserInfo;
+		} catch (error: unknown) {
+			throw new OidcClientError('JSON_PARSE_ERROR', 'Failed to parse userinfo response', {
+				endpoint: userInfoUrl.toString(),
+				cause: error
+			});
+		}
 
-		if (!userInfo) {
-			throw new Error('Failed userinfo request');
+		if (
+			!userInfo ||
+			typeof userInfo !== 'object' ||
+			typeof (userInfo as OidcUserInfo).sub !== 'string'
+		) {
+			throw new OidcClientError(
+				'INVALID_USERINFO_RESPONSE',
+				'Userinfo response did not include a valid sub claim',
+				{
+					endpoint: userInfoUrl.toString()
+				}
+			);
 		}
 
 		return userInfo;
@@ -329,7 +388,7 @@ export class OidcClient<
 		tokenEndpointUrlOrString: URL | string,
 		headers: Record<string, string>,
 		body: URLSearchParams
-	): Promise<OidcTokenResponseJSON> {
+	): Promise<OidcTokenResponse> {
 		const tokenEndpointUrl =
 			typeof tokenEndpointUrlOrString === 'string'
 				? new URL(tokenEndpointUrlOrString)
@@ -354,7 +413,7 @@ export class OidcClient<
 			if (!response.ok) {
 				throw new Error(`Failed token request: ${response.status} ${response.statusText}`);
 			}
-			return (await response.json()) as OidcTokenResponseJSON;
+			return (await response.json()) as OidcTokenResponse;
 		}
 
 		const response = await this.fetch(tokenEndpointUrl, {
@@ -368,10 +427,10 @@ export class OidcClient<
 			throw new Error(`Failed token request: ${response.status} ${response.statusText}`);
 		}
 
-		return (await response.json()) as OidcTokenResponseJSON;
+		return (await response.json()) as OidcTokenResponse;
 	}
 
-	async handleSigninCallback(url?: URL): Promise<OidcTokenResponseJSON | null> {
+	async handleSigninCallback(url?: URL): Promise<OidcTokenResponse | null> {
 		if (!url) {
 			url = new URL(window.location.href);
 		}
@@ -436,14 +495,14 @@ export class OidcClient<
 		}
 
 		if (!OidcClient.resolveRedirectUri(config)) {
-			throw new Error('Missing redirectUri: set redirectUri or clientMetadata.redirectUris[0]');
+			throw new Error('Missing redirectUri: set redirectUri or registration.redirectUris[0]');
 		}
 
 		return config;
 	}
 
 	private static resolveRedirectUri(config: OidcClientConfig): string | undefined {
-		return config.redirectUri ?? config.clientMetadata?.redirectUris?.[0];
+		return config.redirectUri ?? config.registration?.redirectUris?.[0];
 	}
 
 	private getRedirectUri(): string {
@@ -451,13 +510,13 @@ export class OidcClient<
 	}
 
 	private getRegistrationMetadata(): OidcClientMetadata {
-		if (!this.config.clientMetadata) {
-			throw new Error('Missing clientMetadata for dynamic client registration');
+		if (!this.config.registration) {
+			throw new Error('Missing registration metadata for dynamic client registration');
 		}
-		return this.config.clientMetadata;
+		return this.config.registration;
 	}
 
-	private async fetchOidcConfiguration(): Promise<OidcConfigurationJSON> {
+	private async fetchOidcConfiguration(): Promise<OidcConfiguration> {
 		const urlString = `${this.config.authority}/.well-known/openid-configuration`;
 		const url = new URL(urlString);
 		const isNative = isNativeProtocol(url);
@@ -476,7 +535,7 @@ export class OidcClient<
 					`Failed to fetch OIDC configuration: ${response.status} ${response.statusText}`
 				);
 			}
-			return (await response.json()) as OidcConfigurationJSON;
+			return (await response.json()) as OidcConfiguration;
 		}
 
 		const res = await this.fetch(url, {
@@ -485,10 +544,10 @@ export class OidcClient<
 		if (!res.ok) {
 			throw new Error(`Failed to fetch OIDC configuration: ${res.status} ${res.statusText}`);
 		}
-		return res.json() as Promise<OidcConfigurationJSON>;
+		return res.json() as Promise<OidcConfiguration>;
 	}
 
-	async getOidcConfiguration(): Promise<OidcConfigurationJSON> {
+	async getOidcConfiguration(): Promise<OidcConfiguration> {
 		if (!this.oidcConfigPromise) {
 			this.oidcConfigPromise = this.fetchOidcConfiguration();
 		}
@@ -526,7 +585,7 @@ export class OidcClient<
 		return url;
 	}
 
-	private async registerClient(config: OidcConfigurationJSON): Promise<string> {
+	private async registerClient(config: OidcConfiguration): Promise<string> {
 		const endpointUrlString = config.registration_endpoint;
 		if (!endpointUrlString) {
 			throw new Error('registration_endpoint is required for dynamic client registration');
@@ -553,7 +612,11 @@ export class OidcClient<
 			if (!json.client_id) {
 				throw new Error('registration response missing client_id');
 			}
-			this.setClientId(json.client_id, json.client_secret);
+			this.config.clientId = json.client_id;
+			if (json.client_secret) {
+				this.config.clientSecret = json.client_secret;
+			}
+			this.emit('registered', json);
 			return json.client_id;
 		}
 
@@ -566,16 +629,20 @@ export class OidcClient<
 			throw new Error(`Failed dynamic client registration: ${res.status}`);
 		}
 
-		const json = (await res.json()) as DynamicClientRegistrationResponse;
+		const json = (await res.json()) as OidcClientRegistrationResponse;
 		if (!json.client_id) {
 			throw new Error('registration response missing client_id');
 		}
 
-		this.setClientId(json.client_id, json.client_secret);
+		this.config.clientId = json.client_id;
+		if (json.client_secret) {
+			this.config.clientSecret = json.client_secret;
+		}
+		this.emit('registered', json);
 		return json.client_id;
 	}
 
-	private async getClientId(config: OidcConfigurationJSON): Promise<string> {
+	private async getClientId(config: OidcConfiguration): Promise<string> {
 		if (this.config.clientId) {
 			return this.config.clientId;
 		}
@@ -591,14 +658,14 @@ export class OidcClient<
 		const clientId = await this.getClientId(config);
 		const url = new URL(config.authorization_endpoint);
 		const responseType =
-			this.config.responseType ?? this.config.clientMetadata?.responseTypes?.[0] ?? 'code';
+			this.config.responseType ?? this.config.registration?.responseTypes?.[0] ?? 'code';
 
 		url.searchParams.set('client_id', clientId);
 		url.searchParams.set('redirect_uri', this.getRedirectUri());
 		url.searchParams.set('response_type', responseType);
 
 		if (!this.config.omitScopeWhenRequesting) {
-			url.searchParams.set('scope', this.config.clientMetadata?.scope ?? 'openid');
+			url.searchParams.set('scope', this.config.registration?.scope ?? 'openid');
 		}
 
 		const state = options.state ?? generateState();
@@ -615,9 +682,9 @@ export class OidcClient<
 			const value =
 				this.config[key] ??
 				(key === 'maxAge'
-					? this.config.clientMetadata?.defaultMaxAge
+					? this.config.registration?.defaultMaxAge
 					: key === 'acrValues'
-						? this.config.clientMetadata?.defaultAcrValues?.join(' ')
+						? this.config.registration?.defaultAcrValues?.join(' ')
 						: key === 'responseMode'
 							? 'query'
 							: undefined);

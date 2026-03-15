@@ -3,5 +3,5 @@
 </script>
 
 <div class="flex grow flex-col items-center justify-center">
-	<h1>Welcome, {data.user.profile.preferred_username}!</h1>
+	<h1>Welcome, {data.user.preferred_username}!</h1>
 </div>
