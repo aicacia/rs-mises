@@ -6,11 +6,14 @@ mod error;
 mod helpers;
 mod jwt;
 mod oidc_service;
+mod resource_gateway_service;
 
 pub use mises_proto as proto;
 pub use mises_proto::oidc_service_server;
+pub use mises_proto::resource_gateway_service_server;
 
 pub use client_service::ClientService;
 pub use configuration_service::ConfigurationService;
 pub use helpers::{OptionExt, ResultExt, parse_uuid};
 pub use oidc_service::OidcService;
+pub use resource_gateway_service::ResourceGatewayService;

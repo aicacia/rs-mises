@@ -37,6 +37,13 @@ tonic = { version = "0.14", default-features = false, features = ["transport"] }
 # networking
 bytes = { version = "1", default-features = false }
 http = { version = "1", default-features = false }
+hyper = { version = "0.14", default-features = false, features = [
+  "client",
+  "server",
+  "tcp",
+  "http1",
+  "http2",
+] }
 http-body-util = { version = "0.1", default-features = false }
 tower = { version = "0.5", default-features = false }
 hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
@@ -60,6 +67,9 @@ native-authentication = { path = "../../../crates/native-authentication", defaul
 
 # workspace
 mises-proto = { path = "../../../crates/proto", default-features = false }
+mises-file-store = { path = "../../../crates/file-store", default-features = false, features = [
+  "std",
+] }
 
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }

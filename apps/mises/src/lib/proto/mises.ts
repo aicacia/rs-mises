@@ -26,6 +26,13 @@ export enum Permission {
   UNRECOGNIZED = -1,
 }
 
+export enum AccessProtocol {
+  ACCESS_PROTOCOL_UNSPECIFIED = 0,
+  ACCESS_PROTOCOL_HTTP = 1,
+  ACCESS_PROTOCOL_HTTPS = 2,
+  UNRECOGNIZED = -1,
+}
+
 export interface AuthorizeRequest {
   clientId: string;
   responseType: string;
@@ -408,6 +415,37 @@ export interface ClientAllowed {
 
 export interface ApproveForUserRequest {
   clientId: string;
+}
+
+export interface AccessEndpoint {
+  protocol: AccessProtocol;
+  address: string;
+  expiresAtEpochSeconds?: number | undefined;
+  metadata: { [key: string]: string };
+}
+
+export interface AccessEndpoint_MetadataEntry {
+  key: string;
+  value: string;
+}
+
+export interface AccessibleResource {
+  resourceId: string;
+  resourceType: string;
+  permissions: string[];
+  endpoints: AccessEndpoint[];
+}
+
+export interface ListAccessibleResourcesRequest {
+  resourceType?: string | undefined;
+}
+
+export interface ListAccessibleResourcesResponse {
+  resources: AccessibleResource[];
+}
+
+export interface GetAccessibleResourceRequest {
+  resourceId: string;
 }
 
 function createBaseAuthorizeRequest(): AuthorizeRequest {
@@ -4821,6 +4859,377 @@ export const ApproveForUserRequest: MessageFns<ApproveForUserRequest> = {
   },
 };
 
+function createBaseAccessEndpoint(): AccessEndpoint {
+  return { protocol: 0, address: "", expiresAtEpochSeconds: undefined, metadata: {} };
+}
+
+export const AccessEndpoint: MessageFns<AccessEndpoint> = {
+  encode(message: AccessEndpoint, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.protocol !== 0) {
+      writer.uint32(8).int32(message.protocol);
+    }
+    if (message.address !== "") {
+      writer.uint32(18).string(message.address);
+    }
+    if (message.expiresAtEpochSeconds !== undefined) {
+      writer.uint32(24).uint64(message.expiresAtEpochSeconds);
+    }
+    globalThis.Object.entries(message.metadata).forEach(([key, value]: [string, string]) => {
+      AccessEndpoint_MetadataEntry.encode({ key: key as any, value }, writer.uint32(34).fork()).join();
+    });
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AccessEndpoint {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAccessEndpoint();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.protocol = reader.int32() as any;
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.address = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.expiresAtEpochSeconds = longToNumber(reader.uint64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          const entry4 = AccessEndpoint_MetadataEntry.decode(reader, reader.uint32());
+          if (entry4.value !== undefined) {
+            message.metadata[entry4.key] = entry4.value;
+          }
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<AccessEndpoint>): AccessEndpoint {
+    return AccessEndpoint.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AccessEndpoint>): AccessEndpoint {
+    const message = createBaseAccessEndpoint();
+    message.protocol = object.protocol ?? 0;
+    message.address = object.address ?? "";
+    message.expiresAtEpochSeconds = object.expiresAtEpochSeconds ?? undefined;
+    message.metadata = (globalThis.Object.entries(object.metadata ?? {}) as [string, string][]).reduce(
+      (acc: { [key: string]: string }, [key, value]: [string, string]) => {
+        if (value !== undefined) {
+          acc[key] = globalThis.String(value);
+        }
+        return acc;
+      },
+      {},
+    );
+    return message;
+  },
+};
+
+function createBaseAccessEndpoint_MetadataEntry(): AccessEndpoint_MetadataEntry {
+  return { key: "", value: "" };
+}
+
+export const AccessEndpoint_MetadataEntry: MessageFns<AccessEndpoint_MetadataEntry> = {
+  encode(message: AccessEndpoint_MetadataEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== "") {
+      writer.uint32(18).string(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AccessEndpoint_MetadataEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAccessEndpoint_MetadataEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.value = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<AccessEndpoint_MetadataEntry>): AccessEndpoint_MetadataEntry {
+    return AccessEndpoint_MetadataEntry.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AccessEndpoint_MetadataEntry>): AccessEndpoint_MetadataEntry {
+    const message = createBaseAccessEndpoint_MetadataEntry();
+    message.key = object.key ?? "";
+    message.value = object.value ?? "";
+    return message;
+  },
+};
+
+function createBaseAccessibleResource(): AccessibleResource {
+  return { resourceId: "", resourceType: "", permissions: [], endpoints: [] };
+}
+
+export const AccessibleResource: MessageFns<AccessibleResource> = {
+  encode(message: AccessibleResource, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.resourceId !== "") {
+      writer.uint32(10).string(message.resourceId);
+    }
+    if (message.resourceType !== "") {
+      writer.uint32(18).string(message.resourceType);
+    }
+    for (const v of message.permissions) {
+      writer.uint32(26).string(v!);
+    }
+    for (const v of message.endpoints) {
+      AccessEndpoint.encode(v!, writer.uint32(34).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AccessibleResource {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAccessibleResource();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.resourceId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.resourceType = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.permissions.push(reader.string());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.endpoints.push(AccessEndpoint.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<AccessibleResource>): AccessibleResource {
+    return AccessibleResource.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AccessibleResource>): AccessibleResource {
+    const message = createBaseAccessibleResource();
+    message.resourceId = object.resourceId ?? "";
+    message.resourceType = object.resourceType ?? "";
+    message.permissions = object.permissions?.map((e) => e) || [];
+    message.endpoints = object.endpoints?.map((e) => AccessEndpoint.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseListAccessibleResourcesRequest(): ListAccessibleResourcesRequest {
+  return { resourceType: undefined };
+}
+
+export const ListAccessibleResourcesRequest: MessageFns<ListAccessibleResourcesRequest> = {
+  encode(message: ListAccessibleResourcesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.resourceType !== undefined) {
+      writer.uint32(10).string(message.resourceType);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAccessibleResourcesRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAccessibleResourcesRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.resourceType = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<ListAccessibleResourcesRequest>): ListAccessibleResourcesRequest {
+    return ListAccessibleResourcesRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListAccessibleResourcesRequest>): ListAccessibleResourcesRequest {
+    const message = createBaseListAccessibleResourcesRequest();
+    message.resourceType = object.resourceType ?? undefined;
+    return message;
+  },
+};
+
+function createBaseListAccessibleResourcesResponse(): ListAccessibleResourcesResponse {
+  return { resources: [] };
+}
+
+export const ListAccessibleResourcesResponse: MessageFns<ListAccessibleResourcesResponse> = {
+  encode(message: ListAccessibleResourcesResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.resources) {
+      AccessibleResource.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAccessibleResourcesResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListAccessibleResourcesResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.resources.push(AccessibleResource.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<ListAccessibleResourcesResponse>): ListAccessibleResourcesResponse {
+    return ListAccessibleResourcesResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListAccessibleResourcesResponse>): ListAccessibleResourcesResponse {
+    const message = createBaseListAccessibleResourcesResponse();
+    message.resources = object.resources?.map((e) => AccessibleResource.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseGetAccessibleResourceRequest(): GetAccessibleResourceRequest {
+  return { resourceId: "" };
+}
+
+export const GetAccessibleResourceRequest: MessageFns<GetAccessibleResourceRequest> = {
+  encode(message: GetAccessibleResourceRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.resourceId !== "") {
+      writer.uint32(10).string(message.resourceId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetAccessibleResourceRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetAccessibleResourceRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.resourceId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<GetAccessibleResourceRequest>): GetAccessibleResourceRequest {
+    return GetAccessibleResourceRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<GetAccessibleResourceRequest>): GetAccessibleResourceRequest {
+    const message = createBaseGetAccessibleResourceRequest();
+    message.resourceId = object.resourceId ?? "";
+    return message;
+  },
+};
+
 /** ---- OIDC service and messages ---- */
 export type OidcServiceDefinition = typeof OidcServiceDefinition;
 export const OidcServiceDefinition = {
@@ -5107,6 +5516,52 @@ export interface ClientServiceClient<CallOptionsExt = {}> {
     options?: CallOptions & CallOptionsExt,
   ): Promise<ClientAllowed>;
   approveForUser(request: DeepPartial<ApproveForUserRequest>, options?: CallOptions & CallOptionsExt): Promise<Empty>;
+}
+
+export type ResourceGatewayServiceDefinition = typeof ResourceGatewayServiceDefinition;
+export const ResourceGatewayServiceDefinition = {
+  name: "ResourceGatewayService",
+  fullName: "mises.ResourceGatewayService",
+  methods: {
+    listAccessibleResources: {
+      name: "ListAccessibleResources",
+      requestType: ListAccessibleResourcesRequest,
+      requestStream: false,
+      responseType: ListAccessibleResourcesResponse,
+      responseStream: false,
+      options: {},
+    },
+    getAccessibleResource: {
+      name: "GetAccessibleResource",
+      requestType: GetAccessibleResourceRequest,
+      requestStream: false,
+      responseType: AccessibleResource,
+      responseStream: false,
+      options: {},
+    },
+  },
+} as const;
+
+export interface ResourceGatewayServiceImplementation<CallContextExt = {}> {
+  listAccessibleResources(
+    request: ListAccessibleResourcesRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<ListAccessibleResourcesResponse>>;
+  getAccessibleResource(
+    request: GetAccessibleResourceRequest,
+    context: CallContext & CallContextExt,
+  ): Promise<DeepPartial<AccessibleResource>>;
+}
+
+export interface ResourceGatewayServiceClient<CallOptionsExt = {}> {
+  listAccessibleResources(
+    request: DeepPartial<ListAccessibleResourcesRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<ListAccessibleResourcesResponse>;
+  getAccessibleResource(
+    request: DeepPartial<GetAccessibleResourceRequest>,
+    options?: CallOptions & CallOptionsExt,
+  ): Promise<AccessibleResource>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

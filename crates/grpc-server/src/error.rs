@@ -13,11 +13,12 @@ impl ToStatus for CoreError {
       CoreError::NotFound => Status::not_found(self.to_string()),
       CoreError::InvalidInput(_) => Status::invalid_argument(self.to_string()),
       CoreError::Conflict => Status::already_exists(self.to_string()),
-      CoreError::Graph(graph_err) => Status::internal(format!("graph error: {}", graph_err)),
+        CoreError::Graph(graph_err) => Status::internal(format!("graph error: {}", graph_err)),
       CoreError::Key(key_err) => Status::internal(format!("key error: {}", key_err)),
       CoreError::Serde(serde_err) => {
         Status::internal(format!("serialization error: {}", serde_err))
       }
+      CoreError::Forbidden => Status::permission_denied(self.to_string()),
       CoreError::Other(_) => Status::internal(self.to_string()),
     }
   }

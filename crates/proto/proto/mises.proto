@@ -422,6 +422,11 @@ service ClientService {
     rpc ApproveForUser (ApproveForUserRequest) returns (google.protobuf.Empty);
 }
 
+service ResourceGatewayService {
+    rpc ListAccessibleResources (ListAccessibleResourcesRequest) returns (ListAccessibleResourcesResponse);
+    rpc GetAccessibleResource (GetAccessibleResourceRequest) returns (AccessibleResource);
+}
+
 message GetClientRequest {
     string client_id = 1;
 }
@@ -445,4 +450,36 @@ message ClientAllowed {
 
 message ApproveForUserRequest {
     string client_id = 1;
+}
+
+enum AccessProtocol {
+    ACCESS_PROTOCOL_UNSPECIFIED = 0;
+    ACCESS_PROTOCOL_HTTP = 1;
+    ACCESS_PROTOCOL_HTTPS = 2;
+}
+
+message AccessEndpoint {
+    AccessProtocol protocol = 1;
+    string address = 2;
+    optional uint64 expires_at_epoch_seconds = 3;
+    map<string, string> metadata = 4;
+}
+
+message AccessibleResource {
+    string resource_id = 1;
+    string resource_type = 2;
+    repeated string permissions = 3;
+    repeated AccessEndpoint endpoints = 4;
+}
+
+message ListAccessibleResourcesRequest {
+    optional string resource_type = 1;
+}
+
+message ListAccessibleResourcesResponse {
+    repeated AccessibleResource resources = 1;
+}
+
+message GetAccessibleResourceRequest {
+    string resource_id = 1;
 }

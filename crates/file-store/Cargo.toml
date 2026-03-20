@@ -1,0 +1,33 @@
+[package]
+name = "mises-file-store"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Mises filesystem-backed file store"
+
+[lib]
+name = "mises_file_store"
+
+[dependencies]
+# Serialization
+serde = { workspace = true, features = ["derive", "alloc"], optional = true }
+serde_json = { workspace = true, features = ["alloc"], optional = true }
+
+# Error handling
+thiserror = { version = "2.0", default-features = false, optional = true }
+
+# Utils
+chrono = { workspace = true, features = [
+  "alloc",
+  "serde",
+  "clock",
+], optional = true }
+uuid = { workspace = true, features = ["v4"], optional = true }
+
+[features]
+# default to no_std; enable std opt-in
+default = []
+std = ["serde", "serde_json", "thiserror", "chrono", "uuid"]

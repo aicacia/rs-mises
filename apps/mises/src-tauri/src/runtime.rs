@@ -8,7 +8,7 @@ use tokio_util::sync::CancellationToken;
 #[cfg(any(windows, target_os = "linux"))]
 use tauri_plugin_deep_link::DeepLinkExt;
 
-use crate::{background::start_background, command, config::Config};
+use crate::{background::start_background, command, config::Config, file_service};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn start() {
@@ -78,6 +78,18 @@ pub fn start() {
       };
 
       let cancellation_token = CancellationToken::new();
+
+      if config.file_service.enabled {
+        log::info!("file service enabled, starting service");
+        let file_service_config = config.file_service.clone();
+        let file_service_cancellation = cancellation_token.clone();
+
+        async_runtime::spawn(async move {
+          file_service::start_file_service(file_service_config, None, file_service_cancellation).await;
+        });
+      } else {
+        log::info!("file service disabled by configuration");
+      }
 
       let app_cancellation_token = cancellation_token.clone();
       app.once("exit", move |_e| {

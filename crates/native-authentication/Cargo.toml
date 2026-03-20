@@ -19,3 +19,11 @@ tokio = { version = "1", default-features = false, features = [
 
 # Utils
 which = { version = "4", default-features = false }
+
+# Error handling (optional)
+thiserror = { version = "2.0", default-features = false, optional = true }
+
+[features]
+# opt-in feature to enable thiserror derives
+default = []
+thiserror = ["dep:thiserror"]

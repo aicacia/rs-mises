@@ -6,7 +6,7 @@ use tokio::{fs, net::UnixListener};
 use clap_complete::generate;
 use mises_core::service::graph::{BootstrapOptionsBuilder, GraphService};
 use mises_graph::{InMemoryKeyValueRepository, InMemoryKeyValueStore, UuidGenerator};
-use mises_grpc_server::{ClientService, ConfigurationService, OidcService};
+use mises_grpc_server::{ClientService, ConfigurationService, OidcService, ResourceGatewayService};
 
 use tokio_stream::wrappers::UnixListenerStream;
 use tokio_util::sync::CancellationToken;
@@ -18,6 +18,7 @@ use mises_grpc_server::{
   proto::{
     FILE_DESCRIPTOR_SET, client_service_server::ClientServiceServer,
     configuration_service_server::ConfigurationServiceServer,
+    resource_gateway_service_server::ResourceGatewayServiceServer,
   },
 };
 
@@ -149,6 +150,8 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
   let service_store = InMemoryKeyValueStore::new();
   let public_uri = url::Url::parse("mises://app")
     .map_err(|e| io::Error::other(format!("failed to parse public URI: {}", e)))?;
+  let gateway_base_uri = url::Url::parse("https://localhost/")
+    .map_err(|e| io::Error::other(format!("failed to parse gateway base URI: {}", e)))?;
 
   let server_result = Server::builder()
     .add_service(OidcServiceServer::new(OidcService::new(
@@ -169,6 +172,9 @@ async fn serve(config: Arc<Config>, cancellation_token: CancellationToken) -> io
       repo.clone(),
       device_id.clone(),
     )))
+    .add_service(ResourceGatewayServiceServer::new(
+      ResourceGatewayService::new(repo.clone(), device_id.clone(), gateway_base_uri),
+    ))
     .add_service(reflection_service)
     .serve_with_incoming_shutdown(uds_stream, cancellation_token.cancelled())
     .await;

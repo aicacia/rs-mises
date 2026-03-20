@@ -8,6 +8,7 @@ members = [
   "crates/proto",
   "crates/grpc-server",
   "crates/native-authentication",
+  "crates/file-store",
   "apps/mises/src-tauri",
 ]
 resolver = "2"

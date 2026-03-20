@@ -155,6 +155,82 @@ async fn deny_wins_over_partial_quorum() {
 }
 
 #[tokio::test]
+async fn create_if_missing_appends_resource_and_ownership() {
+  let repo = make_repo();
+  let service = RequestService::new(repo);
+
+  let owner = create_identity(
+    service.exec(),
+    IdentityMeta::User {
+      name: "owner".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
+    },
+  )
+  .await;
+
+  let requestor = create_identity(
+    service.exec(),
+    IdentityMeta::User {
+      name: "requestor".to_string(),
+      encrypted_password: "pass".to_string(),
+      force_password_reset: None,
+    },
+  )
+  .await;
+
+  let request_id = service
+    .create_request(
+      requestor,
+      RequestInput {
+        resource_id: None,
+        resource_type: Some("file-system".to_string()),
+        actions: vec!["readwrite".to_string()],
+        scope: Scope::OwnerRequestor,
+        requestor,
+        owners: Some(vec![owner]),
+        ownership: Some(RequestOwnership::Explicit),
+        quorum: Some(1),
+        create_if_missing: Some(true),
+        relationship_requests: Vec::new(),
+        expires_at: None,
+      },
+    )
+    .await
+    .unwrap();
+
+  service.approve_request(request_id, owner).await.unwrap();
+  service.apply_request(request_id).await.unwrap();
+
+  let applied = service.get_request(request_id).await.unwrap();
+  assert_eq!(applied.status, RequestStatus::Applied);
+  let created_resource = applied.resource_id.expect("resource id should be created");
+
+  let resource_node = service.exec().get_node_by_id(created_resource).await.unwrap().expect("resource node exists");
+  if let NodeMeta::Resource(resource_meta) = resource_node.metadata {
+    assert_eq!(resource_meta.r#type, "file-system");
+  } else {
+    panic!("expected resource metadata");
+  }
+
+  let query = Query::edges(
+    EdgeQuery::incoming(EdgeType::Owns.as_str())
+      .to(NodeQuery::any().filter(field("id").eq(created_resource.to_string()))),
+  );
+  let elements = service.exec().query(query).await.unwrap();
+  let mut owners = Vec::new();
+  for el in elements {
+    if let Element::Edge(edge) = el {
+      owners.push(edge.from_id);
+    }
+  }
+  owners.sort();
+  let mut expected = vec![owner, requestor];
+  expected.sort();
+  assert_eq!(owners, expected);
+}
+
+#[tokio::test]
 async fn quorum_requires_multiple_approvals() {
   let repo = make_repo();
   let service = RequestService::new(repo);

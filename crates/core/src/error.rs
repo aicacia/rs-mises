@@ -24,6 +24,8 @@ pub enum CoreError {
   Serde(#[from] SerdeError),
   #[error("not found")]
   NotFound,
+  #[error("forbidden")]
+  Forbidden,
   #[error("conflict")]
   Conflict,
   #[error("invalid input: {0}")]

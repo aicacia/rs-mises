@@ -93,13 +93,23 @@ impl fmt::Display for PolicyError {
 
 impl Error for PolicyError {}
 
+#[cfg_attr(feature = "thiserror", derive(thiserror::Error))]
 #[derive(Debug)]
 pub enum AuthError {
+  #[cfg_attr(
+    feature = "thiserror",
+    error("native authentication not supported on this platform")
+  )]
   NotSupported,
+
+  #[cfg_attr(feature = "thiserror", error("polkit tooling (pkcheck) not available"))]
   MissingTool,
+
+  #[cfg_attr(feature = "thiserror", error("execution error: {0}"))]
   ExecutionError(String),
 }
 
+#[cfg(not(feature = "thiserror"))]
 impl fmt::Display for AuthError {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
@@ -110,6 +120,7 @@ impl fmt::Display for AuthError {
   }
 }
 
+#[cfg(not(feature = "thiserror"))]
 impl Error for AuthError {}
 
 #[derive(Debug, Clone)]

@@ -16,9 +16,7 @@ use crate::{
   error::ToStatus,
   helpers::{OptionExt, ResultExt},
   jwt::TokenBuilder,
-  oidc_service::authorization_code::{
-    delete_authorization_code, get_authorization_code,
-  },
+  oidc_service::authorization_code::{delete_authorization_code, get_authorization_code},
 };
 
 const BUILTIN_CLIENT_IDS: &[&str] = &["mises-desktop", "mises-web"];

@@ -5,7 +5,7 @@ pub enum KeyError {
   #[error("SLIP10 error: {0}")]
   Slip10(slip10::Error),
   #[error("Ed25519 error: {0}")]
-  Ed25519(#[from] ed25519_dalek::SignatureError),
+  Ed25519(ed25519_dalek::SignatureError),
   #[cfg(feature = "std")]
   #[error("Random generation error: {0}")]
   Random(#[from] getrandom::Error),
@@ -38,5 +38,11 @@ impl From<slip10::Error> for KeyError {
 impl From<bip39::Error> for KeyError {
   fn from(err: bip39::Error) -> Self {
     KeyError::Bip39(err)
+  }
+}
+
+impl From<ed25519_dalek::SignatureError> for KeyError {
+  fn from(err: ed25519_dalek::SignatureError) -> Self {
+    KeyError::Ed25519(err)
   }
 }

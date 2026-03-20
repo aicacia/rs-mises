@@ -65,7 +65,10 @@ where
       )));
     }
 
-    if input.resource_id.is_none() && input.relationship_requests.is_empty() {
+    if input.resource_id.is_none()
+      && input.relationship_requests.is_empty()
+      && !input.create_if_missing.unwrap_or(false)
+    {
       return Err(CoreError::InvalidInput(InvalidInput::Other(
         "request must include a resource or relationship requests".to_string(),
       )));
